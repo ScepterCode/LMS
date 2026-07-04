@@ -188,6 +188,7 @@ async def login(response: Response, data: LoginRequest):
             "is_active": user.get("is_active", True),
             "email_verified": user.get("email_verified", False),
             "user_type": user_type,
+            "teacher_id": teacher_id,
         }
         
         # Set HttpOnly cookie
@@ -271,6 +272,7 @@ async def get_current_user_profile(request: Request):
                     "is_active": db_user.get("is_active", True),
                     "email_verified": db_user.get("email_verified", False),
                     "created_at": db_user.get("created_at"),
+                    "teacher_id": user.get("teacher_id"),
                 }
         except Exception as e:
             logger.error(f"Error fetching user details: {e}")

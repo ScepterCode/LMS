@@ -94,7 +94,7 @@ async def list_students(
         enriched_data = []
         for student in response.data:
             # Add full name
-            student['full_name'] = f"{student['first_name']} {student.get('middle_name', '')} {student['last_name']}".replace('  ', ' ')
+            student['full_name'] = f"{student['first_name']} {student.get('middle_name') or ''} {student['last_name']}".replace('  ', ' ')
             
             # Calculate age
             if student.get('date_of_birth'):

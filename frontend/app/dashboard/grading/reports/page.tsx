@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Student {
   id: string;
@@ -38,6 +39,7 @@ interface SubjectGrade {
 }
 
 export default function ReportCardsPage() {
+  const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [reportCards, setReportCards] = useState<ReportCard[]>([]);
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -54,13 +56,25 @@ export default function ReportCardsPage() {
 
   useEffect(() => {
     fetchStudents();
-    checkFormTeacherStatus();
   }, []);
 
+  useEffect(() => {
+    if (user) {
+      checkFormTeacherStatus();
+    }
+  }, [user]);
+
   const checkFormTeacherStatus = async () => {
+    if (!user?.id || user.role !== 'teacher') return;
+
     try {
-      const response = await api.get('/api/v1/teacher-management/teacher-assignments/my-classes');
-      const classes = response.data || [];
+      const teachersRes = await api.getTeachers({ limit: 100 });
+      const teachers = (teachersRes.data as any[]) || [];
+      const teacher = teachers.find((t) => t.user_id === user.id);
+      if (!teacher) return;
+
+      const classesRes = await api.getTeacherClasses(teacher.id);
+      const classes = (classesRes.data as any[]) || [];
       const formClass = classes.find((c: any) => c.is_form_teacher);
       if (formClass) {
         setIsFormTeacher(true);
@@ -88,7 +102,7 @@ export default function ReportCardsPage() {
     
     setLoading(true);
     try {
-      const response = await api.get(`/api/v1/students?class_id=${formClassInfo.class_id}`);
+      const response = await api.get(`/api/v1/students?class_id=${formClassInfo.id}`);
       setClassStudents(response.data ? (response.data as Student[]) : []);
     } catch (error) {
       console.error('Error fetching class students:', error);
@@ -104,7 +118,7 @@ export default function ReportCardsPage() {
     setLoading(true);
     try {
       // Fetch all students in the class
-      const studentsResponse = await api.get(`/api/v1/students?class_id=${formClassInfo.class_id}`);
+      const studentsResponse = await api.get(`/api/v1/students?class_id=${formClassInfo.id}`);
       const classStudentsList = studentsResponse.data || [];
       
       // Fetch report cards for each student
@@ -177,12 +191,27 @@ export default function ReportCardsPage() {
 
     try {
       setGenerating(true);
-      // You'll need to get current session and term IDs
-      await api.post('/api/v1/grading/report-cards/generate', {
+
+      const [sessionsRes, termsRes] = await Promise.all([api.getSessions(), api.getTerms()]);
+      const currentSession = ((sessionsRes.data as any[]) || []).find((s) => s.is_current);
+      const currentTerm = ((termsRes.data as any[]) || []).find((t) => t.is_current);
+
+      if (!currentSession || !currentTerm) {
+        alert('No current academic session/term is set up. Please configure one first.');
+        return;
+      }
+
+      const response = await api.post('/api/v1/grading/report-cards/generate', {
         student_id: selectedStudent,
-        session_id: '', // Add current session
-        term_id: '' // Add current term
+        session_id: currentSession.id,
+        term_id: currentTerm.id,
       });
+
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+
       alert('Report card generated successfully!');
       setShowGenerateModal(false);
       fetchStudentReports();
@@ -240,7 +269,7 @@ export default function ReportCardsPage() {
                   <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded">
                     FORM TEACHER
                   </span>
-                  <h3 className="text-lg font-semibold text-gray-900">{formClassInfo.class_name}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{formClassInfo.name}</h3>
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
                   {viewMode === 'class' 
@@ -286,7 +315,7 @@ export default function ReportCardsPage() {
           <div className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
-                All Report Cards - {formClassInfo.class_name}
+                All Report Cards - {formClassInfo.name}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
                 Viewing report cards for all students in your form class
@@ -431,15 +460,36 @@ export default function ReportCardsPage() {
         {/* Report Card Details */}
         {viewMode === 'individual' && selectedReport && (
           <div className="space-y-6">
-            <button
-              onClick={() => setSelectedReport(null)}
-              className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to list
-            </button>
+            <div className="no-print flex items-center justify-between">
+              <button
+                onClick={() => setSelectedReport(null)}
+                className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to list
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Report Card
+              </button>
+            </div>
+
+            <div id="printable-report-card" className="space-y-6">
+            {/* Report Header */}
+            <div className="bg-white rounded-lg shadow p-6 text-center border-b-4 border-blue-600">
+              <h1 className="text-xl font-bold text-gray-900">Student Report Card</h1>
+              <p className="text-lg font-semibold text-gray-800 mt-2">{selectedReport.student_name || 'N/A'}</p>
+              <p className="text-sm text-gray-600 mt-1">
+                {selectedReport.session_name || 'N/A'} &middot; {selectedReport.term_name || 'N/A'}
+              </p>
+            </div>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -555,9 +605,31 @@ export default function ReportCardsPage() {
                 </div>
               </div>
             </div>
+            </div>
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-report-card,
+          #printable-report-card * {
+            visibility: visible;
+          }
+          #printable-report-card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
 
       {/* Generate Report Modal */}
       {showGenerateModal && (

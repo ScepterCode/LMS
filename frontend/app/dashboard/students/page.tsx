@@ -44,8 +44,11 @@ export default function StudentsPage() {
 
   useEffect(() => {
     loadData();
-    checkFormTeacherStatus();
   }, [filterClass, filterStatus, searchTerm]);
+
+  useEffect(() => {
+    checkFormTeacherStatus();
+  }, [user]);
 
   const checkFormTeacherStatus = async () => {
     if (user?.role === 'teacher' && user?.teacher_id) {
@@ -125,7 +128,7 @@ export default function StudentsPage() {
                 <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded">
                   FORM TEACHER
                 </span>
-                <h3 className="text-lg font-semibold text-gray-900">{formClassInfo.class_name}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{formClassInfo.name}</h3>
               </div>
               <p className="text-sm text-gray-600 mt-1">
                 You are the form teacher of this class. Quick actions available.
@@ -133,13 +136,13 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2">
               <Link
-                href={`/dashboard/students/add?class=${formClassInfo.class_id}`}
+                href={`/dashboard/students/add?class=${formClassInfo.id}`}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
               >
                 + Add Student to My Class
               </Link>
               <button
-                onClick={() => setFilterClass(formClassInfo.class_id)}
+                onClick={() => setFilterClass(formClassInfo.id)}
                 className="px-4 py-2 bg-white text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 text-sm"
               >
                 View My Class Students

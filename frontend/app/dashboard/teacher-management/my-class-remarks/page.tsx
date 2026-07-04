@@ -41,6 +41,12 @@ export default function MyClassRemarksPage() {
   }, []);
 
   useEffect(() => {
+    if (selectedSession && user) {
+      loadFormTeacherClass();
+    }
+  }, [selectedSession, user]);
+
+  useEffect(() => {
     if (formTeacherClass && selectedSession && selectedTerm) {
       loadRemarks();
     }
@@ -73,9 +79,6 @@ export default function MyClassRemarksPage() {
       } else {
         setTerms([]);
       }
-
-      // Get teacher's form teacher class
-      await loadFormTeacherClass();
     } catch (error) {
       console.error('Error loading initial data:', error);
       setSessions([]);

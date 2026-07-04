@@ -40,6 +40,12 @@ export default function SendReportsPage() {
   }, []);
 
   useEffect(() => {
+    if (selectedSession && user) {
+      loadFormTeacherClass();
+    }
+  }, [selectedSession, user]);
+
+  useEffect(() => {
     if (formTeacherClass && selectedSession && selectedTerm) {
       loadReports();
       loadStudentsAndParents();
@@ -72,8 +78,6 @@ export default function SendReportsPage() {
       } else {
         setTerms([]);
       }
-
-      await loadFormTeacherClass();
     } catch (error) {
       console.error('Error loading initial data:', error);
       setSessions([]);

@@ -490,18 +490,18 @@ async def generate_report_card(
         )
     
     # Get student details to find class_id
-    student = db.table("students").select("class_id, classes(id, name)").eq(
+    student = db.table("students").select("current_class_id").eq(
         "id", data.student_id
     ).execute()
-    
+
     if not student.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Student not found"
         )
-    
+
     student_data = student.data[0]
-    class_id = student_data["class_id"]
+    class_id = student_data["current_class_id"]
     
     # For teachers: verify form teacher permission
     if current_user["role"] == "teacher":
