@@ -59,6 +59,14 @@ export default function ReportCardsPage() {
   }, []);
 
   useEffect(() => {
+    if (selectedStudent) {
+      fetchStudentReports();
+    } else {
+      setReportCards([]);
+    }
+  }, [selectedStudent]);
+
+  useEffect(() => {
     if (user) {
       checkFormTeacherStatus();
     }
@@ -358,7 +366,7 @@ export default function ReportCardsPage() {
                             {item.reports?.length || 0} report(s)
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {latestReport ? `${latestReport.average_score?.toFixed(1)}%` : '-'}
+                            {latestReport ? `${Number(latestReport.average_score || 0).toFixed(1)}%` : '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {latestReport?.overall_grade || '-'}
@@ -429,7 +437,7 @@ export default function ReportCardsPage() {
                           {report.term_name || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {report.average_score?.toFixed(1)}%
+                          {Number(report.average_score || 0).toFixed(1)}%
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {report.overall_grade || 'N/A'}
@@ -496,7 +504,7 @@ export default function ReportCardsPage() {
               <div className="bg-white rounded-lg shadow p-4">
                 <div className="text-sm text-gray-600">Average Score</div>
                 <div className="text-2xl font-bold text-blue-600 mt-1">
-                  {selectedReport.average_score?.toFixed(1)}%
+                  {Number(selectedReport.average_score || 0).toFixed(1)}%
                 </div>
               </div>
               <div className="bg-white rounded-lg shadow p-4">
@@ -549,7 +557,7 @@ export default function ReportCardsPage() {
                             {grade.subject_name}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {grade.total_score?.toFixed(1)}
+                            {Number(grade.total_score || 0).toFixed(1)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {grade.grade_letter}

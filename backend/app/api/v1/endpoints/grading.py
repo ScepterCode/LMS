@@ -606,16 +606,34 @@ async def get_report_card(
         )
     
     report_card = response.data[0]
-    
+
+    if report_card.get("students"):
+        student = report_card["students"]
+        report_card["student_name"] = f"{student['first_name']} {student['last_name']}"
+        report_card["student_admission_number"] = student.get("admission_number")
+    if report_card.get("classes"):
+        report_card["class_name"] = report_card["classes"]["name"]
+    if report_card.get("academic_sessions"):
+        report_card["session_name"] = report_card["academic_sessions"]["name"]
+    if report_card.get("terms"):
+        report_card["term_name"] = report_card["terms"]["name"]
+
     # Get subject grades
     subject_grades = db.table("subject_grades").select(
         "*, subjects(name)"
     ).eq("student_id", report_card["student_id"]).eq(
         "session_id", report_card["session_id"]
     ).eq("term_id", report_card["term_id"]).execute()
-    
-    report_card["subject_grades"] = subject_grades.data
-    
+
+    enriched_subject_grades = []
+    for grade in subject_grades.data:
+        enriched_grade = {**grade}
+        if grade.get("subjects"):
+            enriched_grade["subject_name"] = grade["subjects"]["name"]
+        enriched_subject_grades.append(enriched_grade)
+
+    report_card["subject_grades"] = enriched_subject_grades
+
     return report_card
 
 
@@ -641,8 +659,17 @@ async def get_student_report_cards(
     
     query = query.order("created_at", desc=True)
     response = query.execute()
-    
-    return response.data
+
+    enriched_data = []
+    for item in response.data:
+        enriched_item = {**item}
+        if item.get("academic_sessions"):
+            enriched_item["session_name"] = item["academic_sessions"]["name"]
+        if item.get("terms"):
+            enriched_item["term_name"] = item["terms"]["name"]
+        enriched_data.append(enriched_item)
+
+    return enriched_data
 
 
 @router.put("/report-cards/{report_card_id}")
