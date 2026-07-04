@@ -262,15 +262,16 @@ async def get_class_attendance_summaries(
                 detail=f"Form teacher access required: {str(e)}"
             )
     
-    # Get students in class
-    enrollments = db.table("enrollments").select("student_id").eq(
-        "class_id", class_id
+    # Get students in class (current_class_id is the source of truth used
+    # everywhere else - "enrollments" is not a real table)
+    enrollments = db.table("students").select("id").eq(
+        "current_class_id", class_id
     ).execute()
-    
+
     if not enrollments.data:
         return []
-    
-    student_ids = [e["student_id"] for e in enrollments.data]
+
+    student_ids = [e["id"] for e in enrollments.data]
     
     # Get summaries
     response = db.table("attendance_summaries").select(

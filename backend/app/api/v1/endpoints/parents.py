@@ -72,7 +72,7 @@ async def list_parents(
         enriched_data = []
         for parent in response.data:
             # Add full name
-            parent['full_name'] = f"{parent.get('title', '')} {parent['first_name']} {parent['last_name']}".strip()
+            parent['full_name'] = f"{parent.get('title') or ''} {parent['first_name']} {parent['last_name']}".strip()
             
             # Count children
             children = supabase.table('parent_student_links').select('id', count='exact').eq(
@@ -237,7 +237,7 @@ async def update_parent(request: Request, parent_id: UUID, data: ParentUpdate):
             logger.info(f"Updated parent: {parent_id}")
             
             updated_parent = result.data[0]
-            updated_parent['full_name'] = f"{updated_parent.get('title', '')} {updated_parent['first_name']} {updated_parent['last_name']}".strip()
+            updated_parent['full_name'] = f"{updated_parent.get('title') or ''} {updated_parent['first_name']} {updated_parent['last_name']}".strip()
             
             return updated_parent
         
@@ -328,7 +328,7 @@ async def get_parent_children(request: Request, parent_id: UUID):
             ).execute()
             
             if student.data:
-                link['student_name'] = f"{student.data[0]['first_name']} {student.data[0].get('middle_name', '')} {student.data[0]['last_name']}".replace('  ', ' ')
+                link['student_name'] = f"{student.data[0]['first_name']} {student.data[0].get('middle_name') or ''} {student.data[0]['last_name']}".replace('  ', ' ')
                 link['admission_number'] = student.data[0].get('admission_number')
             
             enriched_data.append(link)
@@ -404,7 +404,6 @@ async def link_parent_to_student(
             'relationship': data.relationship,
             'is_primary': data.is_primary,
             'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
         }
         
         result = supabase.table('parent_student_links').insert(link_data).execute()

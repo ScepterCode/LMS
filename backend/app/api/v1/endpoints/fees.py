@@ -5,7 +5,6 @@ Fee Management API Endpoints
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from datetime import datetime, date
-from decimal import Decimal
 import random
 import string
 
@@ -251,15 +250,16 @@ async def bulk_assign_fees(
             detail="Only admins and bursars can assign fees"
         )
     
-    # Get students in class
-    enrollments = db.table("enrollments").select("student_id").eq(
-        "class_id", class_id
+    # Get students in class (current_class_id is the source of truth used
+    # everywhere else - "enrollments" is not a real table)
+    enrollments = db.table("students").select("id").eq(
+        "current_class_id", class_id
     ).execute()
-    
+
     if not enrollments.data:
         return {"message": "No students found in class", "fees_assigned": 0}
-    
-    student_ids = [e["student_id"] for e in enrollments.data]
+
+    student_ids = [e["id"] for e in enrollments.data]
     
     # Get fee structures
     structures = db.table("fee_structures").select("*").in_(
@@ -276,9 +276,9 @@ async def bulk_assign_fees(
                 "fee_structure_id": structure["id"],
                 "session_id": session_id,
                 "amount": structure["amount"],
-                "discount_amount": Decimal("0.00"),
+                "discount_amount": 0.00,
                 "final_amount": structure["amount"],
-                "amount_paid": Decimal("0.00"),
+                "amount_paid": 0.00,
                 "balance": structure["amount"],
                 "status": "pending",
                 "due_date": structure.get("due_date")
@@ -314,7 +314,7 @@ async def waive_student_fee(
         "waiver_reason": data.waiver_reason,
         "waived_by": current_user["id"],
         "waived_at": datetime.utcnow().isoformat(),
-        "balance": Decimal("0.00")
+        "balance": 0.00
     }
     
     response = db.table("student_fees").update(update_data).eq(

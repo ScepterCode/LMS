@@ -392,7 +392,7 @@ async def get_student_guardians(request: Request, student_id: UUID):
         
         # Add full name
         for guardian in response.data:
-            guardian['full_name'] = f"{guardian.get('title', '')} {guardian['first_name']} {guardian['last_name']}".strip()
+            guardian['full_name'] = f"{guardian.get('title') or ''} {guardian['first_name']} {guardian['last_name']}".strip()
         
         logger.info(f"Retrieved {len(response.data)} guardians for student {student_id}")
         return response.data
