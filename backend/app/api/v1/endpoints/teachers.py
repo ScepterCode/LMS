@@ -162,14 +162,14 @@ async def create_teacher(request: Request, data: TeacherCreate):
             raise ValidationError("This user already has a teacher record")
         
         # Verify user exists and belongs to organization
-        user_verify = supabase.table('users').select('id, organization_id, role').eq(
+        user_verify = supabase.table('users').select('id, school_id, role').eq(
             'id', str(data.user_id)
         ).execute()
-        
+
         if not user_verify.data:
             raise ValidationError("Invalid user ID")
-        
-        if user_verify.data[0]['organization_id'] != str(user["school_id"]):
+
+        if user_verify.data[0]['school_id'] != str(user["school_id"]):
             raise ValidationError("User must belong to your organization")
         
         # Create teacher

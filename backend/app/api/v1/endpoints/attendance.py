@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import datetime, date
 from decimal import Decimal
 
-from app.core.database import get_db, get_supabase
+from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.core.permissions import PermissionChecker
 from app.core.exceptions import AuthorizationError
@@ -32,7 +32,7 @@ router = APIRouter()
 async def mark_attendance_bulk(
     data: BulkAttendanceEntry,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Mark attendance for multiple students at once (Form Teacher Only)"""
     
@@ -46,7 +46,7 @@ async def mark_attendance_bulk(
     # For teachers: verify form teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         try:
             # Check if teacher is form teacher of this class
@@ -105,14 +105,14 @@ async def get_class_attendance(
     class_id: str,
     attendance_date: date,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get attendance records for a class on a specific date (Form Teacher or Admin)"""
     
     # For teachers: verify form teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         try:
             await PermissionChecker.verify_form_teacher_permission(
@@ -176,7 +176,7 @@ async def get_student_attendance(
     session_id: Optional[str] = None,
     term_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get attendance history for a student"""
     
@@ -209,7 +209,7 @@ async def get_student_attendance_summary(
     session_id: str,
     term_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get attendance summary for a student"""
     
@@ -243,14 +243,14 @@ async def get_class_attendance_summaries(
     session_id: str,
     term_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get attendance summaries for all students in a class (Form Teacher or Admin)"""
     
     # For teachers: verify form teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         try:
             await PermissionChecker.verify_form_teacher_permission(
@@ -301,7 +301,7 @@ async def get_leave_requests(
     status_filter: Optional[str] = Query(None, alias="status"),
     student_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get leave requests"""
     
@@ -333,7 +333,7 @@ async def get_leave_requests(
 async def create_leave_request(
     data: LeaveRequestCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Create new leave request"""
     
@@ -353,7 +353,7 @@ async def approve_leave_request(
     request_id: str,
     data: LeaveRequestApproval,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Approve or reject leave request"""
     
@@ -392,7 +392,7 @@ async def approve_leave_request(
 @router.get("/settings", response_model=AttendanceSettings)
 async def get_attendance_settings(
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get attendance settings for organization"""
     
@@ -421,7 +421,7 @@ async def get_attendance_settings(
 async def create_attendance_settings(
     data: AttendanceSettingsCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Create attendance settings (admin only)"""
     
@@ -443,7 +443,7 @@ async def create_attendance_settings(
 async def update_attendance_settings(
     data: AttendanceSettingsUpdate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Update attendance settings (admin only)"""
     
@@ -477,7 +477,7 @@ async def update_attendance_settings(
 async def get_holidays(
     session_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get holidays"""
     
@@ -498,7 +498,7 @@ async def get_holidays(
 async def create_holiday(
     data: HolidayCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Create new holiday (admin only)"""
     

@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
 
-from app.core.database import get_db, get_supabase
+from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.core.permissions import PermissionChecker
 from app.core.exceptions import AuthorizationError
@@ -30,7 +30,7 @@ router = APIRouter()
 async def get_assessment_types(
     is_active: Optional[bool] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get all assessment types for organization"""
     
@@ -51,7 +51,7 @@ async def get_assessment_types(
 async def create_assessment_type(
     data: AssessmentTypeCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Create new assessment type (admin only)"""
     
@@ -93,7 +93,7 @@ async def get_assessments(
     teacher_id: Optional[str] = None,
     status_filter: Optional[str] = Query(None, alias="status"),
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get assessments with optional filters"""
     
@@ -150,7 +150,7 @@ async def get_assessments(
 async def get_assessment(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get specific assessment"""
     
@@ -176,7 +176,7 @@ async def get_assessment(
 async def create_assessment(
     data: AssessmentCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Create new assessment (Subject Teacher Only)"""
     
@@ -189,7 +189,7 @@ async def create_assessment(
     # For teachers: verify subject teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         try:
             await PermissionChecker.verify_subject_teacher_permission(
@@ -216,7 +216,7 @@ async def update_assessment(
     assessment_id: str,
     data: AssessmentUpdate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Update assessment"""
     
@@ -254,7 +254,7 @@ async def update_assessment(
 async def publish_assessment(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Publish assessment (make it available for grading)"""
     
@@ -278,7 +278,7 @@ async def publish_assessment(
 async def delete_assessment(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Delete assessment (admin only, only if no grades entered)"""
     
@@ -320,7 +320,7 @@ async def delete_assessment(
 async def get_assessment_grades(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get all grades for an assessment"""
     
@@ -347,7 +347,7 @@ async def get_assessment_grades(
 async def bulk_grade_entry(
     data: BulkGradeEntry,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Enter grades for multiple students at once (Subject Teacher Only)"""
     
@@ -376,7 +376,7 @@ async def bulk_grade_entry(
     # For teachers: verify subject teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         try:
             await PermissionChecker.verify_subject_teacher_permission(
@@ -452,7 +452,7 @@ async def get_student_grades(
     term_id: Optional[str] = None,
     subject_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get all grades for a student"""
     
@@ -476,7 +476,7 @@ async def get_student_grades(
 async def generate_report_card(
     data: ReportCardGenerate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Generate report card for a student (Form Teacher or Admin)"""
     
@@ -503,7 +503,7 @@ async def generate_report_card(
     # For teachers: verify form teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         try:
             await PermissionChecker.verify_form_teacher_permission(
@@ -582,7 +582,7 @@ async def generate_report_card(
 async def get_report_card(
     report_card_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get specific report card with subject grades"""
     
@@ -621,7 +621,7 @@ async def get_student_report_cards(
     student_id: str,
     session_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get all report cards for a student"""
     
@@ -647,7 +647,7 @@ async def update_report_card(
     report_card_id: str,
     data: ReportCardUpdate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Update report card remarks (Form Teacher or Admin)"""
     
@@ -673,7 +673,7 @@ async def update_report_card(
     # For teachers: verify form teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         try:
             await PermissionChecker.verify_form_teacher_permission(
@@ -705,7 +705,7 @@ async def update_report_card(
 async def publish_report_card(
     report_card_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Publish report card (make visible to parents)"""
     
@@ -742,14 +742,14 @@ async def get_class_performance(
     session_id: str,
     term_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get performance analytics for a class in a subject (Form Teacher or Subject Teacher)"""
     
     # For teachers: verify form teacher OR subject teacher permission
     if current_user["role"] == "teacher":
         supabase = get_supabase()
-        teacher_id = current_user["id"]
+        teacher_id = current_user.get("teacher_id")
         
         # Check if form teacher OR subject teacher
         is_form_teacher = await PermissionChecker.can_view_class_grades(
@@ -822,7 +822,7 @@ async def get_student_performance(
     session_id: str,
     term_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get performance summary for a student across all subjects"""
     

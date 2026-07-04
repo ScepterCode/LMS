@@ -116,14 +116,14 @@ async def create_parent(request: Request, data: ParentCreate):
             raise ValidationError("This user already has a parent record")
         
         # Verify user exists and belongs to organization
-        user_verify = supabase.table('users').select('id, organization_id, role').eq(
+        user_verify = supabase.table('users').select('id, school_id, role').eq(
             'id', str(data.user_id)
         ).execute()
-        
+
         if not user_verify.data:
             raise ValidationError("Invalid user ID")
-        
-        if user_verify.data[0]['organization_id'] != str(user["school_id"]):
+
+        if user_verify.data[0]['school_id'] != str(user["school_id"]):
             raise ValidationError("User must belong to your organization")
         
         # Create parent

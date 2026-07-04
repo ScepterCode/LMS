@@ -117,7 +117,9 @@ class ClassCreate(BaseModel):
     section: Optional[str] = Field(None, max_length=10, description="Section (A, B, C, etc.)")
     capacity: int = Field(default=40, ge=1, le=200, description="Maximum number of students")
     class_teacher_id: Optional[UUID] = Field(None, description="Class teacher user ID")
-    
+    session_id: Optional[UUID] = Field(None, description="Academic session ID (required if subject_ids is set)")
+    subject_ids: Optional[list[UUID]] = Field(default=None, description="Subjects to add to this class's curriculum")
+
     @field_validator('level')
     @classmethod
     def validate_level(cls, v):

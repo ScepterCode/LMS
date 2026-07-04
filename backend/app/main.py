@@ -9,13 +9,18 @@ from contextlib import asynccontextmanager
 import logging
 import sys
 
+# Log messages use unicode symbols (checkmarks, warnings) which crash on
+# Windows' default cp1252 console/file encoding - force UTF-8 everywhere.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('app.log')
+        logging.FileHandler('app.log', encoding='utf-8')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -37,18 +42,15 @@ async def lifespan(_: FastAPI):
     print_config_summary()
     
     # Initialize database connections
-    # TEMPORARILY DISABLED FOR TESTING - Database connection timeout
-    # await initialize_database()
-    
+    await initialize_database()
+
     # Check database health
-    # health = await check_database_health()
-    # if not health["overall"]:
-    #     logger.warning("⚠️  No database connection available. Some features may not work.")
-    #     logger.warning("   Please check your DATABASE_URL and SUPABASE configuration.")
-    # else:
-    #     logger.info("✅ Database connections initialized successfully")
-    
-    logger.info("⚠️  Database initialization skipped for testing")
+    health = await check_database_health()
+    if not health["overall"]:
+        logger.warning("⚠️  No database connection available. Some features may not work.")
+        logger.warning("   Please check your SUPABASE configuration.")
+    else:
+        logger.info("✅ Database connections initialized successfully")
     
     try:
         yield

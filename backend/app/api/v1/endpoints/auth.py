@@ -151,7 +151,18 @@ async def login(response: Response, data: LoginRequest):
         # Determine role
         role = user.get("role", "admin")
         school_id = user.get("school_id")
-        
+
+        # Teachers have a separate teachers.id (distinct from users.id) that
+        # teacher_class_assignments.teacher_id actually references - resolve
+        # it once at login so permission checks don't have to guess.
+        teacher_id = None
+        if role == "teacher":
+            teacher_record = supabase.table('teachers').select('id').eq(
+                'user_id', str(user["id"])
+            ).execute()
+            if teacher_record.data:
+                teacher_id = teacher_record.data[0]["id"]
+
         # Create access token
         token_data = {
             "sub": str(user["id"]),
@@ -159,6 +170,7 @@ async def login(response: Response, data: LoginRequest):
             "role": role,
             "school_id": str(school_id) if school_id else None,
             "user_type": user_type,
+            "teacher_id": teacher_id,
         }
         
         access_token = create_access_token(data=token_data)

@@ -182,7 +182,8 @@ def get_current_user_from_token(token: str) -> Optional[Dict[str, Any]]:
         "email": payload.get("email"),
         "role": payload.get("role"),
         "school_id": payload.get("school_id"),
-        "user_type": payload.get("user_type", "user")
+        "user_type": payload.get("user_type", "user"),
+        "teacher_id": payload.get("teacher_id"),
     }
     
     # Validate required fields
@@ -200,7 +201,8 @@ def create_user_token_data(user: Dict[str, Any]) -> Dict[str, Any]:
         "email": user["email"],
         "role": user["role"],
         "school_id": str(user.get("school_id")) if user.get("school_id") else None,
-        "user_type": user.get("user_type", "user")
+        "user_type": user.get("user_type", "user"),
+        "teacher_id": user.get("teacher_id"),
     }
 
 

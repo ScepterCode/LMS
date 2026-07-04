@@ -46,8 +46,8 @@ export default function AddParentPage() {
         phone: formData.phone,
       });
 
-      if (userResponse.error) {
-        setError(userResponse.error);
+      if (userResponse.error || !userResponse.data) {
+        setError(userResponse.error || 'Failed to create user account');
         setSubmitting(false);
         return;
       }

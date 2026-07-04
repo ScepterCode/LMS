@@ -56,8 +56,8 @@ export default function AddTeacherPage() {
         phone: formData.phone,
       });
 
-      if (userResponse.error) {
-        setError(userResponse.error);
+      if (userResponse.error || !userResponse.data) {
+        setError(userResponse.error || 'Failed to create user account');
         setLoading(false);
         return;
       }

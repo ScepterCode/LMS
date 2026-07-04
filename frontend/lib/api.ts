@@ -2,7 +2,10 @@
  * API client for Nigerian LMS
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001';
+// Always same-origin: next.config.ts rewrites /api/v1/* to the backend so
+// the auth cookie (SameSite=Lax) stays same-site regardless of whether the
+// browser opened the app via localhost or 127.0.0.1.
+const API_URL = '';
 
 export interface LoginCredentials {
   email: string;
@@ -116,7 +119,7 @@ class ApiClient {
     role: string;
     phone?: string;
   }) {
-    return this.request('/api/v1/users', {
+    return this.request<{ id: string }>('/api/v1/users', {
       method: 'POST',
       body: JSON.stringify(data),
     });

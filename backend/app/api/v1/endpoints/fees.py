@@ -9,7 +9,7 @@ from decimal import Decimal
 import random
 import string
 
-from app.core.database import get_db
+from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.models.fees import (
     FeeCategory, FeeCategoryCreate, FeeCategoryUpdate,
@@ -34,7 +34,7 @@ router = APIRouter()
 async def get_fee_categories(
     is_active: Optional[bool] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get all fee categories"""
     
@@ -55,7 +55,7 @@ async def get_fee_categories(
 async def create_fee_category(
     data: FeeCategoryCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Create new fee category (admin only)"""
     
@@ -83,7 +83,7 @@ async def get_fee_structures(
     class_id: Optional[str] = None,
     is_active: Optional[bool] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get fee structures"""
     
@@ -117,7 +117,7 @@ async def get_fee_structures(
 async def create_fee_structure(
     data: FeeStructureCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Create new fee structure (admin only)"""
     
@@ -140,7 +140,7 @@ async def update_fee_structure(
     structure_id: str,
     data: FeeStructureUpdate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Update fee structure (admin only)"""
     
@@ -176,7 +176,7 @@ async def get_student_fees(
     session_id: Optional[str] = None,
     status_filter: Optional[str] = Query(None, alias="status"),
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get student fees"""
     
@@ -214,7 +214,7 @@ async def get_student_fees(
 async def assign_fee_to_student(
     data: StudentFeeCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Assign fee to student (admin only)"""
     
@@ -241,7 +241,7 @@ async def bulk_assign_fees(
     class_id: str,
     fee_structure_ids: List[str],
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Assign fees to all students in a class"""
     
@@ -298,7 +298,7 @@ async def waive_student_fee(
     fee_id: str,
     data: StudentFeeWaiver,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Waive a student fee (admin only)"""
     
@@ -348,7 +348,7 @@ async def get_payments(
     end_date: Optional[date] = None,
     status_filter: Optional[str] = Query(None, alias="status"),
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get payments"""
     
@@ -385,7 +385,7 @@ async def get_payments(
 async def record_payment(
     data: PaymentCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Record new payment"""
     
@@ -465,7 +465,7 @@ async def get_financial_analytics(
     term_id: Optional[str] = None,
     class_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get financial analytics"""
     
@@ -525,7 +525,7 @@ async def get_student_fees_summary(
     student_id: str,
     session_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get fee summary for a student"""
     
@@ -569,7 +569,7 @@ async def get_student_fees_summary(
 async def get_receipt(
     receipt_number: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    db = Depends(get_supabase)
 ):
     """Get receipt details"""
     

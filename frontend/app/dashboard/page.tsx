@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
 import OnboardingChecklist from '@/components/OnboardingChecklist';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface OrganizationData {
   organization: {
@@ -74,6 +75,7 @@ export default function SchoolDashboard() {
   };
 
   return (
+    <ProtectedRoute>
     <DashboardLayout>
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -254,5 +256,6 @@ export default function SchoolDashboard() {
             </>
           )}
     </DashboardLayout>
+    </ProtectedRoute>
   );
 }

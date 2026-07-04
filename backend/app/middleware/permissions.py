@@ -73,9 +73,9 @@ def require_form_teacher(class_id_param: str = "class_id"):
                     detail=f"Missing required parameter: {class_id_param}"
                 )
             
-            teacher_id = current_user.get("id")
+            teacher_id = current_user.get("teacher_id")
             supabase = get_supabase()
-            
+
             try:
                 await PermissionChecker.verify_form_teacher_permission(
                     teacher_id, class_id, supabase
@@ -121,9 +121,9 @@ def require_subject_teacher(subject_id_param: str = "subject_id", class_id_param
                     detail=f"Missing required parameters: {subject_id_param}, {class_id_param}"
                 )
             
-            teacher_id = current_user.get("id")
+            teacher_id = current_user.get("teacher_id")
             supabase = get_supabase()
-            
+
             try:
                 await PermissionChecker.verify_subject_teacher_permission(
                     teacher_id, subject_id, class_id, supabase
