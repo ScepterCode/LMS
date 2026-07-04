@@ -16,7 +16,8 @@ from app.models.grading import (
     Assessment, AssessmentCreate, AssessmentUpdate,
     Grade, GradeCreate, GradeUpdate, BulkGradeEntry,
     SubjectGrade, ReportCard, ReportCardGenerate, ReportCardUpdate,
-    PerformanceAnalytics
+    PerformanceAnalytics,
+    GradeConfig, GradeConfigCreate, GradeConfigUpdate,
 )
 
 router = APIRouter()
@@ -76,8 +77,114 @@ async def create_assessment_type(
     assessment_type_data["organization_id"] = current_user["school_id"]
     
     response = db.table("assessment_types").insert(assessment_type_data).execute()
-    
+
     return response.data[0]
+
+
+# ============================================
+# GRADE CONFIGS (grade letter bands, e.g. A=70-100)
+# ============================================
+
+@router.get("/grade-configs", response_model=List[GradeConfig])
+async def get_grade_configs(
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Get all grade bands for organization"""
+
+    response = db.table("grade_configs").select("*").eq(
+        "organization_id", current_user["school_id"]
+    ).order("display_order").execute()
+
+    return response.data
+
+
+@router.post("/grade-configs", response_model=GradeConfig, status_code=status.HTTP_201_CREATED)
+async def create_grade_config(
+    data: GradeConfigCreate,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Create a grade band (admin only)"""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can configure grade bands"
+        )
+
+    existing = db.table("grade_configs").select("id").eq(
+        "organization_id", current_user["school_id"]
+    ).eq("grade_letter", data.grade_letter).execute()
+
+    if existing.data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Grade band '{data.grade_letter}' already exists"
+        )
+
+    grade_config_data = data.model_dump(mode="json")
+    grade_config_data["organization_id"] = current_user["school_id"]
+
+    response = db.table("grade_configs").insert(grade_config_data).execute()
+
+    return response.data[0]
+
+
+@router.put("/grade-configs/{grade_config_id}", response_model=GradeConfig)
+async def update_grade_config(
+    grade_config_id: str,
+    data: GradeConfigUpdate,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Update a grade band (admin only)"""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can configure grade bands"
+        )
+
+    update_data = data.model_dump(mode="json", exclude_unset=True)
+    update_data["updated_at"] = datetime.utcnow().isoformat()
+
+    response = db.table("grade_configs").update(update_data).eq(
+        "id", grade_config_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Grade band not found"
+        )
+
+    return response.data[0]
+
+
+@router.delete("/grade-configs/{grade_config_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_grade_config(
+    grade_config_id: str,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Delete a grade band (admin only)"""
+
+    if current_user["role"] != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete grade bands"
+        )
+
+    response = db.table("grade_configs").delete().eq(
+        "id", grade_config_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Grade band not found"
+        )
 
 
 # ============================================
@@ -475,6 +582,82 @@ async def get_student_grades(
 # REPORT CARDS
 # ============================================
 
+def _lookup_grade_letter(grade_configs: list, score: float) -> Optional[str]:
+    """Match a score against an organization's configured grade bands."""
+    for config in grade_configs:
+        if float(config["min_score"]) <= score <= float(config["max_score"]):
+            return config["grade_letter"]
+    return None
+
+
+def _compute_subject_grades_for_student(
+    db, organization_id: str, student_id: str, class_id: str, session_id: str, term_id: str
+) -> List[dict]:
+    """
+    Aggregate a student's per-assessment scores (grades table) into one
+    weighted total per subject (subject_grades table), using each
+    assessment_type's weight_percentage. This is the computation report
+    cards depend on - nothing else in the app ever populates subject_grades.
+    """
+    assessments = db.table("assessments").select(
+        "id, subject_id, max_score, assessment_types(weight_percentage)"
+    ).eq("class_id", class_id).eq("session_id", session_id).eq(
+        "term_id", term_id
+    ).neq("status", "draft").execute()
+
+    if not assessments.data:
+        return []
+
+    by_subject: dict = {}
+    for a in assessments.data:
+        by_subject.setdefault(a["subject_id"], []).append(a)
+
+    grade_configs = db.table("grade_configs").select("*").eq(
+        "organization_id", organization_id
+    ).order("min_score", desc=True).execute().data
+
+    computed = []
+    for subject_id, subject_assessments in by_subject.items():
+        assessment_ids = [a["id"] for a in subject_assessments]
+        grades = db.table("grades").select("assessment_id, score").eq(
+            "student_id", student_id
+        ).in_("assessment_id", assessment_ids).execute()
+
+        grades_by_assessment = {g["assessment_id"]: g["score"] for g in grades.data if g["score"] is not None}
+        if not grades_by_assessment:
+            continue
+
+        weighted_total = 0.0
+        for a in subject_assessments:
+            score = grades_by_assessment.get(a["id"])
+            if score is None:
+                continue
+            max_score = float(a["max_score"]) or 100.0
+            weight = float((a.get("assessment_types") or {}).get("weight_percentage") or 0)
+            weighted_total += (float(score) / max_score) * weight
+
+        grade_letter = _lookup_grade_letter(grade_configs, weighted_total)
+
+        subject_grade_data = {
+            "organization_id": organization_id,
+            "student_id": student_id,
+            "subject_id": subject_id,
+            "class_id": class_id,
+            "session_id": session_id,
+            "term_id": term_id,
+            "total_score": round(weighted_total, 2),
+            "average_score": round(weighted_total, 2),
+            "grade_letter": grade_letter,
+            "calculated_at": datetime.utcnow().isoformat(),
+        }
+        db.table("subject_grades").upsert(
+            subject_grade_data, on_conflict="student_id,subject_id,term_id,session_id"
+        ).execute()
+        computed.append(subject_grade_data)
+
+    return computed
+
+
 @router.post("/report-cards/generate", status_code=status.HTTP_201_CREATED)
 async def generate_report_card(
     data: ReportCardGenerate,
@@ -532,19 +715,47 @@ async def generate_report_card(
         )
     
     # student_data and class_id already extracted above
-    
-    # Get subject grades for this term
-    subject_grades = db.table("subject_grades").select("*").eq(
-        "student_id", data.student_id
-    ).eq("session_id", data.session_id).eq(
-        "term_id", data.term_id
-    ).execute()
-    
-    # Calculate overall statistics
-    total_score = sum(float(sg["total_score"]) for sg in subject_grades.data if sg["total_score"])
-    num_subjects = len(subject_grades.data)
+    organization_id = current_user["school_id"]
+
+    # Compute this student's subject grades from raw assessment scores
+    subject_grades_data = _compute_subject_grades_for_student(
+        db, organization_id, data.student_id, class_id, data.session_id, data.term_id
+    )
+
+    total_score = sum(sg["total_score"] for sg in subject_grades_data)
+    num_subjects = len(subject_grades_data)
     average_score = total_score / num_subjects if num_subjects > 0 else 0
-    
+
+    # Rank against the rest of the class (also computes their subject grades,
+    # since nothing else populates subject_grades either)
+    classmates = db.table("students").select("id").eq("current_class_id", class_id).execute()
+    class_size = len(classmates.data)
+
+    class_averages = []
+    for classmate in classmates.data:
+        if classmate["id"] == data.student_id:
+            class_averages.append((data.student_id, average_score))
+            continue
+        mate_grades = _compute_subject_grades_for_student(
+            db, organization_id, classmate["id"], class_id, data.session_id, data.term_id
+        )
+        if mate_grades:
+            mate_total = sum(sg["total_score"] for sg in mate_grades)
+            class_averages.append((classmate["id"], mate_total / len(mate_grades)))
+
+    overall_position = None
+    if num_subjects > 0:
+        class_averages.sort(key=lambda pair: pair[1], reverse=True)
+        for idx, (sid, _) in enumerate(class_averages, start=1):
+            if sid == data.student_id:
+                overall_position = idx
+                break
+
+    grade_configs = db.table("grade_configs").select("*").eq(
+        "organization_id", organization_id
+    ).order("min_score", desc=True).execute().data
+    overall_grade = _lookup_grade_letter(grade_configs, average_score) if num_subjects > 0 else None
+
     # Get attendance summary
     attendance = db.table("attendance_summaries").select("*").eq(
         "student_id", data.student_id
@@ -568,6 +779,9 @@ async def generate_report_card(
         "class_id": class_id,
         "total_score": total_score,
         "average_score": average_score,
+        "overall_grade": overall_grade,
+        "overall_position": overall_position,
+        "class_size": class_size,
         "days_present": attendance_data["days_present"],
         "days_absent": attendance_data["days_absent"],
         "days_late": attendance_data["days_late"],
@@ -633,6 +847,22 @@ async def get_report_card(
         enriched_subject_grades.append(enriched_grade)
 
     report_card["subject_grades"] = enriched_subject_grades
+
+    # class_teacher_remark has no writer of its own - form teachers add
+    # remarks via the separate student_remarks table (Class Remarks
+    # feature). Surface their latest remark here rather than leaving it
+    # permanently null.
+    if not report_card.get("class_teacher_remark"):
+        remarks = db.table("student_remarks").select("remark_text").eq(
+            "student_id", report_card["student_id"]
+        ).eq("class_id", report_card["class_id"]).eq(
+            "session_id", report_card["session_id"]
+        ).eq("term_id", report_card["term_id"]).order(
+            "created_at", desc=True
+        ).limit(1).execute()
+
+        if remarks.data:
+            report_card["class_teacher_remark"] = remarks.data[0]["remark_text"]
 
     return report_card
 

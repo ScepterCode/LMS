@@ -104,40 +104,31 @@ class SchoolRegistrationResponse(BaseModel):
 @router.post("/login", response_model=TokenResponse)
 async def login(response: Response, data: LoginRequest):
     """
-    Login endpoint for all user types.
-    Checks both users and system_admins tables.
+    Login endpoint for all user types (admin, teacher, bursar, parent,
+    system_admin). All credentials live in the users table.
     """
     try:
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
         
+        # All login credentials (including system admins) live in the users
+        # table. system_admins is an extension table (is_super_admin,
+        # permissions) keyed by users.id, not a separate auth source - it
+        # has no email/password_hash columns to look up by.
         user = None
-        user_type = "user"
-        
-        # Try system_admins table first
         try:
-            admin_response = supabase.table('system_admins').select('*').eq('email', data.email).execute()
-            if admin_response.data and len(admin_response.data) > 0:
-                user = admin_response.data[0]
-                user_type = "system_admin"
-                logger.info(f"Found system admin: {data.email}")
+            users_response = supabase.table('users').select('*').eq('email', data.email).execute()
+            if users_response.data and len(users_response.data) > 0:
+                user = users_response.data[0]
         except Exception as e:
-            logger.debug(f"Not a system admin: {e}")
-        
-        # Try users table if not system admin
-        if not user:
-            try:
-                users_response = supabase.table('users').select('*').eq('email', data.email).execute()
-                if users_response.data and len(users_response.data) > 0:
-                    user = users_response.data[0]
-                    user_type = "user"
-            except Exception as e:
-                logger.error(f"Error querying users table: {e}")
-        
+            logger.error(f"Error querying users table: {e}")
+
         if not user:
             logger.warning(f"Login attempt with non-existent email: {data.email}")
             raise AuthenticationError("Invalid email or password")
+
+        user_type = "system_admin" if user.get("role") == "system_admin" else "user"
         
         # Verify password
         if not verify_password(data.password, user["password_hash"]):

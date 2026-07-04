@@ -186,7 +186,7 @@ async def get_parent(request: Request, parent_id: UUID):
         parent = response.data[0]
         
         # Enrich data
-        parent['full_name'] = f"{parent.get('title', '')} {parent['first_name']} {parent['last_name']}".strip()
+        parent['full_name'] = f"{parent.get('title') or ''} {parent['first_name']} {parent['last_name']}".strip()
         
         # Count children
         children = supabase.table('parent_student_links').select('id', count='exact').eq(

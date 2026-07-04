@@ -233,7 +233,7 @@ async def get_student(request: Request, student_id: UUID):
         student = response.data[0]
         
         # Enrich data
-        student['full_name'] = f"{student['first_name']} {student.get('middle_name', '')} {student['last_name']}".replace('  ', ' ')
+        student['full_name'] = f"{student['first_name']} {student.get('middle_name') or ''} {student['last_name']}".replace('  ', ' ')
         
         if student.get('date_of_birth'):
             dob = datetime.fromisoformat(student['date_of_birth']).date()

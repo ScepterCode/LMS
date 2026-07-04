@@ -267,7 +267,7 @@ async def create_class_enrollment(request: Request, data: ClassEnrollmentCreate)
         # Get student name
         student = supabase.table('students').select('first_name, middle_name, last_name').eq('id', enrollment['student_id']).execute()
         if student.data:
-            enrollment['student_name'] = f"{student.data[0]['first_name']} {student.data[0].get('middle_name', '')} {student.data[0]['last_name']}".replace('  ', ' ')
+            enrollment['student_name'] = f"{student.data[0]['first_name']} {student.data[0].get('middle_name') or ''} {student.data[0]['last_name']}".replace('  ', ' ')
         
         # Get class name
         cls = supabase.table('classes').select('name').eq('id', enrollment['class_id']).execute()

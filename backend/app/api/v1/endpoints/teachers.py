@@ -94,7 +94,7 @@ async def list_teachers(
         enriched_data = []
         for teacher in response.data:
             # Add full name
-            teacher['full_name'] = f"{teacher['first_name']} {teacher.get('middle_name', '')} {teacher['last_name']}".replace('  ', ' ')
+            teacher['full_name'] = f"{teacher['first_name']} {teacher.get('middle_name') or ''} {teacher['last_name']}".replace('  ', ' ')
             
             # Calculate age
             if teacher.get('date_of_birth'):
@@ -250,7 +250,7 @@ async def get_teacher(request: Request, teacher_id: UUID):
         teacher = response.data[0]
         
         # Enrich data
-        teacher['full_name'] = f"{teacher['first_name']} {teacher.get('middle_name', '')} {teacher['last_name']}".replace('  ', ' ')
+        teacher['full_name'] = f"{teacher['first_name']} {teacher.get('middle_name') or ''} {teacher['last_name']}".replace('  ', ' ')
         
         if teacher.get('date_of_birth'):
             dob = datetime.fromisoformat(teacher['date_of_birth']).date()
@@ -321,7 +321,7 @@ async def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate
             logger.info(f"Updated teacher: {teacher_id}")
             
             updated_teacher = result.data[0]
-            updated_teacher['full_name'] = f"{updated_teacher['first_name']} {updated_teacher.get('middle_name', '')} {updated_teacher['last_name']}".replace('  ', ' ')
+            updated_teacher['full_name'] = f"{updated_teacher['first_name']} {updated_teacher.get('middle_name') or ''} {updated_teacher['last_name']}".replace('  ', ' ')
             
             return updated_teacher
         
