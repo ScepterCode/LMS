@@ -164,7 +164,8 @@ async def create_class(request: Request, data: ClassCreate):
                 except Exception as e:
                     logger.warning(f"Failed to add subject {subject_id} to class: {e}")
         
-        logger.info(f"Created class: {data.name} with {len(data.subject_ids)} subjects for org {user['school_id']}")
+        subject_count = len(data.subject_ids) if data.subject_ids else 0
+        logger.info(f"Created class: {data.name} with {subject_count} subjects for org {user['school_id']}")
         
         created_class['student_count'] = 0
         return created_class
@@ -253,7 +254,7 @@ async def update_class(request: Request, class_id: UUID, data: ClassUpdate):
             if not teacher_check.data:
                 raise ValidationError("Class teacher must be a teacher in your school")
         
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             if 'class_teacher_id' in update_data:
                 update_data['class_teacher_id'] = str(update_data['class_teacher_id'])

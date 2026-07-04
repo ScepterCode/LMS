@@ -65,7 +65,7 @@ async def create_fee_category(
             detail="Only admins and bursars can create fee categories"
         )
     
-    category_data = data.model_dump()
+    category_data = data.model_dump(mode="json")
     category_data["organization_id"] = current_user["school_id"]
     
     response = db.table("fee_categories").insert(category_data).execute()
@@ -127,7 +127,7 @@ async def create_fee_structure(
             detail="Only admins and bursars can create fee structures"
         )
     
-    structure_data = data.model_dump()
+    structure_data = data.model_dump(mode="json")
     structure_data["organization_id"] = current_user["school_id"]
     
     response = db.table("fee_structures").insert(structure_data).execute()
@@ -150,9 +150,9 @@ async def update_fee_structure(
             detail="Only admins and bursars can update fee structures"
         )
     
-    update_data = data.model_dump(exclude_unset=True)
+    update_data = data.model_dump(mode="json", exclude_unset=True)
     update_data["updated_at"] = datetime.utcnow().isoformat()
-    
+
     response = db.table("fee_structures").update(update_data).eq(
         "id", structure_id
     ).eq("organization_id", current_user["school_id"]).execute()
@@ -224,9 +224,9 @@ async def assign_fee_to_student(
             detail="Only admins and bursars can assign fees"
         )
     
-    fee_data = data.model_dump()
+    fee_data = data.model_dump(mode="json")
     fee_data["organization_id"] = current_user["school_id"]
-    fee_data["amount_paid"] = Decimal("0.00")
+    fee_data["amount_paid"] = 0.00
     fee_data["balance"] = fee_data["final_amount"]
     fee_data["status"] = "pending"
     
@@ -398,7 +398,7 @@ async def record_payment(
     # Generate receipt number
     receipt_number = generate_receipt_number()
     
-    payment_data = data.model_dump(exclude={"fee_allocations"})
+    payment_data = data.model_dump(mode="json", exclude={"fee_allocations"})
     payment_data["organization_id"] = current_user["school_id"]
     payment_data["receipt_number"] = receipt_number
     payment_data["status"] = "confirmed"

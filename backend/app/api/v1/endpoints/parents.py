@@ -225,7 +225,7 @@ async def update_parent(request: Request, parent_id: UUID, data: ParentUpdate):
         if not existing.data:
             raise NotFoundError("Parent", parent_id)
         
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
             

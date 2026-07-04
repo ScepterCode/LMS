@@ -238,7 +238,7 @@ async def update_term(request: Request, term_id: UUID, data: TermUpdate):
                 'session_id', term['session_id']
             ).neq('id', str(term_id)).execute()
         
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             # Convert dates to ISO format
             if 'start_date' in update_data:

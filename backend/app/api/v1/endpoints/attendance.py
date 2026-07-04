@@ -337,7 +337,7 @@ async def create_leave_request(
 ):
     """Create new leave request"""
     
-    request_data = data.model_dump()
+    request_data = data.model_dump(mode="json")
     request_data["organization_id"] = current_user["school_id"]
     request_data["status"] = "pending"
     request_data["submitted_by"] = current_user["id"]
@@ -399,10 +399,12 @@ async def get_attendance_settings(
     response = db.table("attendance_settings").select("*").eq(
         "organization_id", current_user["school_id"]
     ).execute()
-    
+
     if not response.data:
-        # Return default settings
-        return {
+        # First access for this organization - create the default row so the
+        # response actually satisfies AttendanceSettings (id/timestamps are
+        # required fields, not something a hand-built dict can fake).
+        created = db.table("attendance_settings").insert({
             "organization_id": current_user["school_id"],
             "school_start_time": "08:00:00",
             "school_end_time": "14:00:00",
@@ -412,8 +414,9 @@ async def get_attendance_settings(
             "notify_parents_on_late": False,
             "absence_threshold_notify": 3,
             "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"]
-        }
-    
+        }).execute()
+        return created.data[0]
+
     return response.data[0]
 
 
@@ -431,7 +434,7 @@ async def create_attendance_settings(
             detail="Only admins can create attendance settings"
         )
     
-    settings_data = data.model_dump()
+    settings_data = data.model_dump(mode="json")
     settings_data["organization_id"] = current_user["school_id"]
     
     response = db.table("attendance_settings").insert(settings_data).execute()
@@ -453,9 +456,9 @@ async def update_attendance_settings(
             detail="Only admins can update attendance settings"
         )
     
-    update_data = data.model_dump(exclude_unset=True)
+    update_data = data.model_dump(mode="json", exclude_unset=True)
     update_data["updated_at"] = datetime.utcnow().isoformat()
-    
+
     response = db.table("attendance_settings").update(update_data).eq(
         "organization_id", current_user["school_id"]
     ).execute()
@@ -508,7 +511,7 @@ async def create_holiday(
             detail="Only admins can create holidays"
         )
     
-    holiday_data = data.model_dump()
+    holiday_data = data.model_dump(mode="json")
     holiday_data["organization_id"] = current_user["school_id"]
     
     response = db.table("holidays").insert(holiday_data).execute()

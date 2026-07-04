@@ -303,7 +303,7 @@ async def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate
         if not existing.data:
             raise NotFoundError("Teacher", teacher_id)
         
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             # Convert dates to ISO format
             if 'date_of_birth' in update_data:

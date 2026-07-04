@@ -72,7 +72,7 @@ async def create_assessment_type(
             detail=f"Assessment type with code '{data.code}' already exists"
         )
     
-    assessment_type_data = data.model_dump()
+    assessment_type_data = data.model_dump(mode="json")
     assessment_type_data["organization_id"] = current_user["school_id"]
     
     response = db.table("assessment_types").insert(assessment_type_data).execute()
@@ -201,7 +201,10 @@ async def create_assessment(
                 detail=f"Subject teacher access required: {str(e)}"
             )
     
-    assessment_data = data.model_dump()
+    # grading_scheme_component_id has no backing column in the live
+    # assessments table (Phase 4 field never migrated) - drop it rather
+    # than let PostgREST reject the whole insert over an unknown column.
+    assessment_data = data.model_dump(mode="json", exclude={"grading_scheme_component_id"})
     assessment_data["organization_id"] = current_user["school_id"]
     assessment_data["status"] = "draft"
     assessment_data["created_by"] = current_user["id"]
@@ -240,9 +243,9 @@ async def update_assessment(
             detail="Cannot update locked assessment"
         )
     
-    update_data = data.model_dump(exclude_unset=True)
+    update_data = data.model_dump(mode="json", exclude_unset=True, exclude={"grading_scheme_component_id"})
     update_data["updated_at"] = datetime.utcnow().isoformat()
-    
+
     response = db.table("assessments").update(update_data).eq(
         "id", assessment_id
     ).execute()
@@ -685,9 +688,9 @@ async def update_report_card(
                 detail=f"Form teacher access required: {str(e)}"
             )
     
-    update_data = data.model_dump(exclude_unset=True)
+    update_data = data.model_dump(mode="json", exclude_unset=True)
     update_data["updated_at"] = datetime.utcnow().isoformat()
-    
+
     response = db.table("report_cards").update(update_data).eq(
         "id", report_card_id
     ).eq("organization_id", current_user["school_id"]).execute()

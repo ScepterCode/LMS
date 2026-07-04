@@ -319,7 +319,7 @@ async def update_class_enrollment(request: Request, enrollment_id: UUID, data: C
             if not class_check.data:
                 raise ValidationError("Invalid class ID")
         
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             if 'class_id' in update_data:
                 update_data['class_id'] = str(update_data['class_id'])

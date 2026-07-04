@@ -309,7 +309,7 @@ async def update_user(
             raise NotFoundError("User", user_id)
         
         # Build update data
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()

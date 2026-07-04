@@ -244,7 +244,7 @@ async def update_session(
             ).neq('id', str(session_id)).execute()
         
         # Build update data
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             # Convert dates to ISO format
             if 'start_date' in update_data:

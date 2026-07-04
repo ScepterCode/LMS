@@ -288,7 +288,7 @@ async def update_grading_scheme(request: Request, scheme_id: UUID, data: Grading
             ).execute()
         
         # Update scheme
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = data.model_dump(mode="json", exclude_unset=True)
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
             
@@ -577,11 +577,16 @@ async def create_teacher_assignment(request: Request, data: TeacherClassAssignme
                 raise ValidationError("This class already has a form teacher for this session")
         
         # Check for duplicate assignment
-        existing = supabase.table('teacher_class_assignments').select('id').eq(
+        existing_query = supabase.table('teacher_class_assignments').select('id').eq(
             'teacher_id', str(data.teacher_id)
         ).eq('subject_id', str(data.subject_id)).eq(
             'class_id', str(data.class_id)
-        ).eq('term_id', str(data.term_id) if data.term_id else None).execute()
+        )
+        if data.term_id:
+            existing_query = existing_query.eq('term_id', str(data.term_id))
+        else:
+            existing_query = existing_query.is_('term_id', 'null')
+        existing = existing_query.execute()
         
         if existing.data:
             raise DuplicateRecordError("Teacher assignment", "teacher-subject-class-term", "this combination")
@@ -771,7 +776,7 @@ async def update_teacher_assignment(request: Request, assignment_id: UUID, data:
                 raise ValidationError("This class already has a form teacher for this session")
         
         # Update assignment
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = data.model_dump(mode="json", exclude_unset=True)
         if update_data:
             if 'term_id' in update_data and update_data['term_id']:
                 update_data['term_id'] = str(update_data['term_id'])
@@ -1188,7 +1193,7 @@ async def update_student_remark(request: Request, remark_id: UUID, data: Student
                 raise AuthorizationError("You can only edit your own remarks")
         
         # Update remark
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = data.model_dump(mode="json", exclude_unset=True)
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
             

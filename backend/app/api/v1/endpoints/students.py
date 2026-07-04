@@ -290,7 +290,7 @@ async def update_student(request: Request, student_id: UUID, data: StudentUpdate
             if not class_check.data:
                 raise ValidationError("Invalid class ID")
         
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             # Convert dates to ISO format
             if 'date_of_birth' in update_data:
@@ -508,7 +508,7 @@ async def update_guardian(request: Request, student_id: UUID, guardian_id: UUID,
                 'student_id', str(student_id)
             ).neq('id', str(guardian_id)).execute()
         
-        update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+        update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
             
