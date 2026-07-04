@@ -178,18 +178,18 @@ export default function PaymentsPage() {
 
   const handleFeeAllocation = (feeId: string, amount: number) => {
     const fee = studentFees.find(f => f.id === feeId);
-    if (fee && amount > fee.balance) {
-      alert(`Amount cannot exceed balance of ₦${fee.balance.toLocaleString()}`);
+    if (fee && amount > Number(fee.balance)) {
+      alert(`Amount cannot exceed balance of ₦${Number(fee.balance).toLocaleString()}`);
       return;
     }
-    
+
     setSelectedFees({
       ...selectedFees,
       [feeId]: amount
     });
   };
 
-  const totalBalance = studentFees.reduce((sum, fee) => sum + fee.balance, 0);
+  const totalBalance = studentFees.reduce((sum, fee) => sum + Number(fee.balance), 0);
   const totalAllocated = Object.values(selectedFees).reduce((sum, amount) => sum + amount, 0);
   const paymentAmount = parseFloat(formData.amount) || 0;
   const unallocated = paymentAmount - totalAllocated;
@@ -276,14 +276,14 @@ export default function PaymentsPage() {
                       <div className="flex-1">
                         <div className="font-medium text-gray-900">{fee.category_name}</div>
                         <div className="text-sm text-gray-500">
-                          Balance: ₦{fee.balance.toLocaleString()} (of ₦{fee.final_amount.toLocaleString()})
+                          Balance: ₦{Number(fee.balance).toLocaleString()} (of ₦{Number(fee.final_amount).toLocaleString()})
                         </div>
                       </div>
                       <div className="ml-4">
                         <input
                           type="number"
                           min="0"
-                          max={fee.balance}
+                          max={Number(fee.balance)}
                           step="0.01"
                           value={selectedFees[fee.id] || 0}
                           onChange={(e) => handleFeeAllocation(fee.id, parseFloat(e.target.value) || 0)}
