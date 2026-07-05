@@ -56,8 +56,14 @@ class ApiClient {
 
       if (!response.ok) {
         const error = await response.json();
+        // Custom app exceptions (ValidationError, DuplicateRecordError, etc.)
+        // are wrapped as {"error": {"message": "..."}} by the backend's
+        // exception handler - only FastAPI's own validation errors use the
+        // flatter {"detail": "..."} shape. Without checking error.error.message
+        // first, every real backend error message was silently swallowed and
+        // replaced with the generic fallback below.
         return {
-          error: error.detail || error.message || 'An error occurred',
+          error: error.error?.message || error.detail || error.message || 'An error occurred',
         };
       }
 

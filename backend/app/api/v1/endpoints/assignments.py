@@ -255,10 +255,18 @@ async def create_class_enrollment(request: Request, data: ClassEnrollmentCreate)
         }
         
         result = supabase.table('class_enrollments').insert(enrollment_data).execute()
-        
+
         if not result.data:
             raise DatabaseError("Failed to create class enrollment")
-        
+
+        # students.current_class_id (not class_enrollments) is what the rest of
+        # the app reads to determine a student's class - keep it in sync here.
+        supabase.table('students').update({
+            'current_class_id': str(data.class_id),
+            'status': 'active',
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', str(data.student_id)).execute()
+
         logger.info(f"Created class enrollment for student {data.student_id}")
         
         # Enrich response
@@ -329,10 +337,16 @@ async def update_class_enrollment(request: Request, enrollment_id: UUID, data: C
             update_data['updated_at'] = datetime.utcnow().isoformat()
             
             result = supabase.table('class_enrollments').update(update_data).eq('id', str(enrollment_id)).execute()
-            
+
             if not result.data:
                 raise DatabaseError("Failed to update class enrollment")
-            
+
+            if 'class_id' in update_data:
+                supabase.table('students').update({
+                    'current_class_id': update_data['class_id'],
+                    'updated_at': datetime.utcnow().isoformat()
+                }).eq('id', enrollment.data[0]['student_id']).execute()
+
             logger.info(f"Updated class enrollment: {enrollment_id}")
             return result.data[0]
         

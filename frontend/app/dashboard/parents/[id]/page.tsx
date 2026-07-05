@@ -119,7 +119,7 @@ export default function ParentDetailPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              {parent.title && `${parent.title} `}{parent.full_name}
+              {parent.full_name}
             </h1>
             <p className="text-gray-600 mt-1">Parent/Guardian Profile</p>
           </div>

@@ -292,9 +292,7 @@ async def update_student(request: Request, student_id: UUID, data: StudentUpdate
         
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
-            # Convert dates to ISO format
-            if 'date_of_birth' in update_data:
-                update_data['date_of_birth'] = update_data['date_of_birth'].isoformat()
+            # model_dump(mode="json") already serializes date/UUID fields to strings
             if 'current_class_id' in update_data:
                 update_data['current_class_id'] = str(update_data['current_class_id'])
             

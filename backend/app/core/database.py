@@ -8,6 +8,7 @@ Supabase-style `.table()` methods on a raw asyncpg dependency).
 """
 
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 from app.core.config import settings
 import logging
 from typing import Dict, Any
@@ -26,7 +27,14 @@ def get_supabase() -> Client:
             logger.info(f"Creating Supabase client for: {settings.SUPABASE_URL}")
             # Use SERVICE_KEY for backend operations to bypass RLS
             key = settings.SUPABASE_SERVICE_KEY or settings.SUPABASE_KEY
-            _supabase_client = create_client(settings.SUPABASE_URL, key)
+            # Default postgrest_client_timeout is 5s, too tight for a fresh
+            # TLS handshake on a reconnect (idle connections get dropped) -
+            # this caused sporadic "An error occurred" on otherwise-working
+            # requests like creating a teacher/parent.
+            _supabase_client = create_client(
+                settings.SUPABASE_URL, key,
+                options=ClientOptions(postgrest_client_timeout=20)
+            )
             logger.info("Supabase client created successfully")
         except Exception as e:
             logger.error(f"Failed to create Supabase client: {e}")

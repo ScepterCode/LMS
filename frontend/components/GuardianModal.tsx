@@ -61,15 +61,25 @@ export default function GuardianModal({ studentId, guardian, onClose, onSuccess 
     setSubmitting(true);
 
     try {
-      if (isEdit) {
-        await api.put(`/students/${studentId}/guardians/${guardian!.id}`, formData);
-      } else {
-        await api.post(`/students/${studentId}/guardians`, formData);
+      const payload = {
+        ...formData,
+        email: formData.email || undefined,
+        occupation: formData.occupation || undefined,
+        address: formData.address || undefined,
+      };
+      const response = isEdit
+        ? await api.updateGuardian(studentId, guardian!.id!, payload)
+        : await api.addGuardian(studentId, payload);
+
+      if (response.error) {
+        setError(response.error);
+        return;
       }
+
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || `Failed to ${isEdit ? 'update' : 'add'} guardian`);
+      setError(`Failed to ${isEdit ? 'update' : 'add'} guardian`);
     } finally {
       setSubmitting(false);
     }
