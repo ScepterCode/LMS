@@ -1,8 +1,46 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens. Tailwind v4 has no tailwind.config.* here - the theme
+ * lives in CSS. A custom "brand" scale (indigo/violet, not the stock
+ * `blue-600` every default Tailwind app ships with) plus named semantic
+ * colors so "success" always means the same green everywhere instead of
+ * each page picking whichever green/emerald/teal it felt like.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+
+  --color-info-50: #eff6ff;
+  --color-info-100: #dbeafe;
+  --color-info-600: #2563eb;
+  --color-info-700: #1d4ed8;
 }
 
 @theme inline {
@@ -10,17 +48,80 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-brand-50: var(--color-brand-50);
+  --color-brand-100: var(--color-brand-100);
+  --color-brand-200: var(--color-brand-200);
+  --color-brand-300: var(--color-brand-300);
+  --color-brand-400: var(--color-brand-400);
+  --color-brand-500: var(--color-brand-500);
+  --color-brand-600: var(--color-brand-600);
+  --color-brand-700: var(--color-brand-700);
+  --color-brand-800: var(--color-brand-800);
+  --color-brand-900: var(--color-brand-900);
+
+  --color-success-50: var(--color-success-50);
+  --color-success-100: var(--color-success-100);
+  --color-success-600: var(--color-success-600);
+  --color-success-700: var(--color-success-700);
+
+  --color-warning-50: var(--color-warning-50);
+  --color-warning-100: var(--color-warning-100);
+  --color-warning-600: var(--color-warning-600);
+  --color-warning-700: var(--color-warning-700);
+
+  --color-danger-50: var(--color-danger-50);
+  --color-danger-100: var(--color-danger-100);
+  --color-danger-600: var(--color-danger-600);
+  --color-danger-700: var(--color-danger-700);
+
+  --color-info-50: var(--color-info-50);
+  --color-info-100: var(--color-info-100);
+  --color-info-600: var(--color-info-600);
+  --color-info-700: var(--color-info-700);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/*
+ * Note: no `prefers-color-scheme: dark` override here. The app has no
+ * dark-mode support anywhere else (every card/input/page is hardcoded
+ * light), so auto-switching --foreground to near-white was actively
+ * causing invisible typed text for anyone with OS dark mode on, not
+ * providing a real feature. Fixed light theme until dark mode is a
+ * deliberate, fully-designed feature.
+ */
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Global form-field contrast fix. ~40+ inputs across the app were
+ * missing an explicit text color, silently inheriting whatever color
+ * the surrounding context provided. Setting it once here, for every
+ * input/textarea/select, fixes every existing instance retroactively
+ * and protects anything written later that forgets the class too.
+ */
+@layer base {
+  input,
+  textarea,
+  select {
+    color: #111827; /* slate-900 */
+    background-color: #ffffff;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #6b7280; /* slate-500 - clearly distinguishable from real input text */
+    opacity: 1;
+  }
+
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    color: #6b7280;
+    background-color: #f1f5f9;
+    cursor: not-allowed;
+  }
 }

@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { LinkButton, Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 
 interface Student {
   id: string;
@@ -93,67 +97,53 @@ export default function StudentsPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const colors = {
-      active: 'bg-green-100 text-green-800',
-      graduated: 'bg-blue-100 text-blue-800',
-      suspended: 'bg-red-100 text-red-800',
-      withdrawn: 'bg-gray-100 text-gray-800',
+  const statusTone = (status: string) => {
+    const map: Record<string, 'success' | 'info' | 'danger' | 'neutral'> = {
+      active: 'success',
+      graduated: 'info',
+      suspended: 'danger',
+      withdrawn: 'neutral',
     };
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+    return map[status] || 'neutral';
   };
 
   return (
     <DashboardLayout>
-      {/* Header */}
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Students</h2>
-          <p className="text-gray-600">Manage student records and information</p>
-        </div>
-        <Link
-          href="/dashboard/students/add"
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          + Add Student
-        </Link>
-      </div>
+      <PageHeader
+        title="Students"
+        subtitle="Manage student records and information"
+        actions={<LinkButton href="/dashboard/students/add">+ Add Student</LinkButton>}
+      />
 
       {/* Form Teacher Quick Access */}
       {isFormTeacher && formClassInfo && (
-        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 bg-brand-50 border border-brand-100 rounded-lg p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded">
+                <span className="px-2 py-1 bg-brand-600 text-white text-xs font-semibold rounded">
                   FORM TEACHER
                 </span>
                 <h3 className="text-lg font-semibold text-gray-900">{formClassInfo.name}</h3>
               </div>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 You are the form teacher of this class. Quick actions available.
               </p>
             </div>
             <div className="flex gap-2">
-              <Link
-                href={`/dashboard/students/add?class=${formClassInfo.id}`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-              >
+              <LinkButton href={`/dashboard/students/add?class=${formClassInfo.id}`} size="sm">
                 + Add Student to My Class
-              </Link>
-              <button
-                onClick={() => setFilterClass(formClassInfo.id)}
-                className="px-4 py-2 bg-white text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 text-sm"
-              >
+              </LinkButton>
+              <Button variant="secondary" size="sm" onClick={() => setFilterClass(formClassInfo.id)}>
                 View My Class Students
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
 
           {/* Filters */}
-          <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+          <Card className="mb-6">
             <div className="grid md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -164,7 +154,7 @@ export default function StudentsPage() {
                   placeholder="Name or admission number..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
               </div>
               <div>
@@ -174,7 +164,7 @@ export default function StudentsPage() {
                 <select
                   value={filterClass}
                   onChange={(e) => setFilterClass(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 >
                   <option value="">All Classes</option>
                   {classes.map((cls) => (
@@ -191,7 +181,7 @@ export default function StudentsPage() {
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 >
                   <option value="">All Status</option>
                   <option value="active">Active</option>
@@ -201,27 +191,28 @@ export default function StudentsPage() {
                 </select>
               </div>
               <div className="flex items-end">
-                <button
+                <Button
+                  variant="secondary"
+                  className="w-full"
                   onClick={() => {
                     setSearchTerm('');
                     setFilterClass('');
                     setFilterStatus('');
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Clear Filters
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Loading */}
           {loading ? (
             <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
             </div>
           ) : students.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <Card className="p-12 text-center">
               <svg
                 className="mx-auto h-12 w-12 text-gray-400"
                 fill="none"
@@ -240,23 +231,19 @@ export default function StudentsPage() {
                 Get started by adding your first student.
               </p>
               <div className="mt-6">
-                <Link
-                  href="/dashboard/students/add"
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                >
-                  + Add Student
-                </Link>
+                <LinkButton href="/dashboard/students/add">+ Add Student</LinkButton>
               </div>
-            </div>
+            </Card>
           ) : (
             <>
               {/* Student Count */}
-              <div className="mb-4 text-sm text-gray-600">
+              <div className="mb-4 text-sm text-gray-500">
                 Showing {students.length} student{students.length !== 1 ? 's' : ''}
               </div>
 
               {/* Students Table */}
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -305,14 +292,12 @@ export default function StudentsPage() {
                           {student.class_name || 'Not assigned'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(student.status)}`}>
-                            {student.status}
-                          </span>
+                          <Badge tone={statusTone(student.status)}>{student.status}</Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <Link
                             href={`/dashboard/students/${student.id}`}
-                            className="text-blue-600 hover:text-blue-900 mr-4"
+                            className="text-brand-600 hover:text-brand-800 mr-4"
                           >
                             View
                           </Link>
@@ -327,6 +312,7 @@ export default function StudentsPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </>
           )}

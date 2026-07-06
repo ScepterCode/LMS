@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onNavigate: () => void;
+}
+
+export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
 
@@ -290,20 +295,33 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 overflow-y-auto">
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 overflow-y-auto transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       <div className="flex flex-col h-full">
         {/* Logo */}
-        <div className="flex items-center h-16 px-6 border-b border-gray-200">
-          <Link href="/dashboard" className="flex items-center">
-            <span className="text-xl font-bold text-blue-600">Nigerian LMS</span>
+        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+          <Link href="/dashboard" className="flex items-center" onClick={onNavigate}>
+            <span className="text-xl font-bold text-brand-600">Nigerian LMS</span>
           </Link>
+          <button
+            onClick={onNavigate}
+            className="lg:hidden p-1 text-gray-500 hover:text-gray-900"
+            aria-label="Close menu"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* User Info */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-              <span className="text-blue-600 font-semibold text-sm">
+            <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center">
+              <span className="text-brand-600 font-semibold text-sm">
                 {user?.full_name?.charAt(0).toUpperCase() || 'U'}
               </span>
             </div>
@@ -333,9 +351,10 @@ export default function Sidebar() {
                       <Link
                         key={subItem.href}
                         href={subItem.href}
+                        onClick={onNavigate}
                         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                           isActive(subItem.href)
-                            ? 'bg-blue-50 text-blue-600'
+                            ? 'bg-brand-50 text-brand-600'
                             : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                         }`}
                       >
@@ -352,9 +371,10 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={onNavigate}
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     pathname === item.href
-                      ? 'bg-blue-50 text-blue-600'
+                      ? 'bg-brand-50 text-brand-600'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >

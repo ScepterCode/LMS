@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 
 interface Student {
   id: string;
@@ -359,18 +362,13 @@ export default function ReportCardsPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      draft: 'bg-gray-100 text-gray-800',
-      generated: 'bg-blue-100 text-blue-800',
-      approved: 'bg-green-100 text-green-800',
-      published: 'bg-purple-100 text-purple-800'
+    const tones: Record<string, 'neutral' | 'info' | 'success' | 'brand'> = {
+      draft: 'neutral',
+      generated: 'info',
+      approved: 'success',
+      published: 'brand',
     };
-    
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
+    return <Badge tone={tones[status] || 'neutral'}>{status}</Badge>;
   };
 
   const attendancePercentage = selectedReport
@@ -392,52 +390,43 @@ export default function ReportCardsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Report Cards</h1>
-            <p className="text-gray-600 mt-1">View and generate student report cards</p>
-          </div>
-          <button
-            onClick={() => setShowGenerateModal(true)}
-            disabled={!selectedStudent}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            Generate Report Card
-          </button>
-        </div>
+        <PageHeader
+          title="Report Cards"
+          subtitle="View and generate student report cards"
+          actions={
+            <Button onClick={() => setShowGenerateModal(true)} disabled={!selectedStudent}>
+              Generate Report Card
+            </Button>
+          }
+        />
 
         {/* Form Teacher Quick Access */}
         {isFormTeacher && formClassInfo && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
+          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded">
+                  <span className="px-2 py-1 bg-brand-600 text-white text-xs font-semibold rounded">
                     FORM TEACHER
                   </span>
                   <h3 className="text-lg font-semibold text-gray-900">{formClassInfo.name}</h3>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">
-                  {viewMode === 'class' 
+                <p className="text-sm text-gray-500 mt-1">
+                  {viewMode === 'class'
                     ? 'Viewing all report cards for your form class'
                     : 'View all grades for students in your form class'}
                 </p>
               </div>
-              <button
-                onClick={toggleViewMode}
-                disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50"
-              >
+              <Button onClick={toggleViewMode} disabled={loading} size="sm">
                 {loading ? 'Loading...' : (viewMode === 'individual' ? 'View All Class Grades' : 'Back to Individual View')}
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
         {/* Student Selection */}
         {viewMode === 'individual' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">Select Student</label>
             <select
               value={selectedStudent}
@@ -445,7 +434,7 @@ export default function ReportCardsPage() {
                 setSelectedStudent(e.target.value);
                 setSelectedReport(null);
               }}
-              className="w-full max-w-2xl px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full max-w-2xl px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               <option value="">Choose a student...</option>
               {students.map(student => (
@@ -459,12 +448,12 @@ export default function ReportCardsPage() {
 
         {/* Class View - All Students Reports */}
         {viewMode === 'class' && isFormTeacher && (
-          <div className="bg-white rounded-lg shadow">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
                 All Report Cards - {formClassInfo.name}
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Viewing report cards for all students in your form class
               </p>
             </div>
@@ -522,7 +511,7 @@ export default function ReportCardsPage() {
                                   setViewMode('individual');
                                   setSelectedStudent(item.student.id);
                                 }}
-                                className="text-blue-600 hover:text-blue-900"
+                                className="text-brand-600 hover:text-brand-800"
                               >
                                 View Details
                               </button>
@@ -542,7 +531,7 @@ export default function ReportCardsPage() {
 
         {/* Report Cards List */}
         {viewMode === 'individual' && selectedStudent && !selectedReport && (
-          <div className="bg-white rounded-lg shadow">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">Report Cards History</h2>
             </div>
