@@ -318,8 +318,9 @@ async def upload_organization_logo(
                 file_options={"content-type": file.content_type, "upsert": "true"}
             )
 
-        public_url = storage.get_public_url(path)
-        # Bust cached copies of a previously-uploaded logo at the same path
+        # get_public_url() in this supabase-py version already returns a
+        # trailing "?" - strip it before appending our own cache-busting param.
+        public_url = storage.get_public_url(path).rstrip("?")
         public_url = f"{public_url}?v={uuid.uuid4().hex[:8]}"
     except Exception as e:
         logger.error(f"Error uploading organization logo: {e}")

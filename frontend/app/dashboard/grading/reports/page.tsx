@@ -96,9 +96,14 @@ export default function ReportCardsPage() {
 
   useEffect(() => {
     fetchStudents();
-    fetchOrganization();
     fetchSkillCategories();
   }, []);
+
+  useEffect(() => {
+    if (user?.school_id) {
+      fetchOrganization();
+    }
+  }, [user?.school_id]);
 
   const fetchOrganization = async () => {
     if (!user?.school_id) return;
@@ -371,7 +376,9 @@ export default function ReportCardsPage() {
   const attendancePercentage = selectedReport
     ? (selectedReport.attendance_percentage != null
         ? Number(selectedReport.attendance_percentage).toFixed(1)
-        : ((selectedReport.days_present / selectedReport.total_school_days) * 100).toFixed(1))
+        : selectedReport.total_school_days > 0
+          ? ((selectedReport.days_present / selectedReport.total_school_days) * 100).toFixed(1)
+          : '0.0')
     : 0;
 
   const punctualityPercentage = selectedReport
