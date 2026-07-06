@@ -599,28 +599,26 @@ export default function ReportCardsPage() {
             <div className="no-print flex items-center justify-between">
               <button
                 onClick={() => setSelectedReport(null)}
-                className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
+                className="text-brand-600 hover:text-brand-800 flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
                 Back to list
               </button>
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
+              <Button onClick={() => window.print()} icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
+              }>
                 Print Report Card
-              </button>
+              </Button>
             </div>
 
             {canCompileFor(selectedReport) && skillCategories.length > 0 && (
-              <div className="no-print bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+              <div className="no-print bg-brand-50 border border-brand-100 rounded-lg p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-1">Compile Skill Ratings</h2>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-gray-500 mb-4">
                   As form teacher of {formClassInfo.name}, rate this student on each trait (1-5).
                 </p>
                 {(['psychomotor', 'affective'] as const).map((domain) => {
@@ -640,7 +638,7 @@ export default function ReportCardsPage() {
                               onChange={(e) =>
                                 setRatingsDraft({ ...ratingsDraft, [category.id]: Number(e.target.value) })
                               }
-                              className="px-2 py-1 border border-gray-300 rounded-lg text-sm"
+                              className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                             >
                               <option value="">Not rated</option>
                               {[5, 4, 3, 2, 1].map((v) => (
@@ -655,19 +653,15 @@ export default function ReportCardsPage() {
                     </div>
                   );
                 })}
-                <button
-                  onClick={handleSaveRatings}
-                  disabled={savingRatings}
-                  className="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                >
+                <Button onClick={handleSaveRatings} disabled={savingRatings} className="mt-2">
                   {savingRatings ? 'Saving...' : 'Save Skill Ratings'}
-                </button>
+                </Button>
               </div>
             )}
 
             <div id="printable-report-card" className="space-y-6">
             {/* Report Header */}
-            <div className="bg-white rounded-lg shadow p-6 text-center border-b-4 border-blue-600">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-center border-b-4 border-b-brand-600">
               {organization?.logo_url && (
                 <img
                   src={organization.logo_url}
@@ -677,47 +671,47 @@ export default function ReportCardsPage() {
               )}
               <h1 className="text-xl font-bold text-gray-900">{organization?.name || 'Student Report Card'}</h1>
               {organization?.motto && (
-                <p className="text-sm italic text-gray-600 mt-1">"{organization.motto}"</p>
+                <p className="text-sm italic text-gray-500 mt-1">"{organization.motto}"</p>
               )}
               {organization?.address && (
                 <p className="text-xs text-gray-500 mt-1">{organization.address}</p>
               )}
               <p className="text-lg font-semibold text-gray-800 mt-3">{selectedReport.student_name || 'N/A'}</p>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 {selectedReport.session_name || 'N/A'} &middot; {selectedReport.term_name || 'N/A'}
               </p>
             </div>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Average Score</div>
-                <div className="text-2xl font-bold text-blue-600 mt-1">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                <div className="text-sm text-gray-500">Average Score</div>
+                <div className="text-2xl font-bold text-brand-600 mt-1">
                   {Number(selectedReport.average_score || 0).toFixed(1)}%
                 </div>
               </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Overall Grade</div>
-                <div className="text-2xl font-bold text-green-600 mt-1">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                <div className="text-sm text-gray-500">Overall Grade</div>
+                <div className="text-2xl font-bold text-success-600 mt-1">
                   {selectedReport.overall_grade || 'N/A'}
                 </div>
               </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Class Position</div>
-                <div className="text-2xl font-bold text-purple-600 mt-1">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                <div className="text-sm text-gray-500">Class Position</div>
+                <div className="text-2xl font-bold text-info-600 mt-1">
                   {selectedReport.overall_position}/{selectedReport.class_size}
                 </div>
               </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Attendance</div>
-                <div className="text-2xl font-bold text-yellow-600 mt-1">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                <div className="text-sm text-gray-500">Attendance</div>
+                <div className="text-2xl font-bold text-warning-600 mt-1">
                   {attendancePercentage}%
                 </div>
               </div>
             </div>
 
             {/* Subject Grades */}
-            <div className="bg-white rounded-lg shadow">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">Subject Performance</h2>
               </div>
@@ -766,41 +760,41 @@ export default function ReportCardsPage() {
             </div>
 
             {/* Attendance Summary */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance Summary</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div>
-                  <div className="text-sm text-gray-600">Days Present</div>
-                  <div className="text-xl font-bold text-green-600 mt-1">{selectedReport.days_present}</div>
+                  <div className="text-sm text-gray-500">Days Present</div>
+                  <div className="text-xl font-bold text-success-600 mt-1">{selectedReport.days_present}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">Days Absent</div>
-                  <div className="text-xl font-bold text-red-600 mt-1">{selectedReport.days_absent}</div>
+                  <div className="text-sm text-gray-500">Days Absent</div>
+                  <div className="text-xl font-bold text-danger-600 mt-1">{selectedReport.days_absent}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">Days Excused</div>
-                  <div className="text-xl font-bold text-yellow-600 mt-1">{selectedReport.days_excused ?? 0}</div>
+                  <div className="text-sm text-gray-500">Days Excused</div>
+                  <div className="text-xl font-bold text-warning-600 mt-1">{selectedReport.days_excused ?? 0}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">Total School Days</div>
+                  <div className="text-sm text-gray-500">Total School Days</div>
                   <div className="text-xl font-bold text-gray-900 mt-1">{selectedReport.total_school_days}</div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                 <div>
-                  <div className="text-sm text-gray-600">Regularity (Attendance Rate)</div>
-                  <div className="text-xl font-bold text-blue-600 mt-1">{attendancePercentage}%</div>
+                  <div className="text-sm text-gray-500">Regularity (Attendance Rate)</div>
+                  <div className="text-xl font-bold text-brand-600 mt-1">{attendancePercentage}%</div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600">Punctuality Rate</div>
-                  <div className="text-xl font-bold text-indigo-600 mt-1">{punctualityPercentage}%</div>
+                  <div className="text-sm text-gray-500">Punctuality Rate</div>
+                  <div className="text-xl font-bold text-info-600 mt-1">{punctualityPercentage}%</div>
                 </div>
               </div>
             </div>
 
             {/* Skills & Extracurricular Activities */}
             {selectedReport.skill_ratings && selectedReport.skill_ratings.length > 0 && (
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Skills & Extracurricular Activities</h2>
                 {(['psychomotor', 'affective'] as const).map((domain) => {
                   const items = selectedReport.skill_ratings!.filter((r) => r.domain === domain);
@@ -827,7 +821,7 @@ export default function ReportCardsPage() {
             )}
 
             {/* Remarks */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Remarks</h2>
               <div className="space-y-4">
                 <div>
@@ -868,27 +862,20 @@ export default function ReportCardsPage() {
 
       {/* Generate Report Modal */}
       {showGenerateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">Generate Report Card</h2>
-            <p className="text-gray-600 mb-6">
-              This will generate a report card for the selected student for the current term. 
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Generate Report Card</h2>
+            <p className="text-gray-500 mb-6">
+              This will generate a report card for the selected student for the current term.
               All grades and attendance records will be compiled.
             </p>
             <div className="flex gap-3">
-              <button
-                onClick={handleGenerateReport}
-                disabled={generating}
-                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
+              <Button onClick={handleGenerateReport} disabled={generating} className="flex-1">
                 {generating ? 'Generating...' : 'Generate'}
-              </button>
-              <button
-                onClick={() => setShowGenerateModal(false)}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
-              >
+              </Button>
+              <Button variant="secondary" onClick={() => setShowGenerateModal(false)} className="flex-1">
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>

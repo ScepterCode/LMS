@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/Button';
 
 interface Class {
   id: string;
@@ -202,10 +204,10 @@ export default function MarkAttendancePage() {
 
   const getStatusColor = (status: string) => {
     const colors = {
-      present: 'bg-green-100 text-green-800 border-green-300',
-      absent: 'bg-red-100 text-red-800 border-red-300',
-      late: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      excused: 'bg-blue-100 text-blue-800 border-blue-300'
+      present: 'bg-success-100 text-success-700 border-success-600',
+      absent: 'bg-danger-100 text-danger-700 border-danger-600',
+      late: 'bg-warning-100 text-warning-700 border-warning-600',
+      excused: 'bg-info-100 text-info-700 border-info-600'
     };
     return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-300';
   };
@@ -224,21 +226,17 @@ export default function MarkAttendancePage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mark Attendance</h1>
-          <p className="text-gray-600 mt-1">Record daily attendance for students</p>
-        </div>
+        <PageHeader title="Mark Attendance" subtitle="Record daily attendance for students" />
 
         {/* Selection */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Select Class *</label>
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               >
                 <option value="">Choose a class...</option>
                 {classes.map(cls => (
@@ -246,32 +244,32 @@ export default function MarkAttendancePage() {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
-            
+
             <div className="flex items-end gap-2">
-              <button
+              <Button
                 onClick={() => handleMarkAll('present')}
                 disabled={!selectedClass}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="flex-1"
               >
                 Mark All Present
-              </button>
+              </Button>
             </div>
           </div>
-          
+
           {existingAttendance && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                ℹ️ Attendance has already been marked for this date. You can update it below.
+            <div className="mt-4 p-3 bg-info-50 border border-info-100 rounded-lg">
+              <p className="text-sm text-info-700">
+                Attendance has already been marked for this date. You can update it below.
               </p>
             </div>
           )}
@@ -280,25 +278,25 @@ export default function MarkAttendancePage() {
         {/* Statistics */}
         {selectedClass && students.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-600">Total Students</div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="text-sm text-gray-500">Total Students</div>
               <div className="text-2xl font-bold text-gray-900 mt-1">{students.length}</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-600">Present</div>
-              <div className="text-2xl font-bold text-green-600 mt-1">{stats.present}</div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="text-sm text-gray-500">Present</div>
+              <div className="text-2xl font-bold text-success-600 mt-1">{stats.present}</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-600">Absent</div>
-              <div className="text-2xl font-bold text-red-600 mt-1">{stats.absent}</div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="text-sm text-gray-500">Absent</div>
+              <div className="text-2xl font-bold text-danger-600 mt-1">{stats.absent}</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-600">Late</div>
-              <div className="text-2xl font-bold text-yellow-600 mt-1">{stats.late}</div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="text-sm text-gray-500">Late</div>
+              <div className="text-2xl font-bold text-warning-600 mt-1">{stats.late}</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-600">Attendance Rate</div>
-              <div className="text-2xl font-bold text-blue-600 mt-1">{attendanceRate}%</div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="text-sm text-gray-500">Attendance Rate</div>
+              <div className="text-2xl font-bold text-brand-600 mt-1">{attendanceRate}%</div>
             </div>
           </div>
         )}
@@ -306,10 +304,10 @@ export default function MarkAttendancePage() {
         {/* Attendance Grid */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="text-gray-500">Loading students...</div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
           </div>
         ) : selectedClass && students.length > 0 ? (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -358,7 +356,7 @@ export default function MarkAttendancePage() {
                               [student.id]: {...record, reason: e.target.value}
                             })}
                             placeholder="Optional reason for absence/lateness"
-                            className="w-full px-3 py-1 text-sm border border-gray-300 rounded-lg"
+                            className="w-full px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                           />
                         </td>
                       </tr>
@@ -368,22 +366,18 @@ export default function MarkAttendancePage() {
               </table>
             </div>
             
-            <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-              <button
-                onClick={handleSave}
-                disabled={saving || !selectedClass}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+              <Button onClick={handleSave} disabled={saving || !selectedClass}>
                 {saving ? 'Saving...' : 'Save Attendance'}
-              </button>
+              </Button>
             </div>
           </div>
         ) : selectedClass ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center text-gray-500">
             No students found in this class
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center text-gray-500">
             Select a class to mark attendance
           </div>
         )}

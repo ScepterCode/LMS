@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 
 interface FeeCategory {
   id: string;
@@ -81,19 +84,11 @@ export default function FeeManagementPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Fee Management</h1>
-            <p className="text-gray-600 mt-1">Manage fee categories and structures</p>
-          </div>
-          <button
-            onClick={() => router.push('/dashboard/fees/payments')}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            Record Payment
-          </button>
-        </div>
+        <PageHeader
+          title="Fee Management"
+          subtitle="Manage fee categories and structures"
+          actions={<Button onClick={() => router.push('/dashboard/fees/payments')}>Record Payment</Button>}
+        />
 
         {/* Tabs */}
         <div className="border-b border-gray-200">
@@ -102,7 +97,7 @@ export default function FeeManagementPage() {
               onClick={() => setActiveTab('categories')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'categories'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-brand-500 text-brand-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -112,7 +107,7 @@ export default function FeeManagementPage() {
               onClick={() => setActiveTab('structures')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'structures'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-brand-500 text-brand-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -124,20 +119,16 @@ export default function FeeManagementPage() {
         {/* Content */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="text-gray-500">Loading...</div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
           </div>
         ) : activeTab === 'categories' ? (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <button
-                onClick={() => setShowCategoryModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Add Category
-              </button>
+              <Button onClick={() => setShowCategoryModal(true)}>Add Category</Button>
             </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -165,35 +156,30 @@ export default function FeeManagementPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {category.is_mandatory ? (
-                            <span className="text-green-600">Yes</span>
+                            <span className="text-success-600">Yes</span>
                           ) : (
                             <span className="text-gray-400">No</span>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                            Active
-                          </span>
+                          <Badge tone="success">Active</Badge>
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <button
-                onClick={() => setShowStructureModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Add Fee Structure
-              </button>
+              <Button onClick={() => setShowStructureModal(true)}>Add Fee Structure</Button>
             </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -231,19 +217,16 @@ export default function FeeManagementPage() {
                           {structure.due_date || 'Not set'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            structure.is_active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
+                          <Badge tone={structure.is_active ? 'success' : 'neutral'}>
                             {structure.is_active ? 'Active' : 'Inactive'}
-                          </span>
+                          </Badge>
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}
@@ -251,10 +234,10 @@ export default function FeeManagementPage() {
 
       {/* Create Category Modal */}
       {showCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">Create Fee Category</h2>
-            
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Create Fee Category</h2>
+
             <form onSubmit={handleCreateCategory} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
@@ -263,11 +246,11 @@ export default function FeeManagementPage() {
                   required
                   value={categoryForm.name}
                   onChange={(e) => setCategoryForm({...categoryForm, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   placeholder="e.g., Tuition Fee"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
                 <input
@@ -275,45 +258,36 @@ export default function FeeManagementPage() {
                   required
                   value={categoryForm.code}
                   onChange={(e) => setCategoryForm({...categoryForm, code: e.target.value.toUpperCase()})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   placeholder="e.g., TUITION"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm({...categoryForm, description: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   rows={3}
                 />
               </div>
-              
+
               <div className="flex items-center">
                 <input
                   type="checkbox"
                   checked={categoryForm.is_mandatory}
                   onChange={(e) => setCategoryForm({...categoryForm, is_mandatory: e.target.checked})}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                  className="w-4 h-4 text-brand-600 border-gray-300 rounded"
                 />
                 <label className="ml-2 text-sm text-gray-700">Mandatory fee</label>
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
-                >
-                  Create Category
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCategoryModal(false)}
-                  className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
-                >
+                <Button type="submit" className="flex-1">Create Category</Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowCategoryModal(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
           </div>
