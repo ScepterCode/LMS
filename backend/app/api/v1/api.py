@@ -21,7 +21,8 @@ from app.api.v1.endpoints import (
     fees,
     teacher_management,
     users,
-    registration
+    registration,
+    skills
 )
 
 # Create main API router
@@ -43,6 +44,7 @@ api_router.include_router(grading.router, prefix="/grading", tags=["Grading & As
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance Management"])
 api_router.include_router(fees.router, prefix="/fees", tags=["Fee Management"])
 api_router.include_router(teacher_management.router, prefix="/teacher-management", tags=["Phase 4: Teacher Management"])
+api_router.include_router(skills.router, prefix="/skills", tags=["Skills & Extracurriculars"])
 
 # NEW: User Management & Integrated Registration
 from app.api.v1.endpoints import users, registration

@@ -252,10 +252,19 @@ class ReportCardBase(BaseModel):
     days_present: int = 0
     days_absent: int = 0
     days_late: int = 0
+    days_excused: int = 0
     total_school_days: int = 0
+    attendance_percentage: Optional[Decimal] = None
+    punctuality_percentage: Optional[Decimal] = None
     class_teacher_remark: Optional[str] = None
     principal_remark: Optional[str] = None
     resumption_date: Optional[date] = None
+
+
+class SkillRating(BaseModel):
+    category_name: str
+    domain: str
+    rating: int
 
 
 class ReportCardGenerate(BaseModel):
@@ -289,6 +298,7 @@ class ReportCard(ReportCardBase):
     session_name: Optional[str] = None
     term_name: Optional[str] = None
     subject_grades: Optional[List[SubjectGrade]] = []
+    skill_ratings: Optional[List[SkillRating]] = []
 
     class Config:
         from_attributes = True

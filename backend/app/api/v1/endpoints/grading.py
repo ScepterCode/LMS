@@ -767,9 +767,12 @@ async def generate_report_card(
         "days_present": 0,
         "days_absent": 0,
         "days_late": 0,
-        "total_school_days": 0
+        "days_excused": 0,
+        "total_school_days": 0,
+        "attendance_percentage": None,
+        "punctuality_percentage": None
     }
-    
+
     # Create report card
     report_card_data = {
         "organization_id": current_user["school_id"],
@@ -785,7 +788,10 @@ async def generate_report_card(
         "days_present": attendance_data["days_present"],
         "days_absent": attendance_data["days_absent"],
         "days_late": attendance_data["days_late"],
+        "days_excused": attendance_data.get("days_excused", 0),
         "total_school_days": attendance_data["total_school_days"],
+        "attendance_percentage": attendance_data.get("attendance_percentage"),
+        "punctuality_percentage": attendance_data.get("punctuality_percentage"),
         "status": "generated",
         "generated_at": datetime.utcnow().isoformat()
     }
@@ -863,6 +869,22 @@ async def get_report_card(
 
         if remarks.data:
             report_card["class_teacher_remark"] = remarks.data[0]["remark_text"]
+
+    # Get skill ratings (psychomotor/affective domain traits, admin-configurable)
+    skill_ratings = db.table("student_skill_ratings").select(
+        "rating, skill_categories(name, domain)"
+    ).eq("student_id", report_card["student_id"]).eq(
+        "session_id", report_card["session_id"]
+    ).eq("term_id", report_card["term_id"]).execute()
+
+    report_card["skill_ratings"] = [
+        {
+            "category_name": r["skill_categories"]["name"],
+            "domain": r["skill_categories"]["domain"],
+            "rating": r["rating"],
+        }
+        for r in (skill_ratings.data or []) if r.get("skill_categories")
+    ]
 
     return report_card
 

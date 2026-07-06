@@ -76,6 +76,30 @@ class ApiClient {
     }
   }
 
+  private async requestFormData<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
+    try {
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return {
+          error: error.error?.message || error.detail || error.message || 'An error occurred',
+        };
+      }
+
+      const data = await response.json();
+      return { data };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Network error',
+      };
+    }
+  }
+
   // Generic HTTP methods
   async get<T = any>(endpoint: string) {
     return this.request<T>(endpoint, { method: 'GET' });
@@ -163,6 +187,21 @@ class ApiClient {
     return this.request(`/api/v1/organizations/${orgId}`, {
       method: 'GET',
     });
+  }
+
+  async updateOrganization(orgId: string, data: { name?: string; address?: string; phone?: string; motto?: string }) {
+    return this.request(`/api/v1/organizations/${orgId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadOrganizationLogo(orgId: string, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    // Don't set Content-Type here - the browser must set it (with the
+    // multipart boundary) itself, which it can't do if we override it.
+    return this.requestFormData<{ logo_url: string }>(`/api/v1/organizations/${orgId}/logo`, formData);
   }
 
   async getPlatformAnalytics() {
@@ -547,6 +586,27 @@ class ApiClient {
 
   async deleteRemark(remarkId: string) {
     return this.request(`/api/v1/teacher-management/remarks/${remarkId}`, { method: 'DELETE' });
+  }
+
+  // Phase 5: Skill Categories & Ratings (psychomotor/affective report card domain)
+  async getSkillCategories(includeInactive = false) {
+    return this.request(`/api/v1/skills/categories?include_inactive=${includeInactive}`, { method: 'GET' });
+  }
+
+  async createSkillCategory(data: { name: string; domain: string; display_order?: number }) {
+    return this.request('/api/v1/skills/categories', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateSkillCategory(categoryId: string, data: { name?: string; domain?: string; display_order?: number; is_active?: boolean }) {
+    return this.request(`/api/v1/skills/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async getStudentSkillRatings(studentId: string, sessionId: string, termId: string) {
+    return this.request(`/api/v1/skills/student/${studentId}?session_id=${sessionId}&term_id=${termId}`, { method: 'GET' });
+  }
+
+  async submitSkillRatings(data: { student_id: string; session_id: string; term_id: string; ratings: { skill_category_id: string; rating: number }[] }) {
+    return this.request('/api/v1/skills/ratings/bulk', { method: 'POST', body: JSON.stringify(data) });
   }
 
   // Phase 4: School Reports

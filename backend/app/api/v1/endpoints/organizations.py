@@ -3,7 +3,9 @@ Organizations endpoints for Nigerian LMS.
 School-level administration and management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
+from pydantic import BaseModel
 from typing import List, Optional
 import logging
 
@@ -19,6 +21,7 @@ from app.core.exceptions import (
     AuthenticationError,
     InsufficientPermissionsError,
     DatabaseError,
+    ValidationError,
 )
 
 router = APIRouter()
@@ -225,46 +228,109 @@ async def list_organization_campuses(
 
 
 # ============================================
-# ORGANIZATION SETTINGS (Placeholder)
+# ORGANIZATION BRANDING (name, address, motto, logo)
 # ============================================
 
-@router.get("/{org_id}/settings")
-async def get_organization_settings(
-    org_id: str,
-    current_user = Depends(get_current_user),
-):
-    """
-    Get organization settings (placeholder for Phase 2).
-    """
-    # Check permissions
-    if not is_system_admin(current_user) and not can_access_school(current_user, org_id):
-        raise InsufficientPermissionsError("You don't have access to this organization")
-    
-    # TODO: Implement in Phase 2
-    return {
-        "message": "Organization settings functionality coming in Phase 2",
-        "organization_id": org_id
-    }
+class OrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    motto: Optional[str] = None
 
 
-@router.patch("/{org_id}/settings")
-async def update_organization_settings(
-    org_id: str,
-    settings: dict,
-    current_user = Depends(get_current_user),
-):
-    """
-    Update organization settings (placeholder for Phase 2).
-    """
-    # Check permissions
+LOGO_BUCKET = "school-assets"
+ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp"}
+MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
+
+
+def _require_school_admin(current_user: dict, org_id: str):
     if not is_system_admin(current_user):
         if not can_access_school(current_user, org_id):
             raise InsufficientPermissionsError("You don't have access to this organization")
         if not is_school_admin(current_user):
-            raise InsufficientPermissionsError("Only school admins can update settings")
-    
-    # TODO: Implement in Phase 2
-    return {
-        "message": "Organization settings update functionality coming in Phase 2",
-        "organization_id": org_id
-    }
+            raise InsufficientPermissionsError("Only school admins can update organization settings")
+
+
+@router.patch("/{org_id}")
+async def update_organization(
+    org_id: str,
+    data: OrganizationUpdate,
+    current_user = Depends(get_current_user),
+):
+    """Update organization name/address/phone/motto. School admin only."""
+    _require_school_admin(current_user, org_id)
+
+    supabase = get_supabase()
+    if not supabase:
+        raise DatabaseError("Database connection not available")
+
+    update_data = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+    if not update_data:
+        existing = supabase.table('organizations').select('*').eq('id', org_id).execute()
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        return existing.data[0]
+
+    result = supabase.table('organizations').update(update_data).eq('id', org_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    logger.info(f"User {current_user['email']} updated organization {org_id} settings")
+    return result.data[0]
+
+
+@router.post("/{org_id}/logo")
+async def upload_organization_logo(
+    org_id: str,
+    file: UploadFile = File(...),
+    current_user = Depends(get_current_user),
+):
+    """Upload/replace the organization's logo. School admin only."""
+    _require_school_admin(current_user, org_id)
+
+    if file.content_type not in ALLOWED_LOGO_TYPES:
+        raise ValidationError("Logo must be a PNG, JPEG, or WebP image")
+
+    contents = await file.read()
+    if len(contents) > MAX_LOGO_SIZE_BYTES:
+        raise ValidationError("Logo must be smaller than 2MB")
+
+    supabase = get_supabase()
+    if not supabase:
+        raise DatabaseError("Database connection not available")
+
+    extension = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}[file.content_type]
+    path = f"{org_id}/logo.{extension}"
+
+    try:
+        storage = supabase.storage.from_(LOGO_BUCKET)
+        try:
+            storage.upload(
+                path, contents,
+                file_options={"content-type": file.content_type, "upsert": "true"}
+            )
+        except Exception:
+            # Bucket likely doesn't exist yet - create it (public, so logos can be
+            # rendered directly in <img> tags and printed report cards) and retry once.
+            supabase.storage.create_bucket(LOGO_BUCKET, options={"public": True})
+            storage.upload(
+                path, contents,
+                file_options={"content-type": file.content_type, "upsert": "true"}
+            )
+
+        public_url = storage.get_public_url(path)
+        # Bust cached copies of a previously-uploaded logo at the same path
+        public_url = f"{public_url}?v={uuid.uuid4().hex[:8]}"
+    except Exception as e:
+        logger.error(f"Error uploading organization logo: {e}")
+        raise DatabaseError(f"Failed to upload logo: {str(e)}")
+
+    result = supabase.table('organizations').update(
+        {"logo_url": public_url}
+    ).eq('id', org_id).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    logger.info(f"User {current_user['email']} uploaded a new logo for organization {org_id}")
+    return {"logo_url": public_url}

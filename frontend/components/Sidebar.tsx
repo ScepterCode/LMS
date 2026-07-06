@@ -264,6 +264,29 @@ export default function Sidebar() {
         },
       ],
     },
+    {
+      section: 'Administration',
+      items: [
+        {
+          name: 'School Settings',
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2M19 21H5m0 0H3m8-14h2m-2 4h2m-6-4h.01M9 11h.01M7 21v-4a1 1 0 011-1h2a1 1 0 011 1v4" />
+            </svg>
+          ),
+          href: '/dashboard/settings/school',
+        },
+        {
+          name: 'Report Card Skills',
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          ),
+          href: '/dashboard/settings/skills',
+        },
+      ],
+    },
   ];
 
   return (

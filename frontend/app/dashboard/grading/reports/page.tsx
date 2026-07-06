@@ -15,6 +15,9 @@ interface Student {
 interface ReportCard {
   id: string;
   student_id: string;
+  class_id?: string;
+  session_id?: string;
+  term_id?: string;
   student_name?: string;
   session_name?: string;
   term_name?: string;
@@ -24,10 +27,16 @@ interface ReportCard {
   class_size: number;
   days_present: number;
   days_absent: number;
+  days_late: number;
+  days_excused?: number;
   total_school_days: number;
+  attendance_percentage?: number | string;
+  punctuality_percentage?: number | string;
   status: string;
   class_teacher_remark?: string;
   principal_remark?: string;
+  subject_grades?: SubjectGrade[];
+  skill_ratings?: SkillRating[];
 }
 
 interface SubjectGrade {
@@ -37,6 +46,33 @@ interface SubjectGrade {
   class_position: number;
   teacher_remark?: string;
 }
+
+interface SkillRating {
+  category_name: string;
+  domain: 'psychomotor' | 'affective';
+  rating: number;
+}
+
+interface SkillCategory {
+  id: string;
+  name: string;
+  domain: 'psychomotor' | 'affective';
+}
+
+interface Organization {
+  name: string;
+  address?: string;
+  motto?: string;
+  logo_url?: string;
+}
+
+const RATING_LABELS: Record<number, string> = {
+  5: 'Excellent',
+  4: 'Very Good',
+  3: 'Good',
+  2: 'Fair',
+  1: 'Poor',
+};
 
 export default function ReportCardsPage() {
   const { user } = useAuth();
@@ -53,10 +89,37 @@ export default function ReportCardsPage() {
   const [viewMode, setViewMode] = useState<'individual' | 'class'>('individual');
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [allClassReports, setAllClassReports] = useState<any[]>([]);
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
+  const [ratingsDraft, setRatingsDraft] = useState<Record<string, number>>({});
+  const [savingRatings, setSavingRatings] = useState(false);
 
   useEffect(() => {
     fetchStudents();
+    fetchOrganization();
+    fetchSkillCategories();
   }, []);
+
+  const fetchOrganization = async () => {
+    if (!user?.school_id) return;
+    try {
+      const response = await api.getOrganization(user.school_id);
+      const org = (response.data as any)?.organization as Organization | undefined;
+      if (org) setOrganization(org);
+    } catch (error) {
+      console.error('Error fetching organization:', error);
+    }
+  };
+
+  const fetchSkillCategories = async () => {
+    try {
+      const response = await api.getSkillCategories();
+      setSkillCategories(response.data ? (response.data as SkillCategory[]) : []);
+    } catch (error) {
+      console.error('Error fetching skill categories:', error);
+      setSkillCategories([]);
+    }
+  };
 
   useEffect(() => {
     if (selectedStudent) {
@@ -176,8 +239,12 @@ export default function ReportCardsPage() {
     try {
       const response = await api.get(`/api/v1/grading/report-cards/${reportId}`);
       if (response.data) {
-        setSelectedReport(response.data);
-        setSubjectGrades(response.data.subject_grades || []);
+        const report = response.data as ReportCard;
+        setSelectedReport(report);
+        setSubjectGrades(report.subject_grades || []);
+        if (canCompileFor(report) && report.session_id && report.term_id) {
+          await loadRatingsDraft(report.student_id, report.session_id, report.term_id);
+        }
       } else {
         setSelectedReport(null);
         setSubjectGrades([]);
@@ -188,6 +255,61 @@ export default function ReportCardsPage() {
       setSubjectGrades([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const canCompileFor = (report: ReportCard | null) => {
+    return !!(isFormTeacher && formClassInfo && report && report.class_id === formClassInfo.id);
+  };
+
+  const loadRatingsDraft = async (studentId: string, sessionId: string, termId: string) => {
+    try {
+      const response = await api.getStudentSkillRatings(studentId, sessionId, termId);
+      const existing = (response.data as any[]) || [];
+      const draft: Record<string, number> = {};
+      existing.forEach((r) => {
+        if (r.skill_category_id) draft[r.skill_category_id] = r.rating;
+      });
+      setRatingsDraft(draft);
+    } catch (error) {
+      console.error('Error loading skill ratings:', error);
+      setRatingsDraft({});
+    }
+  };
+
+  const handleSaveRatings = async () => {
+    if (!selectedReport?.session_id || !selectedReport?.term_id) return;
+
+    const ratings = Object.entries(ratingsDraft)
+      .filter(([, rating]) => !!rating)
+      .map(([skill_category_id, rating]) => ({ skill_category_id, rating }));
+
+    if (ratings.length === 0) {
+      alert('Please rate at least one skill');
+      return;
+    }
+
+    setSavingRatings(true);
+    try {
+      const response = await api.submitSkillRatings({
+        student_id: selectedReport.student_id,
+        session_id: selectedReport.session_id,
+        term_id: selectedReport.term_id,
+        ratings,
+      });
+
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+
+      alert('Skill ratings saved!');
+      handleViewReport(selectedReport.id);
+    } catch (error) {
+      console.error('Error saving skill ratings:', error);
+      alert('Failed to save skill ratings');
+    } finally {
+      setSavingRatings(false);
     }
   };
 
@@ -247,7 +369,17 @@ export default function ReportCardsPage() {
   };
 
   const attendancePercentage = selectedReport
-    ? ((selectedReport.days_present / selectedReport.total_school_days) * 100).toFixed(1)
+    ? (selectedReport.attendance_percentage != null
+        ? Number(selectedReport.attendance_percentage).toFixed(1)
+        : ((selectedReport.days_present / selectedReport.total_school_days) * 100).toFixed(1))
+    : 0;
+
+  const punctualityPercentage = selectedReport
+    ? (selectedReport.punctuality_percentage != null
+        ? Number(selectedReport.punctuality_percentage).toFixed(1)
+        : (selectedReport.days_present + selectedReport.days_late) > 0
+          ? ((selectedReport.days_present / (selectedReport.days_present + selectedReport.days_late)) * 100).toFixed(1)
+          : '0.0')
     : 0;
 
   return (
@@ -489,11 +621,72 @@ export default function ReportCardsPage() {
               </button>
             </div>
 
+            {canCompileFor(selectedReport) && skillCategories.length > 0 && (
+              <div className="no-print bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Compile Skill Ratings</h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  As form teacher of {formClassInfo.name}, rate this student on each trait (1-5).
+                </p>
+                {(['psychomotor', 'affective'] as const).map((domain) => {
+                  const items = skillCategories.filter((c) => c.domain === domain);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={domain} className="mb-4 last:mb-0">
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase mb-2">
+                        {domain === 'psychomotor' ? 'Psychomotor Domain' : 'Affective Domain'}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {items.map((category) => (
+                          <div key={category.id} className="flex items-center justify-between gap-3">
+                            <span className="text-sm text-gray-700">{category.name}</span>
+                            <select
+                              value={ratingsDraft[category.id] || ''}
+                              onChange={(e) =>
+                                setRatingsDraft({ ...ratingsDraft, [category.id]: Number(e.target.value) })
+                              }
+                              className="px-2 py-1 border border-gray-300 rounded-lg text-sm"
+                            >
+                              <option value="">Not rated</option>
+                              {[5, 4, 3, 2, 1].map((v) => (
+                                <option key={v} value={v}>
+                                  {v} - {RATING_LABELS[v]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={handleSaveRatings}
+                  disabled={savingRatings}
+                  className="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {savingRatings ? 'Saving...' : 'Save Skill Ratings'}
+                </button>
+              </div>
+            )}
+
             <div id="printable-report-card" className="space-y-6">
             {/* Report Header */}
             <div className="bg-white rounded-lg shadow p-6 text-center border-b-4 border-blue-600">
-              <h1 className="text-xl font-bold text-gray-900">Student Report Card</h1>
-              <p className="text-lg font-semibold text-gray-800 mt-2">{selectedReport.student_name || 'N/A'}</p>
+              {organization?.logo_url && (
+                <img
+                  src={organization.logo_url}
+                  alt="School logo"
+                  className="w-16 h-16 object-contain mx-auto mb-2"
+                />
+              )}
+              <h1 className="text-xl font-bold text-gray-900">{organization?.name || 'Student Report Card'}</h1>
+              {organization?.motto && (
+                <p className="text-sm italic text-gray-600 mt-1">"{organization.motto}"</p>
+              )}
+              {organization?.address && (
+                <p className="text-xs text-gray-500 mt-1">{organization.address}</p>
+              )}
+              <p className="text-lg font-semibold text-gray-800 mt-3">{selectedReport.student_name || 'N/A'}</p>
               <p className="text-sm text-gray-600 mt-1">
                 {selectedReport.session_name || 'N/A'} &middot; {selectedReport.term_name || 'N/A'}
               </p>
@@ -579,7 +772,7 @@ export default function ReportCardsPage() {
             {/* Attendance Summary */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance Summary</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div>
                   <div className="text-sm text-gray-600">Days Present</div>
                   <div className="text-xl font-bold text-green-600 mt-1">{selectedReport.days_present}</div>
@@ -589,15 +782,53 @@ export default function ReportCardsPage() {
                   <div className="text-xl font-bold text-red-600 mt-1">{selectedReport.days_absent}</div>
                 </div>
                 <div>
+                  <div className="text-sm text-gray-600">Days Excused</div>
+                  <div className="text-xl font-bold text-yellow-600 mt-1">{selectedReport.days_excused ?? 0}</div>
+                </div>
+                <div>
                   <div className="text-sm text-gray-600">Total School Days</div>
                   <div className="text-xl font-bold text-gray-900 mt-1">{selectedReport.total_school_days}</div>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                 <div>
-                  <div className="text-sm text-gray-600">Attendance Rate</div>
+                  <div className="text-sm text-gray-600">Regularity (Attendance Rate)</div>
                   <div className="text-xl font-bold text-blue-600 mt-1">{attendancePercentage}%</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">Punctuality Rate</div>
+                  <div className="text-xl font-bold text-indigo-600 mt-1">{punctualityPercentage}%</div>
                 </div>
               </div>
             </div>
+
+            {/* Skills & Extracurricular Activities */}
+            {selectedReport.skill_ratings && selectedReport.skill_ratings.length > 0 && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Skills & Extracurricular Activities</h2>
+                {(['psychomotor', 'affective'] as const).map((domain) => {
+                  const items = selectedReport.skill_ratings!.filter((r) => r.domain === domain);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={domain} className="mb-4 last:mb-0">
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase mb-2">
+                        {domain === 'psychomotor' ? 'Psychomotor Domain' : 'Affective Domain'}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between border-b border-gray-100 py-1">
+                            <span className="text-sm text-gray-700">{item.category_name}</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {RATING_LABELS[item.rating] || item.rating}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Remarks */}
             <div className="bg-white rounded-lg shadow p-6">
