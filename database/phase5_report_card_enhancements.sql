@@ -15,13 +15,9 @@
 -- 5. Seed default trait list for existing organizations
 -- =====================================================
 
-\echo 'Creating Phase 5: Report Card Enhancements...'
-
 -- =====================================================
 -- PART 1: ORGANIZATION BRANDING
 -- =====================================================
-
-\echo 'Adding branding columns to organizations...'
 
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS motto VARCHAR(255);
@@ -30,8 +26,6 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS motto VARCHAR(255);
 -- PART 2: REPORT CARD ATTENDANCE DETAIL
 -- =====================================================
 
-\echo 'Adding attendance detail columns to report_cards...'
-
 ALTER TABLE report_cards ADD COLUMN IF NOT EXISTS days_excused INTEGER DEFAULT 0;
 ALTER TABLE report_cards ADD COLUMN IF NOT EXISTS attendance_percentage DECIMAL(5,2);
 ALTER TABLE report_cards ADD COLUMN IF NOT EXISTS punctuality_percentage DECIMAL(5,2);
@@ -39,8 +33,6 @@ ALTER TABLE report_cards ADD COLUMN IF NOT EXISTS punctuality_percentage DECIMAL
 -- =====================================================
 -- PART 3: SKILL CATEGORIES (admin-configurable trait list)
 -- =====================================================
-
-\echo 'Creating skill_categories table...'
 
 CREATE TABLE IF NOT EXISTS skill_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -60,8 +52,6 @@ CREATE INDEX IF NOT EXISTS idx_skill_categories_active ON skill_categories(organ
 -- =====================================================
 -- PART 4: STUDENT SKILL RATINGS
 -- =====================================================
-
-\echo 'Creating student_skill_ratings table...'
 
 CREATE TABLE IF NOT EXISTS student_skill_ratings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -85,8 +75,6 @@ CREATE INDEX IF NOT EXISTS idx_student_skill_ratings_session_term ON student_ski
 -- PART 5: SEED DEFAULT TRAITS FOR EXISTING ORGANIZATIONS
 -- =====================================================
 
-\echo 'Seeding default skill categories for existing organizations...'
-
 INSERT INTO skill_categories (organization_id, name, domain, display_order)
 SELECT o.id, t.name, t.domain, t.display_order
 FROM organizations o
@@ -101,5 +89,3 @@ CROSS JOIN (
         ('Honesty', 'affective', 3)
 ) AS t(name, domain, display_order)
 ON CONFLICT (organization_id, name) DO NOTHING;
-
-\echo 'Phase 5 tables created and seeded successfully!'
