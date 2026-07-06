@@ -33,10 +33,32 @@ export default function MarkAttendancePage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [existingAttendance, setExistingAttendance] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState('');
+  const [currentTermId, setCurrentTermId] = useState('');
 
   useEffect(() => {
     fetchClasses();
+    fetchCurrentSessionAndTerm();
   }, []);
+
+  const fetchCurrentSessionAndTerm = async () => {
+    try {
+      const sessionsRes = await api.getSessions({ is_current: true });
+      const sessions = sessionsRes.data as any[] | undefined;
+      const currentSession = sessions?.[0];
+      if (currentSession) {
+        setCurrentSessionId(currentSession.id);
+
+        const termsRes = await api.getTerms({ is_current: true, session_id: currentSession.id });
+        const terms = termsRes.data as any[] | undefined;
+        if (terms?.[0]) {
+          setCurrentTermId(terms[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching current session/term:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedClass && selectedDate) {
@@ -145,24 +167,34 @@ export default function MarkAttendancePage() {
       return;
     }
 
+    if (!currentSessionId || !currentTermId) {
+      alert('No current academic session/term is set. Set one as current under Sessions & Terms first.');
+      return;
+    }
+
     try {
       setSaving(true);
-      
+
       const records = Object.values(attendance);
-      
-      await api.post('/api/v1/attendance/mark', {
+
+      const response = await api.post('/api/v1/attendance/mark', {
         class_id: selectedClass,
-        session_id: '', // You'll need to get current session
-        term_id: '', // You'll need to get current term
+        session_id: currentSessionId,
+        term_id: currentTermId,
         attendance_date: selectedDate,
         records: records
       });
-      
+
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+
       alert('Attendance saved successfully!');
       setExistingAttendance(true);
     } catch (error: any) {
       console.error('Error saving attendance:', error);
-      alert(error.response?.data?.detail || 'Failed to save attendance');
+      alert('Failed to save attendance');
     } finally {
       setSaving(false);
     }

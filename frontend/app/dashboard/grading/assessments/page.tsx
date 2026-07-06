@@ -54,10 +54,32 @@ export default function AssessmentsPage() {
     assessment_date: '',
     max_score: 100
   });
+  const [currentSessionId, setCurrentSessionId] = useState('');
+  const [currentTermId, setCurrentTermId] = useState('');
 
   useEffect(() => {
     fetchData();
+    fetchCurrentSessionAndTerm();
   }, [selectedSubject, selectedClass]);
+
+  const fetchCurrentSessionAndTerm = async () => {
+    try {
+      const sessionsRes = await api.getSessions({ is_current: true });
+      const sessions = sessionsRes.data as any[] | undefined;
+      const currentSession = sessions?.[0];
+      if (currentSession) {
+        setCurrentSessionId(currentSession.id);
+
+        const termsRes = await api.getTerms({ is_current: true, session_id: currentSession.id });
+        const terms = termsRes.data as any[] | undefined;
+        if (terms?.[0]) {
+          setCurrentTermId(terms[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching current session/term:', error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -68,7 +90,7 @@ export default function AssessmentsPage() {
       if (selectedSubject) params.append('subject_id', selectedSubject);
       if (selectedClass) params.append('class_id', selectedClass);
       if (params.toString()) url += `?${params.toString()}`;
-      
+
       const [assessmentsRes, typesRes, subjectsRes, classesRes] = await Promise.all([
         api.get(url),
         api.get('/api/v1/grading/assessment-types'),
@@ -93,9 +115,24 @@ export default function AssessmentsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (!currentSessionId || !currentTermId) {
+      alert('No current academic session/term is set. Set one as current under Sessions & Terms first.');
+      return;
+    }
+
     try {
-      await api.post('/api/v1/grading/assessments', formData);
+      const response = await api.post('/api/v1/grading/assessments', {
+        ...formData,
+        session_id: currentSessionId,
+        term_id: currentTermId
+      });
+
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+
       alert('Assessment created successfully!');
       setShowModal(false);
       setFormData({
@@ -110,7 +147,7 @@ export default function AssessmentsPage() {
       fetchData();
     } catch (error: any) {
       console.error('Error creating assessment:', error);
-      alert(error.response?.data?.detail || 'Failed to create assessment');
+      alert('Failed to create assessment');
     }
   };
 
@@ -120,12 +157,16 @@ export default function AssessmentsPage() {
     }
 
     try {
-      await api.post(`/api/v1/grading/assessments/${id}/publish`);
+      const response = await api.post(`/api/v1/grading/assessments/${id}/publish`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
       alert('Assessment published successfully!');
       fetchData();
     } catch (error: any) {
       console.error('Error publishing assessment:', error);
-      alert(error.response?.data?.detail || 'Failed to publish assessment');
+      alert('Failed to publish assessment');
     }
   };
 

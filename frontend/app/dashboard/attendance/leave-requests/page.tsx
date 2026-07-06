@@ -95,14 +95,18 @@ export default function LeaveRequestsPage() {
     }
 
     try {
-      await api.put(`/api/v1/attendance/leave-requests/${requestId}/approve`, {
+      const response = await api.put(`/api/v1/attendance/leave-requests/${requestId}/approve`, {
         status: 'approved'
       });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
       alert('Leave request approved successfully!');
       fetchData();
     } catch (error: any) {
       console.error('Error approving leave request:', error);
-      alert(error.response?.data?.detail || 'Failed to approve leave request');
+      alert('Failed to approve leave request');
     }
   };
 
@@ -111,15 +115,19 @@ export default function LeaveRequestsPage() {
     if (!reason) return;
 
     try {
-      await api.put(`/api/v1/attendance/leave-requests/${requestId}/approve`, {
+      const response = await api.put(`/api/v1/attendance/leave-requests/${requestId}/approve`, {
         status: 'rejected',
         rejection_reason: reason
       });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
       alert('Leave request rejected');
       fetchData();
     } catch (error: any) {
       console.error('Error rejecting leave request:', error);
-      alert(error.response?.data?.detail || 'Failed to reject leave request');
+      alert('Failed to reject leave request');
     }
   };
 

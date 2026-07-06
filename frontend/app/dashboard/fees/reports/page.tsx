@@ -37,17 +37,18 @@ export default function FinancialReportsPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeView, setActiveView] = useState<'overview' | 'student'>('overview');
+  const [currentSessionId, setCurrentSessionId] = useState('');
 
   useEffect(() => {
     fetchStudents();
-    fetchFinancialAnalytics();
+    fetchCurrentSessionAndAnalytics();
   }, []);
 
   useEffect(() => {
-    if (selectedStudent) {
+    if (selectedStudent && currentSessionId) {
       fetchStudentSummary();
     }
-  }, [selectedStudent]);
+  }, [selectedStudent, currentSessionId]);
 
   const fetchStudents = async () => {
     try {
@@ -59,11 +60,24 @@ export default function FinancialReportsPage() {
     }
   };
 
-  const fetchFinancialAnalytics = async () => {
+  const fetchCurrentSessionAndAnalytics = async () => {
+    try {
+      const sessionsRes = await api.getSessions({ is_current: true });
+      const sessions = sessionsRes.data as any[] | undefined;
+      const currentSession = sessions?.[0];
+      if (currentSession) {
+        setCurrentSessionId(currentSession.id);
+        await fetchFinancialAnalytics(currentSession.id);
+      }
+    } catch (error) {
+      console.error('Error fetching current session:', error);
+    }
+  };
+
+  const fetchFinancialAnalytics = async (sessionId: string) => {
     try {
       setLoading(true);
-      // You'll need to pass actual session_id
-      const response = await api.get('/api/v1/fees/analytics/financial?session_id=');
+      const response = await api.get(`/api/v1/fees/analytics/financial?session_id=${sessionId}`);
       setAnalytics(response.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -75,8 +89,7 @@ export default function FinancialReportsPage() {
   const fetchStudentSummary = async () => {
     try {
       setLoading(true);
-      // You'll need to pass actual session_id
-      const response = await api.get(`/api/v1/fees/analytics/student/${selectedStudent}?session_id=`);
+      const response = await api.get(`/api/v1/fees/analytics/student/${selectedStudent}?session_id=${currentSessionId}`);
       setStudentSummary(response.data);
     } catch (error) {
       console.error('Error fetching student summary:', error);

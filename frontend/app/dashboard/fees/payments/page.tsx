@@ -150,9 +150,13 @@ export default function PaymentsPage() {
         fee_allocations: feeAllocations
       };
 
-      await api.post('/api/v1/fees/payments', paymentData);
+      const response = await api.post('/api/v1/fees/payments', paymentData);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
       alert('Payment recorded successfully!');
-      
+
       // Reset form
       setFormData({
         student_id: '',
@@ -167,12 +171,12 @@ export default function PaymentsPage() {
       setSelectedStudent('');
       setStudentFees([]);
       setSelectedFees({});
-      
+
       // Refresh payments list
       setActiveTab('history');
     } catch (error: any) {
       console.error('Error recording payment:', error);
-      alert(error.response?.data?.detail || 'Failed to record payment');
+      alert('Failed to record payment');
     }
   };
 

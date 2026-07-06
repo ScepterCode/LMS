@@ -39,11 +39,33 @@ export default function AttendanceReportsPage() {
   const [endDate, setEndDate] = useState('');
   const [summaries, setSummaries] = useState<AttendanceSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState('');
+  const [currentTermId, setCurrentTermId] = useState('');
 
   useEffect(() => {
     fetchClasses();
     fetchStudents();
+    fetchCurrentSessionAndTerm();
   }, []);
+
+  const fetchCurrentSessionAndTerm = async () => {
+    try {
+      const sessionsRes = await api.getSessions({ is_current: true });
+      const sessions = sessionsRes.data as any[] | undefined;
+      const currentSession = sessions?.[0];
+      if (currentSession) {
+        setCurrentSessionId(currentSession.id);
+
+        const termsRes = await api.getTerms({ is_current: true, session_id: currentSession.id });
+        const terms = termsRes.data as any[] | undefined;
+        if (terms?.[0]) {
+          setCurrentTermId(terms[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching current session/term:', error);
+    }
+  };
 
   const fetchClasses = async () => {
     try {
@@ -79,11 +101,15 @@ export default function AttendanceReportsPage() {
       setLoading(true);
       
       if (reportType === 'class') {
+        if (!currentSessionId || !currentTermId) {
+          alert('No current academic session/term is set. Set one as current under Sessions & Terms first.');
+          return;
+        }
         // Get class attendance summaries
         const response = await api.get(
-          `/api/v1/attendance/summary/class/${selectedClass}?session_id=&term_id=`
+          `/api/v1/attendance/summary/class/${selectedClass}?session_id=${currentSessionId}&term_id=${currentTermId}`
         );
-        setSummaries(response.data);
+        setSummaries(response.data || []);
       } else {
         // Get student attendance history
         let url = `/api/v1/attendance/student/${selectedStudent}`;
