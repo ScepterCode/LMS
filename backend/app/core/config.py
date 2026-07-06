@@ -70,16 +70,15 @@ class Settings(BaseSettings):
         return bool(self.SUPABASE_URL and (self.SUPABASE_SERVICE_KEY or self.SUPABASE_KEY))
     
     def get_cors_origins(self) -> List[str]:
-        """Get CORS origins based on environment."""
-        if self.is_production:
-            # In production, only allow your frontend domain
-            return ["https://your-domain.com"]
-        else:
-            # In development, allow localhost and 127.0.0.1
-            # Split comma-separated string into list
-            if isinstance(self.ALLOWED_ORIGINS, str):
-                return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(',')]
-            return self.ALLOWED_ORIGINS
+        """Get CORS origins from ALLOWED_ORIGINS, in both dev and production.
+
+        Set ALLOWED_ORIGINS to the deployed frontend's real origin(s) in
+        production - there is no hardcoded fallback domain, since a wrong
+        guess here silently breaks every cross-origin request.
+        """
+        if isinstance(self.ALLOWED_ORIGINS, str):
+            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(',') if origin.strip()]
+        return self.ALLOWED_ORIGINS
 
 
 # Create global settings instance
