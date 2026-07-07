@@ -9,9 +9,18 @@ interface SidebarProps {
   onNavigate: () => void;
 }
 
+// Sections/items with no `roles` array are visible to every authenticated
+// role. Admin-only areas (staff/academic/finance setup, school-wide config)
+// are restricted here to match what the backend already enforces - see
+// require_admin()/require_school_admin() in the corresponding endpoint
+// files - so a teacher's sidebar reflects what they can actually do instead
+// of showing every admin page and 403ing on click.
+const ADMIN_ROLES = ['admin', 'system_admin'];
+
 export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const role = user?.role;
 
   const isActive = (path: string) => {
     return pathname === path || pathname.startsWith(path + '/');
@@ -38,6 +47,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/students',
+          roles: [...ADMIN_ROLES, 'teacher'],
         },
         {
           name: 'Parents/Guardians',
@@ -47,6 +57,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/parents',
+          roles: ADMIN_ROLES,
         },
         {
           name: 'Class Enrollments',
@@ -56,11 +67,13 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/enrollments',
+          roles: ADMIN_ROLES,
         },
       ],
     },
     {
       section: 'Staff Management',
+      roles: ADMIN_ROLES,
       items: [
         {
           name: 'Teachers',
@@ -84,6 +97,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
     },
     {
       section: 'Academic Setup',
+      roles: ADMIN_ROLES,
       items: [
         {
           name: 'Sessions & Terms',
@@ -116,6 +130,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
     },
     {
       section: 'Grading & Assessments',
+      roles: [...ADMIN_ROLES, 'teacher'],
       items: [
         {
           name: 'Assessments',
@@ -148,6 +163,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
     },
     {
       section: 'Attendance',
+      roles: [...ADMIN_ROLES, 'teacher'],
       items: [
         {
           name: 'Mark Attendance',
@@ -180,6 +196,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
     },
     {
       section: 'Finance',
+      roles: [...ADMIN_ROLES, 'bursar'],
       items: [
         {
           name: 'Fee Management',
@@ -221,6 +238,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/grading-schemes',
+          roles: ADMIN_ROLES,
         },
         {
           name: 'Class Subjects',
@@ -230,6 +248,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/class-subjects',
+          roles: ADMIN_ROLES,
         },
         {
           name: 'Teacher Assignments',
@@ -239,6 +258,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/teacher-assignments',
+          roles: ADMIN_ROLES,
         },
         {
           name: 'My Classes',
@@ -248,6 +268,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/my-classes',
+          roles: [...ADMIN_ROLES, 'teacher'],
         },
         {
           name: 'Class Remarks',
@@ -257,6 +278,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/my-class-remarks',
+          roles: [...ADMIN_ROLES, 'teacher'],
         },
         {
           name: 'Send Reports',
@@ -266,11 +288,13 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/send-reports',
+          roles: [...ADMIN_ROLES, 'teacher'],
         },
       ],
     },
     {
       section: 'Administration',
+      roles: ADMIN_ROLES,
       items: [
         {
           name: 'School Settings',
@@ -340,14 +364,23 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
         <nav className="flex-1 px-3 py-4 space-y-1">
           {navigation.map((item, idx) => {
             if ('section' in item) {
-              // Section with items
+              // Section-level roles hide the whole group (e.g. Finance from
+              // teachers); per-item roles handle sections with mixed access
+              // (e.g. Teacher Management's admin-config vs teacher-self-service
+              // pages). No roles specified on either = visible to everyone.
+              if (item.roles && !item.roles.includes(role ?? '')) return null;
+              const visibleItems = item.items?.filter(
+                (subItem) => !subItem.roles || subItem.roles.includes(role ?? '')
+              );
+              if (!visibleItems || visibleItems.length === 0) return null;
+
               return (
                 <div key={idx} className="mb-4">
                   <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                     {item.section}
                   </h3>
                   <div className="space-y-1">
-                    {item.items?.map((subItem) => (
+                    {visibleItems.map((subItem) => (
                       <Link
                         key={subItem.href}
                         href={subItem.href}
