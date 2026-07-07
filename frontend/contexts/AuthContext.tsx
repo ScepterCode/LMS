@@ -69,25 +69,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Only try to refresh if we have a cookie or stored user
-    const hasAuthCookie = document.cookie.includes('access_token');
+    // The auth cookie is httpOnly (deliberately - it stops XSS from
+    // stealing it), so document.cookie can never see it and a
+    // hasAuthCookie-style check here is always false. The server is the
+    // only reliable source of truth for whether a session is valid.
+    // Optimistically restore from localStorage for a faster initial
+    // render, but always ask the server too - otherwise anyone whose
+    // localStorage got cleared (privacy tools, browser storage eviction,
+    // manual clear) while their cookie is still valid gets bounced to
+    // /login for no reason.
     const storedUser = localStorage.getItem('user');
-    
-    if (hasAuthCookie || storedUser) {
-      // Try to restore from localStorage first for faster initial render
-      if (storedUser && !user) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          console.error('Failed to parse stored user:', e);
-        }
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error('Failed to parse stored user:', e);
       }
-      
-      // Then refresh from server
-      refreshUser().finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
+
+    refreshUser().finally(() => setLoading(false));
   }, []);
 
   const login = async (email: string, password: string) => {
