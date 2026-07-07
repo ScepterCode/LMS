@@ -49,11 +49,12 @@ export default function LeaveRequestsPage() {
       setLoading(true);
       let url = '/api/v1/attendance/leave-requests';
       if (statusFilter) url += `?status=${statusFilter}`;
-      
+
       const response = await api.get(url);
-      setRequests(response.data);
+      setRequests(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching leave requests:', error);
+      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -62,9 +63,10 @@ export default function LeaveRequestsPage() {
   const fetchStudents = async () => {
     try {
       const response = await api.get('/api/v1/students');
-      setStudents(response.data);
+      setStudents(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching students:', error);
+      setStudents([]);
     }
   };
 
