@@ -485,7 +485,28 @@ async def get_assessment_grades(
     db = Depends(get_supabase)
 ):
     """Get all grades for an assessment"""
-    
+
+    assessment = db.table("assessments").select("subject_id, class_id").eq(
+        "id", assessment_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+
+    if not assessment.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+
+    if current_user["role"] == "teacher":
+        try:
+            await PermissionChecker.verify_subject_teacher_permission(
+                current_user.get("teacher_id"), assessment.data[0]["subject_id"],
+                assessment.data[0]["class_id"], db
+            )
+        except AuthorizationError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    elif current_user["role"] not in ["admin", "system_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the subject teacher or an admin can view a whole assessment's grades"
+        )
+
     response = db.table("grades").select(
         "*, students(admission_number, first_name, last_name)"
     ).eq("assessment_id", assessment_id).eq(
@@ -617,7 +638,9 @@ async def get_student_grades(
     db = Depends(get_supabase)
 ):
     """Get all grades for a student"""
-    
+
+    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+
     query = db.table("grades").select(
         "*, assessments(title, max_score, assessment_date, subjects(name))"
     ).eq("student_id", student_id).eq(
@@ -879,6 +902,8 @@ async def get_report_card(
     
     report_card = response.data[0]
 
+    await PermissionChecker.verify_can_view_student(current_user, report_card["student_id"], db)
+
     if report_card.get("students"):
         student = report_card["students"]
         report_card["student_name"] = f"{student['first_name']} {student['last_name']}"
@@ -949,7 +974,9 @@ async def get_student_report_cards(
     db = Depends(get_supabase)
 ):
     """Get all report cards for a student"""
-    
+
+    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+
     query = db.table("report_cards").select(
         "*, "
         "academic_sessions(name), "
@@ -1098,7 +1125,12 @@ async def get_class_performance(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You must be either the form teacher or teach this subject in this class"
             )
-    
+    elif current_user["role"] not in ["admin", "system_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a teacher of this class/subject or an admin can view this analytics"
+        )
+
     # Get all subject grades for this class/subject/term
     grades = db.table("subject_grades").select(
         "total_score, grade_letter"
@@ -1159,7 +1191,9 @@ async def get_student_performance(
     db = Depends(get_supabase)
 ):
     """Get performance summary for a student across all subjects"""
-    
+
+    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+
     # Get student details
     student = db.table("students").select(
         "first_name, last_name"

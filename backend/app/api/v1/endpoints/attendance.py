@@ -108,12 +108,11 @@ async def get_class_attendance(
     db = Depends(get_supabase)
 ):
     """Get attendance records for a class on a specific date (Form Teacher or Admin)"""
-    
-    # For teachers: verify form teacher permission
+
     if current_user["role"] == "teacher":
         supabase = get_supabase()
         teacher_id = current_user.get("teacher_id")
-        
+
         try:
             await PermissionChecker.verify_form_teacher_permission(
                 teacher_id, class_id, supabase
@@ -123,7 +122,12 @@ async def get_class_attendance(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Form teacher access required: {str(e)}"
             )
-    
+    elif current_user["role"] not in ["admin", "system_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the form teacher or an admin can view a class's attendance records"
+        )
+
     # Get attendance records
     response = db.table("attendance_records").select(
         "*, students(admission_number, first_name, last_name)"
@@ -179,7 +183,9 @@ async def get_student_attendance(
     db = Depends(get_supabase)
 ):
     """Get attendance history for a student"""
-    
+
+    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+
     query = db.table("attendance_records").select("*").eq(
         "student_id", student_id
     ).eq("organization_id", current_user["school_id"])
@@ -212,7 +218,9 @@ async def get_student_attendance_summary(
     db = Depends(get_supabase)
 ):
     """Get attendance summary for a student"""
-    
+
+    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+
     response = db.table("attendance_summaries").select(
         "*, students(admission_number, first_name, last_name)"
     ).eq("student_id", student_id).eq(
@@ -246,12 +254,14 @@ async def get_class_attendance_summaries(
     db = Depends(get_supabase)
 ):
     """Get attendance summaries for all students in a class (Form Teacher or Admin)"""
-    
-    # For teachers: verify form teacher permission
+
+    # For teachers: verify form teacher permission. Every other non-admin
+    # role (bursar/parent/student) has no legitimate use for a whole
+    # class's attendance and must be rejected explicitly.
     if current_user["role"] == "teacher":
         supabase = get_supabase()
         teacher_id = current_user.get("teacher_id")
-        
+
         try:
             await PermissionChecker.verify_form_teacher_permission(
                 teacher_id, class_id, supabase
@@ -261,7 +271,12 @@ async def get_class_attendance_summaries(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Form teacher access required: {str(e)}"
             )
-    
+    elif current_user["role"] not in ["admin", "system_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the form teacher or an admin can view a class's attendance summary"
+        )
+
     # Get students in class (current_class_id is the source of truth used
     # everywhere else - "enrollments" is not a real table)
     enrollments = db.table("students").select("id").eq(

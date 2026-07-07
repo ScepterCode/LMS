@@ -10,6 +10,7 @@ import string
 
 from app.core.database import get_supabase
 from app.core.security import get_current_user
+from app.core.permissions import PermissionChecker
 from app.models.fees import (
     FeeCategory, FeeCategoryCreate, FeeCategoryUpdate,
     FeeStructure, FeeStructureCreate, FeeStructureUpdate,
@@ -178,7 +179,17 @@ async def get_student_fees(
     db = Depends(get_supabase)
 ):
     """Get student fees"""
-    
+
+    if student_id:
+        await PermissionChecker.verify_can_view_student(
+            current_user, student_id, db, extra_full_access_roles=("bursar",)
+        )
+    elif current_user["role"] not in ["admin", "system_admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="student_id is required unless you are an admin or bursar"
+        )
+
     query = db.table("student_fees").select(
         "*, students(admission_number, first_name, last_name), "
         "fee_structures(fee_categories(name))"
@@ -351,7 +362,17 @@ async def get_payments(
     db = Depends(get_supabase)
 ):
     """Get payments"""
-    
+
+    if student_id:
+        await PermissionChecker.verify_can_view_student(
+            current_user, student_id, db, extra_full_access_roles=("bursar",)
+        )
+    elif current_user["role"] not in ["admin", "system_admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="student_id is required unless you are an admin or bursar"
+        )
+
     query = db.table("payments").select(
         "*, students(admission_number, first_name, last_name)"
     ).eq("organization_id", current_user["school_id"])
@@ -468,7 +489,13 @@ async def get_financial_analytics(
     db = Depends(get_supabase)
 ):
     """Get financial analytics"""
-    
+
+    if current_user["role"] not in ["admin", "system_admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can view school-wide financial analytics"
+        )
+
     query = db.table("student_fees").select("*").eq(
         "organization_id", current_user["school_id"]
     ).eq("session_id", session_id)
@@ -528,7 +555,11 @@ async def get_student_fees_summary(
     db = Depends(get_supabase)
 ):
     """Get fee summary for a student"""
-    
+
+    await PermissionChecker.verify_can_view_student(
+        current_user, student_id, db, extra_full_access_roles=("bursar",)
+    )
+
     # Get student details
     student = db.table("students").select("first_name, last_name").eq(
         "id", student_id
@@ -572,17 +603,26 @@ async def get_receipt(
     db = Depends(get_supabase)
 ):
     """Get receipt details"""
-    
+
     response = db.table("receipts").select(
-        "*, payments(*, students(first_name, last_name, admission_number))"
+        "*, payments(*, students(id, first_name, last_name, admission_number))"
     ).eq("receipt_number", receipt_number).eq(
         "organization_id", current_user["school_id"]
     ).execute()
-    
+
     if not response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Receipt not found"
         )
-    
-    return response.data[0]
+
+    receipt = response.data[0]
+    student_id = (receipt.get("payments") or {}).get("student_id")
+    if student_id:
+        await PermissionChecker.verify_can_view_student(
+            current_user, student_id, db, extra_full_access_roles=("bursar",)
+        )
+    elif current_user["role"] not in ["admin", "system_admin", "bursar"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this receipt")
+
+    return receipt

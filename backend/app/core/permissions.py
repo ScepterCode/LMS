@@ -157,6 +157,50 @@ class PermissionChecker:
             raise AuthorizationError(f"You do not teach {subject_id} in this class")
         return True
 
+    @staticmethod
+    async def verify_can_view_student(
+        user: dict, student_id: str, supabase, extra_full_access_roles: tuple = ()
+    ) -> None:
+        """Verify the caller has a real relationship to this student before
+        returning their grades/attendance/fee data. Raises AuthorizationError
+        if not.
+
+        admin/system_admin always pass. extra_full_access_roles lets a
+        specific domain opt in additional unrestricted roles (e.g. bursar
+        for financial endpoints). Teachers must be the form teacher of the
+        student's current class; parents must be linked via
+        parent_student_links. Every other role is rejected - there is no
+        user_id linkage from a "student" role account to a students row in
+        this schema, so student self-service view isn't wired up yet.
+        """
+        role = user.get("role")
+        if role in ("admin", "system_admin", *extra_full_access_roles):
+            return
+
+        if role == "teacher":
+            student = supabase.table("students").select("current_class_id").eq(
+                "id", student_id
+            ).execute()
+            class_id = student.data[0].get("current_class_id") if student.data else None
+            if not class_id:
+                raise AuthorizationError("Student not found or has no assigned class")
+            if not await PermissionChecker.is_form_teacher(user.get("teacher_id"), class_id, supabase):
+                raise AuthorizationError("You are not the form teacher of this student's class")
+            return
+
+        if role == "parent":
+            parent = supabase.table("parents").select("id").eq("user_id", user["id"]).execute()
+            parent_id = parent.data[0]["id"] if parent.data else None
+            if parent_id:
+                link = supabase.table("parent_student_links").select("id").eq(
+                    "parent_id", parent_id
+                ).eq("student_id", student_id).execute()
+                if link.data:
+                    return
+            raise AuthorizationError("You are not linked to this student")
+
+        raise AuthorizationError("You do not have permission to view this student's data")
+
 
 # ============================================
 # Permission Matrix Documentation
