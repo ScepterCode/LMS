@@ -89,6 +89,7 @@ export default function ReportCardsPage() {
   const [generating, setGenerating] = useState(false);
   const [isFormTeacher, setIsFormTeacher] = useState(false);
   const [formClassInfo, setFormClassInfo] = useState<any>(null);
+  const [formTeacherCheckDone, setFormTeacherCheckDone] = useState(false);
   const [viewMode, setViewMode] = useState<'individual' | 'class'>('individual');
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [allClassReports, setAllClassReports] = useState<any[]>([]);
@@ -98,9 +99,22 @@ export default function ReportCardsPage() {
   const [savingRatings, setSavingRatings] = useState(false);
 
   useEffect(() => {
-    fetchStudents();
     fetchSkillCategories();
   }, []);
+
+  // Wait for the form-teacher check to settle before fetching students -
+  // for a teacher this determines which class (if any) they're scoped to,
+  // and the backend now rejects a non-form-teacher's request for any
+  // student's report card, so there's no point listing students they
+  // couldn't actually view.
+  useEffect(() => {
+    if (!user) return;
+    if (user.role !== 'teacher') {
+      fetchStudents();
+    } else if (formTeacherCheckDone) {
+      fetchStudents();
+    }
+  }, [user, formTeacherCheckDone]);
 
   useEffect(() => {
     if (user?.school_id) {
@@ -144,7 +158,10 @@ export default function ReportCardsPage() {
   }, [user]);
 
   const checkFormTeacherStatus = async () => {
-    if (!user?.id || user.role !== 'teacher') return;
+    if (!user?.id || user.role !== 'teacher') {
+      setFormTeacherCheckDone(true);
+      return;
+    }
 
     try {
       const teachersRes = await api.getTeachers({ limit: 100 });
@@ -163,11 +180,27 @@ export default function ReportCardsPage() {
       console.error('Error checking form teacher status:', error);
       setIsFormTeacher(false);
       setFormClassInfo(null);
+    } finally {
+      setFormTeacherCheckDone(true);
     }
   };
 
   const fetchStudents = async () => {
     try {
+      // A teacher can only view report cards for students in a class they
+      // are the form teacher of (backend-enforced) - no point listing
+      // every student in the school when only one class is actually
+      // reachable. A teacher with no form class sees an empty picker.
+      if (user?.role === 'teacher') {
+        if (!formClassInfo) {
+          setStudents([]);
+          return;
+        }
+        const response = await api.get(`/api/v1/students?class_id=${formClassInfo.id}`);
+        setStudents(response.data ? (response.data as Student[]) : []);
+        return;
+      }
+
       const response = await api.get('/api/v1/students');
       setStudents(response.data ? (response.data as Student[]) : []);
     } catch (error) {

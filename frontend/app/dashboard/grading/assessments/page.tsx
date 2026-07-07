@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Assessment {
   id: string;
   title: string;
+  subject_id?: string;
+  class_id?: string;
   assessment_type_name?: string;
   subject_name?: string;
   class_name?: string;
@@ -37,10 +40,17 @@ interface Class {
 
 export default function AssessmentsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [assessmentTypes, setAssessmentTypes] = useState<AssessmentType[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  // The class/subject pairs this teacher actually teaches - used to scope
+  // the filter dropdowns and assessment list down from "every assessment
+  // in the school" to "mine", since the backend only blocks mutations on
+  // assessments outside a teacher's own subjects, not visibility of them.
+  const [ownAssignments, setOwnAssignments] = useState<{ classId: string; subjectId: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState('');
@@ -58,9 +68,33 @@ export default function AssessmentsPage() {
   const [currentTermId, setCurrentTermId] = useState('');
 
   useEffect(() => {
+    if (isTeacher && user?.teacher_id) {
+      fetchOwnAssignments();
+    }
+  }, [isTeacher, user?.teacher_id]);
+
+  useEffect(() => {
     fetchData();
     fetchCurrentSessionAndTerm();
   }, [selectedSubject, selectedClass]);
+
+  const fetchOwnAssignments = async () => {
+    if (!user?.teacher_id) return;
+    try {
+      const res = await api.getTeacherClasses(user.teacher_id);
+      const teacherClasses = (res.data as any[]) || [];
+      const assignments: { classId: string; subjectId: string }[] = [];
+      teacherClasses.forEach((cls) => {
+        (cls.subjects || []).forEach((subject: any) => {
+          assignments.push({ classId: cls.id, subjectId: subject.id });
+        });
+      });
+      setOwnAssignments(assignments);
+    } catch (error) {
+      console.error('Error fetching own class/subject assignments:', error);
+      setOwnAssignments([]);
+    }
+  };
 
   const fetchCurrentSessionAndTerm = async () => {
     try {
@@ -170,6 +204,18 @@ export default function AssessmentsPage() {
     }
   };
 
+  // For a teacher, narrow every list down to their own class/subject
+  // assignments. Admins see everything, unfiltered, as before.
+  const ownClassIds = new Set(ownAssignments.map((a) => a.classId));
+  const ownSubjectIds = new Set(ownAssignments.map((a) => a.subjectId));
+  const ownPairs = new Set(ownAssignments.map((a) => `${a.classId}|${a.subjectId}`));
+
+  const visibleSubjects = isTeacher ? subjects.filter((s) => ownSubjectIds.has(s.id)) : subjects;
+  const visibleClasses = isTeacher ? classes.filter((c) => ownClassIds.has(c.id)) : classes;
+  const visibleAssessments = isTeacher
+    ? assessments.filter((a) => a.class_id && a.subject_id && ownPairs.has(`${a.class_id}|${a.subject_id}`))
+    : assessments;
+
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
       draft: 'bg-gray-100 text-gray-800',
@@ -224,7 +270,7 @@ export default function AssessmentsPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">All Subjects</option>
-                {subjects.map(subject => (
+                {visibleSubjects.map(subject => (
                   <option key={subject.id} value={subject.id}>{subject.name}</option>
                 ))}
               </select>
@@ -237,7 +283,7 @@ export default function AssessmentsPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">All Classes</option>
-                {classes.map(cls => (
+                {visibleClasses.map(cls => (
                   <option key={cls.id} value={cls.id}>{cls.name}</option>
                 ))}
               </select>
@@ -272,14 +318,14 @@ export default function AssessmentsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {assessments.length === 0 ? (
+              {visibleAssessments.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     No assessments found. Create your first assessment to get started.
                   </td>
                 </tr>
               ) : (
-                assessments.map((assessment) => (
+                visibleAssessments.map((assessment) => (
                   <tr key={assessment.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{assessment.title}</div>
@@ -359,7 +405,7 @@ export default function AssessmentsPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
                     <option value="">Select subject</option>
-                    {subjects.map(subject => (
+                    {visibleSubjects.map(subject => (
                       <option key={subject.id} value={subject.id}>{subject.name}</option>
                     ))}
                   </select>
@@ -374,7 +420,7 @@ export default function AssessmentsPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
                     <option value="">Select class</option>
-                    {classes.map(cls => (
+                    {visibleClasses.map(cls => (
                       <option key={cls.id} value={cls.id}>{cls.name}</option>
                     ))}
                   </select>

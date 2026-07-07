@@ -17,6 +17,19 @@ interface SidebarProps {
 // of showing every admin page and 403ing on click.
 const ADMIN_ROLES = ['admin', 'system_admin'];
 
+interface NavLink {
+  name: string;
+  icon: React.ReactNode;
+  href: string;
+  roles?: string[];
+}
+
+interface NavSection {
+  section: string;
+  items: NavLink[];
+  roles?: string[];
+}
+
 export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
@@ -26,7 +39,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
     return pathname === path || pathname.startsWith(path + '/');
   };
 
-  const navigation = [
+  const navigation: (NavLink | NavSection)[] = [
     {
       name: 'Dashboard',
       icon: (

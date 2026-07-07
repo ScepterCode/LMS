@@ -4,11 +4,14 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Assessment {
   id: string;
   title: string;
   max_score: number;
+  subject_id?: string;
+  class_id?: string;
   assessment_type_name?: string;
   subject_name?: string;
   class_name?: string;
@@ -32,7 +35,9 @@ interface GradeEntry {
 function GradeEntryContent() {
   const searchParams = useSearchParams();
   const assessmentId = searchParams.get('assessment');
-  
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
+
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [grades, setGrades] = useState<Record<string, GradeEntry>>({});
@@ -40,16 +45,43 @@ function GradeEntryContent() {
   const [saving, setSaving] = useState(false);
   const [selectedAssessment, setSelectedAssessment] = useState(assessmentId || '');
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  // This teacher's own class/subject assignments, used to scope which
+  // published assessments show up in the picker below - the backend
+  // already blocks entering grades for an assessment outside a teacher's
+  // own subjects, but the picker previously listed every published
+  // assessment in the school regardless.
+  const [ownAssignments, setOwnAssignments] = useState<{ classId: string; subjectId: string }[]>([]);
 
   useEffect(() => {
     fetchAssessments();
-  }, []);
+    if (isTeacher && user?.teacher_id) {
+      fetchOwnAssignments();
+    }
+  }, [isTeacher, user?.teacher_id]);
 
   useEffect(() => {
     if (selectedAssessment) {
       fetchAssessmentData();
     }
   }, [selectedAssessment]);
+
+  const fetchOwnAssignments = async () => {
+    if (!user?.teacher_id) return;
+    try {
+      const res = await api.getTeacherClasses(user.teacher_id);
+      const teacherClasses = (res.data as any[]) || [];
+      const assignments: { classId: string; subjectId: string }[] = [];
+      teacherClasses.forEach((cls) => {
+        (cls.subjects || []).forEach((subject: any) => {
+          assignments.push({ classId: cls.id, subjectId: subject.id });
+        });
+      });
+      setOwnAssignments(assignments);
+    } catch (error) {
+      console.error('Error fetching own class/subject assignments:', error);
+      setOwnAssignments([]);
+    }
+  };
 
   const fetchAssessments = async () => {
     try {
@@ -165,6 +197,11 @@ function GradeEntryContent() {
     }
   };
 
+  const ownPairs = new Set(ownAssignments.map((a) => `${a.classId}|${a.subjectId}`));
+  const visibleAssessments = isTeacher
+    ? assessments.filter((a) => a.class_id && a.subject_id && ownPairs.has(`${a.class_id}|${a.subject_id}`))
+    : assessments;
+
   if (!selectedAssessment) {
     return (
       <DashboardLayout>
@@ -182,7 +219,7 @@ function GradeEntryContent() {
               className="w-full max-w-2xl px-3 py-2 border border-gray-300 rounded-lg"
             >
               <option value="">Choose an assessment...</option>
-              {assessments.map(a => (
+              {visibleAssessments.map(a => (
                 <option key={a.id} value={a.id}>
                   {a.title} - {a.subject_name} ({a.class_name})
                 </option>
