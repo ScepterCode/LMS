@@ -103,18 +103,6 @@ export default function LoginPage() {
               </Link>
             </p>
           </div>
-
-          <div className="mt-8 pt-6 border-t">
-            <p className="text-xs text-gray-500 mb-3">Demo Accounts:</p>
-            <div className="space-y-2 text-xs">
-              <div className="bg-gray-50 p-2 rounded">
-                <strong>System Admin:</strong> admin@nigerianlms.com / Admin123!@#
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <strong>School Admin:</strong> admin@demo-school.com / Admin123!@#
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="mt-6 text-center">
