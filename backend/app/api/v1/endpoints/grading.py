@@ -329,20 +329,41 @@ async def update_assessment(
     db = Depends(get_supabase)
 ):
     """Update assessment"""
-    
+
+    if current_user["role"] not in ["admin", "teacher"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and teachers can update assessments"
+        )
+
     # Check assessment exists and belongs to organization
     existing = db.table("assessments").select("*").eq(
         "id", assessment_id
     ).eq("organization_id", current_user["school_id"]).execute()
-    
+
     if not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Assessment not found"
         )
-    
+
     assessment = existing.data[0]
-    
+
+    # For teachers: verify subject teacher permission on the assessment's
+    # own subject/class, same check create_assessment uses.
+    if current_user["role"] == "teacher":
+        supabase = get_supabase()
+        teacher_id = current_user.get("teacher_id")
+        try:
+            await PermissionChecker.verify_subject_teacher_permission(
+                teacher_id, assessment["subject_id"], assessment["class_id"], supabase
+            )
+        except AuthorizationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Subject teacher access required: {str(e)}"
+            )
+
     # Only allow updates if not locked
     if assessment["status"] == "locked":
         raise HTTPException(
@@ -367,20 +388,51 @@ async def publish_assessment(
     db = Depends(get_supabase)
 ):
     """Publish assessment (make it available for grading)"""
-    
+
+    if current_user["role"] not in ["admin", "teacher"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and teachers can publish assessments"
+        )
+
+    existing = db.table("assessments").select("*").eq(
+        "id", assessment_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+
+    if not existing.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found"
+        )
+
+    assessment = existing.data[0]
+
+    if current_user["role"] == "teacher":
+        supabase = get_supabase()
+        teacher_id = current_user.get("teacher_id")
+        try:
+            await PermissionChecker.verify_subject_teacher_permission(
+                teacher_id, assessment["subject_id"], assessment["class_id"], supabase
+            )
+        except AuthorizationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Subject teacher access required: {str(e)}"
+            )
+
     response = db.table("assessments").update({
         "status": "published",
         "published_at": datetime.utcnow().isoformat()
     }).eq("id", assessment_id).eq(
         "organization_id", current_user["school_id"]
     ).execute()
-    
+
     if not response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Assessment not found"
         )
-    
+
     return {"message": "Assessment published successfully"}
 
 

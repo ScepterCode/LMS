@@ -1186,12 +1186,16 @@ async def update_student_remark(request: Request, remark_id: UUID, data: Student
             raise NotFoundError("Student remark", str(remark_id))
         
         remark = existing.data[0]
-        
-        # Check authorization
+
+        # Check authorization - only the form teacher who wrote the remark,
+        # or an admin, may edit it. Any other role (bursar/parent/student)
+        # must be rejected explicitly rather than silently falling through.
         if user.get("role") == "teacher":
             if remark['form_teacher_id'] != user.get("teacher_id"):
                 raise AuthorizationError("You can only edit your own remarks")
-        
+        elif user.get("role") not in ["admin", "system_admin"]:
+            raise AuthorizationError("Only the form teacher or an admin can edit remarks")
+
         # Update remark
         update_data = data.model_dump(mode="json", exclude_unset=True)
         if update_data:
@@ -1238,11 +1242,14 @@ async def delete_student_remark(request: Request, remark_id: UUID):
         if not existing.data:
             raise NotFoundError("Student remark", str(remark_id))
         
-        # Check authorization
+        # Check authorization - same rule as update: form teacher (own
+        # remarks only) or admin; everyone else is rejected explicitly.
         if user.get("role") == "teacher":
             if existing.data[0]['form_teacher_id'] != user.get("teacher_id"):
                 raise AuthorizationError("You can only delete your own remarks")
-        
+        elif user.get("role") not in ["admin", "system_admin"]:
+            raise AuthorizationError("Only the form teacher or an admin can delete remarks")
+
         supabase.table('student_remarks').delete().eq('id', str(remark_id)).execute()
         
         logger.info(f"Deleted student remark {remark_id}")

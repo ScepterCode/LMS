@@ -20,6 +20,7 @@ from app.models.student import (
 )
 from app.core.database import get_supabase
 from app.core.security import get_current_user_from_token, get_token_from_request
+from app.core.permissions import PermissionChecker
 from app.core.exceptions import (
     NotFoundError,
     ValidationError,
@@ -36,6 +37,24 @@ def require_school_admin(user: dict):
     """Ensure user is school admin or system admin."""
     if user.get("role") not in ["admin", "system_admin", "teacher"]:
         raise AuthorizationError("Insufficient permissions to manage students")
+
+
+async def require_teacher_owns_class(user: dict, class_id, supabase):
+    """For teacher role, verify they are the form teacher of class_id.
+
+    Admins/system_admins are unrestricted; called only after
+    require_school_admin() has already confirmed the role is allowed at
+    all. Teachers may only create/edit students (and their guardians) in
+    a class they are the form teacher of, same as every other
+    class-scoped teacher permission in this app.
+    """
+    if user.get("role") != "teacher":
+        return
+    if not class_id:
+        raise AuthorizationError("Teachers must assign the student to one of their own classes")
+    await PermissionChecker.verify_form_teacher_permission(
+        user.get("teacher_id"), str(class_id), supabase
+    )
 
 
 def calculate_age(dob: date) -> int:
@@ -153,10 +172,12 @@ async def create_student(request: Request, data: StudentCreate):
             class_check = supabase.table('classes').select('id').eq(
                 'id', str(data.current_class_id)
             ).eq('organization_id', user["school_id"]).execute()
-            
+
             if not class_check.data:
                 raise ValidationError("Invalid class ID")
-        
+
+        await require_teacher_owns_class(user, data.current_class_id, supabase)
+
         # Create student
         student_data = {
             'id': str(uuid.uuid4()),
@@ -280,16 +301,25 @@ async def update_student(request: Request, student_id: UUID, data: StudentUpdate
         
         if not existing.data:
             raise NotFoundError("Student", student_id)
-        
+
+        # A teacher may only edit students currently in a class they are
+        # the form teacher of.
+        await require_teacher_owns_class(user, existing.data[0].get('current_class_id'), supabase)
+
         # Validate class if provided
         if data.current_class_id:
             class_check = supabase.table('classes').select('id').eq(
                 'id', str(data.current_class_id)
             ).eq('organization_id', user["school_id"]).execute()
-            
+
             if not class_check.data:
                 raise ValidationError("Invalid class ID")
-        
+
+            # If a teacher is also moving the student to a different
+            # class, they must be the form teacher of the destination
+            # class too, not just the origin.
+            await require_teacher_owns_class(user, data.current_class_id, supabase)
+
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             # model_dump(mode="json") already serializes date/UUID fields to strings
@@ -424,13 +454,15 @@ async def add_guardian(request: Request, student_id: UUID, data: GuardianCreate)
             raise DatabaseError("Database connection not available")
         
         # Verify student exists
-        student_check = supabase.table('students').select('id').eq('id', str(student_id)).eq(
+        student_check = supabase.table('students').select('id, current_class_id').eq('id', str(student_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not student_check.data:
             raise NotFoundError("Student", student_id)
-        
+
+        await require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
+
         # If setting as primary, unset other primary guardians
         if data.is_primary:
             supabase.table('student_guardians').update({'is_primary': False}).eq(
@@ -491,15 +523,27 @@ async def update_guardian(request: Request, student_id: UUID, guardian_id: UUID,
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
+        # Verify the student belongs to this organization (guardians have
+        # no organization_id of their own) and get their class for the
+        # teacher scope check below.
+        student_check = supabase.table('students').select('id, current_class_id').eq(
+            'id', str(student_id)
+        ).eq('organization_id', user["school_id"]).execute()
+
+        if not student_check.data:
+            raise NotFoundError("Student", student_id)
+
+        await require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
+
         # Verify guardian exists and belongs to student
         existing = supabase.table('student_guardians').select('*').eq('id', str(guardian_id)).eq(
             'student_id', str(student_id)
         ).execute()
-        
+
         if not existing.data:
             raise NotFoundError("Guardian", guardian_id)
-        
+
         # If setting as primary, unset other primary guardians
         if data.is_primary:
             supabase.table('student_guardians').update({'is_primary': False}).eq(
@@ -547,15 +591,26 @@ async def delete_guardian(request: Request, student_id: UUID, guardian_id: UUID)
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
+        # Verify the student belongs to this organization and get their
+        # class for the teacher scope check below.
+        student_check = supabase.table('students').select('id, current_class_id').eq(
+            'id', str(student_id)
+        ).eq('organization_id', user["school_id"]).execute()
+
+        if not student_check.data:
+            raise NotFoundError("Student", student_id)
+
+        await require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
+
         # Verify guardian exists
         existing = supabase.table('student_guardians').select('*').eq('id', str(guardian_id)).eq(
             'student_id', str(student_id)
         ).execute()
-        
+
         if not existing.data:
             raise NotFoundError("Guardian", guardian_id)
-        
+
         supabase.table('student_guardians').delete().eq('id', str(guardian_id)).execute()
         
         logger.info(f"Deleted guardian: {guardian_id}")

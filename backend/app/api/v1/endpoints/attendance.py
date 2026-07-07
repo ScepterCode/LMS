@@ -337,7 +337,54 @@ async def create_leave_request(
     db = Depends(get_supabase)
 ):
     """Create new leave request"""
-    
+
+    # Verify the submitter actually has a relationship to this student -
+    # previously any authenticated user could file a leave request for
+    # any student_id in any organization.
+    if current_user["role"] in ["admin", "system_admin"]:
+        pass  # unrestricted administrative access
+    elif current_user["role"] == "teacher":
+        student = db.table("students").select("current_class_id").eq(
+            "id", data.student_id
+        ).eq("organization_id", current_user["school_id"]).execute()
+
+        class_id = student.data[0]["current_class_id"] if student.data else None
+        if not class_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Student not found or has no assigned class"
+            )
+        try:
+            await PermissionChecker.verify_form_teacher_permission(
+                current_user.get("teacher_id"), class_id, db
+            )
+        except AuthorizationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Form teacher access required: {str(e)}"
+            )
+    elif current_user["role"] == "parent":
+        parent = db.table("parents").select("id").eq(
+            "user_id", current_user["id"]
+        ).execute()
+        parent_id = parent.data[0]["id"] if parent.data else None
+
+        link = (
+            db.table("parent_student_links").select("id")
+            .eq("parent_id", parent_id).eq("student_id", data.student_id).execute()
+            if parent_id else None
+        )
+        if not parent_id or not link.data:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only submit leave requests for your own linked children"
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to submit a leave request for this student"
+        )
+
     request_data = data.model_dump(mode="json")
     request_data["organization_id"] = current_user["school_id"]
     request_data["status"] = "pending"
@@ -357,13 +404,47 @@ async def approve_leave_request(
     db = Depends(get_supabase)
 ):
     """Approve or reject leave request"""
-    
+
     if current_user["role"] not in ["admin", "teacher"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins and teachers can approve leave requests"
         )
-    
+
+    # Teachers may only approve/reject leave requests for students in a
+    # class they are the form teacher of, not any request org-wide.
+    if current_user["role"] == "teacher":
+        existing = db.table("leave_requests").select("student_id").eq(
+            "id", request_id
+        ).eq("organization_id", current_user["school_id"]).execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Leave request not found"
+            )
+
+        student = db.table("students").select("current_class_id").eq(
+            "id", existing.data[0]["student_id"]
+        ).execute()
+
+        class_id = student.data[0]["current_class_id"] if student.data else None
+        if not class_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Student has no assigned class"
+            )
+
+        try:
+            await PermissionChecker.verify_form_teacher_permission(
+                current_user.get("teacher_id"), class_id, db
+            )
+        except AuthorizationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Form teacher access required: {str(e)}"
+            )
+
     update_data = {
         "status": data.status,
         "approved_by": current_user["id"],
