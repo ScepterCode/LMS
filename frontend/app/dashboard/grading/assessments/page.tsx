@@ -26,6 +26,7 @@ interface AssessmentType {
   name: string;
   code: string;
   max_score: number;
+  weight_percentage?: number;
 }
 
 interface Subject {
@@ -66,6 +67,16 @@ export default function AssessmentsPage() {
   });
   const [currentSessionId, setCurrentSessionId] = useState('');
   const [currentTermId, setCurrentTermId] = useState('');
+  const [showTypesModal, setShowTypesModal] = useState(false);
+  const [typeSubmitting, setTypeSubmitting] = useState(false);
+  const [typeError, setTypeError] = useState('');
+  const [typeFormData, setTypeFormData] = useState({
+    name: '',
+    code: '',
+    max_score: 100,
+    weight_percentage: 0,
+  });
+  const isAdminOrBursar = user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'bursar';
 
   useEffect(() => {
     if (isTeacher && user?.teacher_id) {
@@ -185,6 +196,28 @@ export default function AssessmentsPage() {
     }
   };
 
+  const handleCreateType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTypeError('');
+    setTypeSubmitting(true);
+
+    try {
+      const response = await api.post('/api/v1/grading/assessment-types', typeFormData);
+      if (response.error) {
+        setTypeError(response.error);
+        return;
+      }
+      setTypeFormData({ name: '', code: '', max_score: 100, weight_percentage: 0 });
+      const typesRes = await api.get('/api/v1/grading/assessment-types');
+      setAssessmentTypes(typesRes.data ? (typesRes.data as AssessmentType[]) : []);
+    } catch (error) {
+      console.error('Error creating assessment type:', error);
+      setTypeError('Failed to create assessment type');
+    } finally {
+      setTypeSubmitting(false);
+    }
+  };
+
   const handlePublish = async (id: string) => {
     if (!confirm('Are you sure you want to publish this assessment? Students will be able to see it.')) {
       return;
@@ -251,13 +284,36 @@ export default function AssessmentsPage() {
             <h1 className="text-2xl font-bold text-gray-900">Assessments</h1>
             <p className="text-gray-600 mt-1">Manage assessments and examinations</p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Create Assessment
-          </button>
+          <div className="flex gap-2">
+            {isAdminOrBursar && (
+              <button
+                onClick={() => setShowTypesModal(true)}
+                className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+              >
+                Manage Types
+              </button>
+            )}
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Create Assessment
+            </button>
+          </div>
         </div>
+
+        {assessmentTypes.length === 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+            No assessment types have been set up yet, so assessments can't be created.{' '}
+            {isAdminOrBursar ? (
+              <button onClick={() => setShowTypesModal(true)} className="font-medium underline">
+                Create one now
+              </button>
+            ) : (
+              'Ask your school admin to set one up under Manage Types.'
+            )}
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow p-4">
@@ -489,6 +545,113 @@ export default function AssessmentsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Assessment Types Modal */}
+      {showTypesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Assessment Types</h3>
+                <p className="text-sm text-gray-600 mt-1">e.g. Continuous Assessment, Exam, Assignment</p>
+              </div>
+              <button onClick={() => setShowTypesModal(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="border border-gray-200 rounded-lg divide-y max-h-48 overflow-y-auto">
+                {assessmentTypes.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">No assessment types yet</div>
+                ) : (
+                  assessmentTypes.map((type) => (
+                    <div key={type.id} className="flex items-center justify-between px-4 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{type.name}</p>
+                        <p className="text-xs text-gray-500">{type.code}</p>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Max {type.max_score} &middot; {type.weight_percentage ?? 0}% weight
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <form onSubmit={handleCreateType} className="space-y-4 border-t pt-4">
+                <h4 className="text-sm font-semibold text-gray-900">Add a new type</h4>
+
+                {typeError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded text-sm">
+                    {typeError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={typeFormData.name}
+                      onChange={(e) => setTypeFormData({ ...typeFormData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., Continuous Assessment"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+                    <input
+                      type="text"
+                      required
+                      value={typeFormData.code}
+                      onChange={(e) => setTypeFormData({ ...typeFormData, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., CA"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Score *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      max="999"
+                      value={typeFormData.max_score}
+                      onChange={(e) => setTypeFormData({ ...typeFormData, max_score: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Weight % *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="100"
+                      value={typeFormData.weight_percentage}
+                      onChange={(e) => setTypeFormData({ ...typeFormData, weight_percentage: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Weight % is how much this type counts toward a subject's final score (e.g. CA 30% + Exam 70%).
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={typeSubmitting}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                >
+                  {typeSubmitting ? 'Adding...' : 'Add Assessment Type'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
