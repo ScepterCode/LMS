@@ -39,6 +39,16 @@ interface Class {
   name: string;
 }
 
+interface GradeConfig {
+  id: string;
+  grade_letter: string;
+  min_score: number;
+  max_score: number;
+  grade_point?: number;
+  remark?: string;
+  is_passing: boolean;
+}
+
 export default function AssessmentsPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -75,6 +85,17 @@ export default function AssessmentsPage() {
     code: '',
     max_score: 100,
     weight_percentage: 0,
+  });
+  const [gradeConfigs, setGradeConfigs] = useState<GradeConfig[]>([]);
+  const [showGradeConfigsModal, setShowGradeConfigsModal] = useState(false);
+  const [gradeConfigSubmitting, setGradeConfigSubmitting] = useState(false);
+  const [gradeConfigError, setGradeConfigError] = useState('');
+  const [gradeConfigFormData, setGradeConfigFormData] = useState({
+    grade_letter: '',
+    min_score: 0,
+    max_score: 100,
+    grade_point: 4,
+    is_passing: true,
   });
   const isAdminOrBursar = user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'bursar';
 
@@ -136,23 +157,26 @@ export default function AssessmentsPage() {
       if (selectedClass) params.append('class_id', selectedClass);
       if (params.toString()) url += `?${params.toString()}`;
 
-      const [assessmentsRes, typesRes, subjectsRes, classesRes] = await Promise.all([
+      const [assessmentsRes, typesRes, subjectsRes, classesRes, gradeConfigsRes] = await Promise.all([
         api.get(url),
         api.get('/api/v1/grading/assessment-types'),
         api.get('/api/v1/subjects'),
-        api.get('/api/v1/classes')
+        api.get('/api/v1/classes'),
+        api.get('/api/v1/grading/grade-configs')
       ]);
 
       setAssessments(assessmentsRes.data ? (assessmentsRes.data as Assessment[]) : []);
       setAssessmentTypes(typesRes.data ? (typesRes.data as AssessmentType[]) : []);
       setSubjects(subjectsRes.data ? (subjectsRes.data as Subject[]) : []);
       setClasses(classesRes.data ? (classesRes.data as Class[]) : []);
+      setGradeConfigs(gradeConfigsRes.data ? (gradeConfigsRes.data as GradeConfig[]) : []);
     } catch (error) {
       console.error('Error fetching data:', error);
       setAssessments([]);
       setAssessmentTypes([]);
       setSubjects([]);
       setClasses([]);
+      setGradeConfigs([]);
     } finally {
       setLoading(false);
     }
@@ -215,6 +239,43 @@ export default function AssessmentsPage() {
       setTypeError('Failed to create assessment type');
     } finally {
       setTypeSubmitting(false);
+    }
+  };
+
+  const handleCreateGradeConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGradeConfigError('');
+    setGradeConfigSubmitting(true);
+
+    try {
+      const response = await api.post('/api/v1/grading/grade-configs', gradeConfigFormData);
+      if (response.error) {
+        setGradeConfigError(response.error);
+        return;
+      }
+      setGradeConfigFormData({ grade_letter: '', min_score: 0, max_score: 100, grade_point: 4, is_passing: true });
+      const res = await api.get('/api/v1/grading/grade-configs');
+      setGradeConfigs(res.data ? (res.data as GradeConfig[]) : []);
+    } catch (error) {
+      console.error('Error creating grade band:', error);
+      setGradeConfigError('Failed to create grade band');
+    } finally {
+      setGradeConfigSubmitting(false);
+    }
+  };
+
+  const handleDeleteGradeConfig = async (id: string) => {
+    if (!confirm('Delete this grade band?')) return;
+    try {
+      const response = await api.delete(`/api/v1/grading/grade-configs/${id}`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setGradeConfigs(gradeConfigs.filter((g) => g.id !== id));
+    } catch (error) {
+      console.error('Error deleting grade band:', error);
+      alert('Failed to delete grade band');
     }
   };
 
@@ -286,12 +347,20 @@ export default function AssessmentsPage() {
           </div>
           <div className="flex gap-2">
             {isAdminOrBursar && (
-              <button
-                onClick={() => setShowTypesModal(true)}
-                className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
-              >
-                Manage Types
-              </button>
+              <>
+                <button
+                  onClick={() => setShowGradeConfigsModal(true)}
+                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+                >
+                  Manage Grade Bands
+                </button>
+                <button
+                  onClick={() => setShowTypesModal(true)}
+                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+                >
+                  Manage Types
+                </button>
+              </>
             )}
             <button
               onClick={() => setShowModal(true)}
@@ -311,6 +380,19 @@ export default function AssessmentsPage() {
               </button>
             ) : (
               'Ask your school admin to set one up under Manage Types.'
+            )}
+          </div>
+        )}
+
+        {gradeConfigs.length === 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
+            No grade bands are configured, so every score will show as grade "F" on report cards.{' '}
+            {isAdminOrBursar ? (
+              <button onClick={() => setShowGradeConfigsModal(true)} className="font-medium underline">
+                Set up grade bands now
+              </button>
+            ) : (
+              'Ask your school admin to set these up under Manage Grade Bands.'
             )}
           </div>
         )}
@@ -649,6 +731,133 @@ export default function AssessmentsPage() {
                   className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
                 >
                   {typeSubmitting ? 'Adding...' : 'Add Assessment Type'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Grade Bands Modal */}
+      {showGradeConfigsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Grade Bands</h3>
+                <p className="text-sm text-gray-600 mt-1">e.g. A = 70-100, B = 60-69</p>
+              </div>
+              <button onClick={() => setShowGradeConfigsModal(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="border border-gray-200 rounded-lg divide-y max-h-48 overflow-y-auto">
+                {gradeConfigs.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">No grade bands yet</div>
+                ) : (
+                  gradeConfigs.map((g) => (
+                    <div key={g.id} className="flex items-center justify-between px-4 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {g.grade_letter} {!g.is_passing && <span className="text-red-600">(fail)</span>}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {g.min_score}&ndash;{g.max_score}
+                          {g.grade_point != null ? ` · ${g.grade_point} pts` : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteGradeConfig(g.id)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <form onSubmit={handleCreateGradeConfig} className="space-y-4 border-t pt-4">
+                <h4 className="text-sm font-semibold text-gray-900">Add a grade band</h4>
+
+                {gradeConfigError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded text-sm">
+                    {gradeConfigError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Letter *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={5}
+                      value={gradeConfigFormData.grade_letter}
+                      onChange={(e) => setGradeConfigFormData({ ...gradeConfigFormData, grade_letter: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., A"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Grade Point</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.1"
+                      value={gradeConfigFormData.grade_point}
+                      onChange={(e) => setGradeConfigFormData({ ...gradeConfigFormData, grade_point: parseFloat(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Score *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="100"
+                      value={gradeConfigFormData.min_score}
+                      onChange={(e) => setGradeConfigFormData({ ...gradeConfigFormData, min_score: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Score *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="100"
+                      value={gradeConfigFormData.max_score}
+                      onChange={(e) => setGradeConfigFormData({ ...gradeConfigFormData, max_score: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="is_passing"
+                    checked={gradeConfigFormData.is_passing}
+                    onChange={(e) => setGradeConfigFormData({ ...gradeConfigFormData, is_passing: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  />
+                  <label htmlFor="is_passing" className="ml-2 text-sm text-gray-700">
+                    This is a passing grade
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={gradeConfigSubmitting}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                >
+                  {gradeConfigSubmitting ? 'Adding...' : 'Add Grade Band'}
                 </button>
               </form>
             </div>
