@@ -31,6 +31,7 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
   message?: string;
+  status?: number;
 }
 
 class ApiClient {
@@ -64,11 +65,12 @@ class ApiClient {
         // replaced with the generic fallback below.
         return {
           error: error.error?.message || error.detail || error.message || 'An error occurred',
+          status: response.status,
         };
       }
 
       const data = await response.json();
-      return { data };
+      return { data, status: response.status };
     } catch (error) {
       return {
         error: error instanceof Error ? error.message : 'Network error',

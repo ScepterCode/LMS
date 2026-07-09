@@ -249,29 +249,39 @@ async def get_current_user_profile(request: Request):
         
         try:
             user_response = supabase.table('users').select('*').eq('id', user["id"]).execute()
-            if user_response.data and len(user_response.data) > 0:
-                db_user = user_response.data[0]
-                
-                # Return safe user data
-                return {
-                    "id": str(db_user["id"]),
-                    "email": db_user["email"],
-                    "full_name": db_user["full_name"],
-                    "role": db_user["role"],
-                    "school_id": str(db_user["school_id"]) if db_user.get("school_id") else None,
-                    "phone": db_user.get("phone"),
-                    "is_active": db_user.get("is_active", True),
-                    "email_verified": db_user.get("email_verified", False),
-                    "created_at": db_user.get("created_at"),
-                    "teacher_id": user.get("teacher_id"),
-                }
         except Exception as e:
             logger.error(f"Error fetching user details: {e}")
-            # Return token data as fallback
+            # A DB/network error querying the row is not proof the account
+            # is gone - fall back to the (still cryptographically valid)
+            # token data rather than forcing a spurious logout.
             return user
-        
-        return user
-        
+
+        if not user_response.data:
+            # The token is still validly signed, but the user row behind it
+            # is gone (deleted account, or - as found live - an organization
+            # that got deleted out from under an active session). Previously
+            # this fell through to `return user` below, silently serving
+            # the stale JWT payload as a "valid" profile - the frontend kept
+            # rendering as if logged in, and the first real write against
+            # the now-nonexistent organization_id failed with a raw
+            # Postgres foreign-key error instead of a clean re-login
+            # prompt. Fail the session explicitly instead.
+            raise AuthenticationError("Account no longer exists")
+
+        db_user = user_response.data[0]
+        return {
+            "id": str(db_user["id"]),
+            "email": db_user["email"],
+            "full_name": db_user["full_name"],
+            "role": db_user["role"],
+            "school_id": str(db_user["school_id"]) if db_user.get("school_id") else None,
+            "phone": db_user.get("phone"),
+            "is_active": db_user.get("is_active", True),
+            "email_verified": db_user.get("email_verified", False),
+            "created_at": db_user.get("created_at"),
+            "teacher_id": user.get("teacher_id"),
+        }
+
     except AuthenticationError:
         raise
     except Exception as e:

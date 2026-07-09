@@ -25,16 +25,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Update localStorage backup
         localStorage.setItem('user', JSON.stringify(response.data));
       } else if (response.error) {
-        // Check if this is an authentication error (401, 403, or token-related)
-        const isAuthError = 
-          response.error.toLowerCase().includes('unauthorized') || 
-          response.error.toLowerCase().includes('forbidden') ||
-          response.error.toLowerCase().includes('not authenticated') ||
-          response.error.toLowerCase().includes('authentication required') ||
-          response.error.toLowerCase().includes('token required') ||
-          response.error.toLowerCase().includes('invalid token') ||
-          response.error.toLowerCase().includes('expired token');
-        
+        // Check the real HTTP status rather than guessing from the error
+        // message text - a fragile substring match here meant any backend
+        // error message that didn't happen to contain one of these exact
+        // words (e.g. "Account no longer exists" for a deleted user/org)
+        // silently fell through to "keep the stale session", even though
+        // the server had already rejected it with a 401.
+        const isAuthError = response.status === 401 || response.status === 403;
+
         if (isAuthError) {
           // Clear user session - they need to log in again
           console.log('🔒 Auth error detected, clearing session:', response.error);
