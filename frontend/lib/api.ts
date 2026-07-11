@@ -25,6 +25,8 @@ export interface User {
   teacher_id?: string;
   student_id?: string;
   parent_id?: string;
+  is_impersonating?: boolean;
+  impersonated_by?: { name: string; email: string } | null;
 }
 
 export interface ApiResponse<T> {
@@ -215,6 +217,100 @@ class ApiClient {
   async getSubscriptionPlans() {
     return this.request('/api/v1/system-admin/subscription-plans', {
       method: 'GET',
+    });
+  }
+
+  async createSubscriptionPlan(data: {
+    id: string; name: string; description?: string;
+    price_monthly: number; price_yearly: number; max_students: number; features?: string[];
+  }) {
+    return this.request('/api/v1/system-admin/subscription-plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSubscriptionPlan(planId: string, data: {
+    name?: string; description?: string; price_monthly?: number; price_yearly?: number;
+    max_students?: number; features?: string[]; is_active?: boolean;
+  }) {
+    return this.request(`/api/v1/system-admin/subscription-plans/${planId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Richer than getOrganization() above - includes cross-tenant user/campus
+  // counts, system-admin only.
+  async getSystemAdminOrganization(orgId: string) {
+    return this.request(`/api/v1/system-admin/organizations/${orgId}`, {
+      method: 'GET',
+    });
+  }
+
+  async updateOrganizationStatus(orgId: string, newStatus: string) {
+    return this.request(`/api/v1/system-admin/organizations/${orgId}/status?new_status=${encodeURIComponent(newStatus)}`, {
+      method: 'PATCH',
+    });
+  }
+
+  async createOrganizationBySystemAdmin(data: {
+    school_name: string; school_email: string; school_phone?: string; school_address?: string;
+    admin_name: string; admin_email: string; admin_password: string; admin_phone?: string;
+    subscription_plan_id?: string; subscription_status?: string;
+  }) {
+    return this.request('/api/v1/system-admin/organizations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getSystemAdminUsers(params?: { skip?: number; limit?: number; role?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params?.skip) queryParams.append('skip', params.skip.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.role) queryParams.append('role', params.role);
+
+    return this.request(`/api/v1/system-admin/users?${queryParams}`, {
+      method: 'GET',
+    });
+  }
+
+  // Generic user update/deactivate - backend already bypasses org-scoping
+  // for system_admin callers, so these work cross-tenant with no backend change.
+  async updateUser(userId: string, data: { full_name?: string; phone?: string; is_active?: boolean; email_verified?: boolean }) {
+    return this.request(`/api/v1/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deactivateUser(userId: string) {
+    return this.request(`/api/v1/users/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAuditLogs(params?: { skip?: number; limit?: number; organization_id?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params?.skip) queryParams.append('skip', params.skip.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.organization_id) queryParams.append('organization_id', params.organization_id);
+
+    return this.request(`/api/v1/system-admin/audit-logs?${queryParams}`, {
+      method: 'GET',
+    });
+  }
+
+  async startImpersonation(userId: string) {
+    return this.request(`/api/v1/system-admin/impersonate/${userId}`, {
+      method: 'POST',
+    });
+  }
+
+  async exitImpersonation() {
+    return this.request('/api/v1/system-admin/impersonate/exit', {
+      method: 'POST',
     });
   }
 

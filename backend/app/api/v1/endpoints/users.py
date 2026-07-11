@@ -24,6 +24,7 @@ from app.core.exceptions import (
     DuplicateRecordError,
     NotFoundError,
 )
+from app.core.audit import log_audit_event
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -320,11 +321,19 @@ async def update_user(
                 raise DatabaseError("Failed to update user")
             
             logger.info(f"Updated user {user_id} by {user['email']}")
-            
+
+            if user.get("role") == "system_admin":
+                log_audit_event(
+                    supabase, user, "user.updated",
+                    target_type="user", target_id=user_id,
+                    target_organization_id=existing.data[0].get("school_id"),
+                    details=update_data,
+                )
+
             # Return without password_hash
             updated_user = result.data[0]
             updated_user.pop('password_hash', None)
-            
+
             return updated_user
         
         # No changes, return existing
@@ -383,7 +392,14 @@ async def delete_user(
         }).eq('id', user_id).execute()
         
         logger.info(f"Deactivated user {user_id} by {user['email']}")
-        
+
+        if user.get("role") == "system_admin":
+            log_audit_event(
+                supabase, user, "user.deactivated",
+                target_type="user", target_id=user_id,
+                target_organization_id=existing.data[0].get("school_id"),
+            )
+
     except (AuthorizationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:

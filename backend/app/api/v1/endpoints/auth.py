@@ -18,6 +18,7 @@ from app.core.security import (
     clear_auth_cookie,
     get_token_from_request,
     get_current_user_from_token,
+    get_impersonator_token_from_request,
     blacklist_token,
     validate_password_strength,
     create_user_token_data,
@@ -269,6 +270,25 @@ async def get_current_user_profile(request: Request):
             raise AuthenticationError("Account no longer exists")
 
         db_user = user_response.data[0]
+
+        # If a system admin is currently impersonating this account, their
+        # own token is stashed in a second cookie - surface that here so the
+        # frontend can show an "exit impersonation" banner. Additive only:
+        # every existing field above is unchanged.
+        impersonated_by = None
+        impersonator_token = get_impersonator_token_from_request(request)
+        if impersonator_token:
+            admin_data = get_current_user_from_token(impersonator_token)
+            if admin_data:
+                admin_name = admin_data.get("email")
+                try:
+                    admin_response = supabase.table('users').select('full_name, email').eq('id', admin_data["id"]).execute()
+                    if admin_response.data:
+                        admin_name = admin_response.data[0].get("full_name", admin_name)
+                except Exception:
+                    pass
+                impersonated_by = {"name": admin_name, "email": admin_data.get("email")}
+
         return {
             "id": str(db_user["id"]),
             "email": db_user["email"],
@@ -280,6 +300,8 @@ async def get_current_user_profile(request: Request):
             "email_verified": db_user.get("email_verified", False),
             "created_at": db_user.get("created_at"),
             "teacher_id": user.get("teacher_id"),
+            "is_impersonating": impersonated_by is not None,
+            "impersonated_by": impersonated_by,
         }
 
     except AuthenticationError:

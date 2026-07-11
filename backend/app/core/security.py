@@ -156,6 +156,64 @@ def clear_auth_cookie(response: Response) -> None:
     logger.debug("Auth cookie cleared")
 
 
+# Separate cookie used only during system-admin impersonation to stash the
+# admin's own token so exiting impersonation can restore it. Kept alongside
+# the main COOKIE_NAME cookie so every existing permission check (which only
+# ever looks at COOKIE_NAME) keeps working unmodified while impersonating.
+IMPERSONATOR_COOKIE_NAME = "impersonator_token"
+
+
+def set_impersonator_cookie(response: Response, token: str) -> None:
+    """Stash the system admin's own token while they impersonate another user."""
+    if settings.is_production:
+        response.set_cookie(
+            key=IMPERSONATOR_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=settings.COOKIE_MAX_AGE,
+            path="/"
+        )
+    else:
+        response.set_cookie(
+            key=IMPERSONATOR_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=settings.COOKIE_MAX_AGE,
+            path="/"
+        )
+    logger.debug("Impersonator cookie set")
+
+
+def clear_impersonator_cookie(response: Response) -> None:
+    """Clear the stashed system-admin token when impersonation ends."""
+    if settings.is_production:
+        response.delete_cookie(
+            key=IMPERSONATOR_COOKIE_NAME,
+            path="/",
+            httponly=True,
+            secure=True,
+            samesite="none"
+        )
+    else:
+        response.delete_cookie(
+            key=IMPERSONATOR_COOKIE_NAME,
+            path="/",
+            httponly=True,
+            secure=False,
+            samesite="lax"
+        )
+    logger.debug("Impersonator cookie cleared")
+
+
+def get_impersonator_token_from_request(request: Request) -> Optional[str]:
+    """Read the stashed system-admin token, if currently impersonating."""
+    return request.cookies.get(IMPERSONATOR_COOKIE_NAME)
+
+
 def get_token_from_request(request: Request) -> Optional[str]:
     """Extract token from request (cookie or Authorization header)."""
     # Try cookie first

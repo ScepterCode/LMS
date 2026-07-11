@@ -3,23 +3,24 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import Sidebar from './Sidebar';
+import SystemAdminNav from './SystemAdminNav';
 import ProtectedRoute from './ProtectedRoute';
-import ImpersonationBanner from './ImpersonationBanner';
 
-interface DashboardLayoutProps {
+interface SystemAdminLayoutProps {
   children: React.ReactNode;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+// The platform-admin equivalent of DashboardLayout - deliberately a
+// separate component, not a variant/prop of it, so nothing here can
+// ever affect the school-facing shell used by every other page.
+export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) {
   const { logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
 
-  // Close the mobile drawer whenever the route changes.
   useEffect(() => {
-    setSidebarOpen(false);
+    setNavOpen(false);
   }, [pathname]);
 
   const handleLogout = async () => {
@@ -28,27 +29,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRole="system_admin">
       <div className="min-h-screen bg-gray-50">
-        <ImpersonationBanner />
-        <Sidebar isOpen={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+        <SystemAdminNav isOpen={navOpen} onNavigate={() => setNavOpen(false)} />
 
-        {/* Backdrop for mobile drawer */}
-        {sidebarOpen && (
+        {navOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() => setNavOpen(false)}
             aria-hidden="true"
           />
         )}
 
-        {/* Main content area */}
         <div className="lg:ml-64">
-          {/* Top header */}
           <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
             <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between lg:justify-end">
               <button
-                onClick={() => setSidebarOpen(true)}
+                onClick={() => setNavOpen(true)}
                 className="lg:hidden p-2 -ml-2 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg"
                 aria-label="Open menu"
               >
@@ -69,10 +66,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </header>
 
-          {/* Page content */}
-          <main className="p-4 sm:p-6 lg:p-8">
-            {children}
-          </main>
+          <main className="p-4 sm:p-6 lg:p-8">{children}</main>
         </div>
       </div>
     </ProtectedRoute>
