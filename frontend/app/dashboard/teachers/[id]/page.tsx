@@ -54,22 +54,21 @@ export default function TeacherDetailPage() {
   }, [params.id]);
 
   const fetchTeacherDetails = async () => {
-    try {
-      const response = await api.get(`/teachers/${params.id}`);
-      setTeacher(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch teacher details');
-    } finally {
-      setLoading(false);
+    const response = await api.getTeacher(params.id as string);
+    if (response.error) {
+      setError(response.error);
+    } else {
+      setTeacher(response.data as Teacher);
     }
+    setLoading(false);
   };
 
   const fetchAssignments = async () => {
-    try {
-      const response = await api.get(`/teachers/${params.id}/assignments`);
-      setAssignments(response.data);
-    } catch (err) {
-      console.error('Failed to fetch assignments:', err);
+    const response = await api.getTeacherAssignments(params.id as string);
+    if (response.error) {
+      console.error('Failed to fetch assignments:', response.error);
+    } else {
+      setAssignments((response.data as SubjectAssignment[]) || []);
     }
   };
 

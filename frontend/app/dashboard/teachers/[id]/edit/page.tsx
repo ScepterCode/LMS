@@ -61,14 +61,13 @@ export default function EditTeacherPage() {
   }, [params.id]);
 
   const fetchTeacher = async () => {
-    try {
-      const response = await api.get(`/teachers/${params.id}`);
-      setFormData(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch teacher');
-    } finally {
-      setLoading(false);
+    const response = await api.getTeacher(params.id as string);
+    if (response.error) {
+      setError(response.error);
+    } else {
+      setFormData(response.data as Teacher);
     }
+    setLoading(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -84,17 +83,16 @@ export default function EditTeacherPage() {
     setError('');
     setSuccess('');
 
-    try {
-      await api.put(`/teachers/${params.id}`, formData);
+    const response = await api.updateTeacher(params.id as string, formData);
+    if (response.error) {
+      setError(response.error);
+    } else {
       setSuccess('Teacher updated successfully!');
       setTimeout(() => {
         router.push(`/dashboard/teachers/${params.id}`);
       }, 1500);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to update teacher');
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   if (loading) {

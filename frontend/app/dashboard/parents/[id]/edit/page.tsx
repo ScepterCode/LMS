@@ -41,14 +41,13 @@ export default function EditParentPage() {
   }, [params.id]);
 
   const fetchParent = async () => {
-    try {
-      const response = await api.get(`/parents/${params.id}`);
-      setFormData(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch parent');
-    } finally {
-      setLoading(false);
+    const response = await api.getParent(params.id as string);
+    if (response.error) {
+      setError(response.error);
+    } else {
+      setFormData(response.data as Parent);
     }
+    setLoading(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -64,17 +63,16 @@ export default function EditParentPage() {
     setError('');
     setSuccess('');
 
-    try {
-      await api.put(`/parents/${params.id}`, formData);
+    const response = await api.updateParent(params.id as string, formData);
+    if (response.error) {
+      setError(response.error);
+    } else {
       setSuccess('Parent updated successfully!');
       setTimeout(() => {
         router.push(`/dashboard/parents/${params.id}`);
       }, 1500);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to update parent');
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   if (loading) {

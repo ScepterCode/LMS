@@ -47,22 +47,21 @@ export default function ParentDetailPage() {
   }, [params.id]);
 
   const fetchParentDetails = async () => {
-    try {
-      const response = await api.get(`/parents/${params.id}`);
-      setParent(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch parent details');
-    } finally {
-      setLoading(false);
+    const response = await api.getParent(params.id as string);
+    if (response.error) {
+      setError(response.error);
+    } else {
+      setParent(response.data as Parent);
     }
+    setLoading(false);
   };
 
   const fetchChildren = async () => {
-    try {
-      const response = await api.get(`/parents/${params.id}/children`);
-      setChildren(response.data);
-    } catch (err) {
-      console.error('Failed to fetch children:', err);
+    const response = await api.getParentChildren(params.id as string);
+    if (response.error) {
+      console.error('Failed to fetch children:', response.error);
+    } else {
+      setChildren((response.data as Child[]) || []);
     }
   };
 
