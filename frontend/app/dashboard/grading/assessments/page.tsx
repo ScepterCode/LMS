@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 interface Assessment {
   id: string;
   title: string;
+  description?: string;
   subject_id?: string;
   class_id?: string;
   assessment_type_name?: string;
@@ -98,6 +99,19 @@ export default function AssessmentsPage() {
     is_passing: true,
   });
   const isAdminOrBursar = user?.role === 'admin' || user?.role === 'system_admin' || user?.role === 'bursar';
+  // Only true school admins can delete assessments - the backend rejects
+  // system_admin/bursar the same as any other non-admin caller.
+  const canDeleteAssessments = user?.role === 'admin';
+
+  const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    assessment_date: '',
+    max_score: 100,
+  });
+  const [editError, setEditError] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   useEffect(() => {
     if (isTeacher && user?.teacher_id) {
@@ -295,6 +309,56 @@ export default function AssessmentsPage() {
     } catch (error: any) {
       console.error('Error publishing assessment:', error);
       alert('Failed to publish assessment');
+    }
+  };
+
+  const openEditModal = (assessment: Assessment) => {
+    setEditingAssessment(assessment);
+    setEditFormData({
+      title: assessment.title,
+      description: assessment.description || '',
+      assessment_date: assessment.assessment_date || '',
+      max_score: assessment.max_score,
+    });
+    setEditError('');
+  };
+
+  const handleUpdateAssessment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAssessment) return;
+
+    setEditError('');
+    setEditSubmitting(true);
+
+    try {
+      const response = await api.put(`/api/v1/grading/assessments/${editingAssessment.id}`, editFormData);
+      if (response.error) {
+        setEditError(response.error);
+        return;
+      }
+      setEditingAssessment(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error updating assessment:', error);
+      setEditError('Failed to update assessment');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteAssessment = async (assessment: Assessment) => {
+    if (!confirm(`Delete "${assessment.title}"? This cannot be undone.`)) return;
+
+    try {
+      const response = await api.delete(`/api/v1/grading/assessments/${assessment.id}`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setAssessments((prev) => prev.filter((a) => a.id !== assessment.id));
+    } catch (error) {
+      console.error('Error deleting assessment:', error);
+      alert('Failed to delete assessment');
     }
   };
 
@@ -502,6 +566,22 @@ export default function AssessmentsPage() {
                       >
                         Enter Grades
                       </button>
+                      {assessment.status !== 'locked' && (
+                        <button
+                          onClick={() => openEditModal(assessment)}
+                          className="text-gray-600 hover:text-gray-900"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {canDeleteAssessments && !assessment.grades_count && (
+                        <button
+                          onClick={() => handleDeleteAssessment(assessment)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -861,6 +941,89 @@ export default function AssessmentsPage() {
                 </button>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Assessment Modal */}
+      {editingAssessment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Edit Assessment</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {editingAssessment.subject_name} &middot; {editingAssessment.class_name}
+              <span className="block text-xs mt-1">Subject, class, and type can't be changed after creation.</span>
+            </p>
+
+            <form onSubmit={handleUpdateAssessment} className="space-y-4">
+              {editError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded text-sm">
+                  {editError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Assessment Date</label>
+                  <input
+                    type="date"
+                    value={editFormData.assessment_date}
+                    onChange={(e) => setEditFormData({ ...editFormData, assessment_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Score *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max="999"
+                    value={editFormData.max_score}
+                    onChange={(e) => setEditFormData({ ...editFormData, max_score: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                >
+                  {editSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingAssessment(null)}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
