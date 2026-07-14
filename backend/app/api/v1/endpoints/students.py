@@ -21,6 +21,12 @@ from app.models.student import (
 from app.core.database import get_supabase
 from app.core.security import get_current_user_from_token, get_token_from_request
 from app.core.permissions import PermissionChecker
+
+# Roles that may browse the school's whole student roster unscoped. Parents
+# are deliberately excluded - they only ever see their own linked children,
+# via the scoping in list_students() and the verify_can_view_student() check
+# in get_student().
+ROSTER_VISIBLE_ROLES = ["admin", "system_admin", "teacher", "bursar"]
 from app.core.exceptions import (
     NotFoundError,
     ValidationError,
@@ -88,24 +94,45 @@ async def list_students(
         
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
+        # Parents only ever see their own linked children, never the
+        # school's whole roster. Any other role without a defined student
+        # relationship (e.g. a bare "student" account) is rejected outright,
+        # same as PermissionChecker.verify_can_view_student's own rule.
+        allowed_student_ids: Optional[set] = None
+        if user.get("role") == "parent":
+            parent = supabase.table('parents').select('id').eq('user_id', user["id"]).execute()
+            parent_id = parent.data[0]['id'] if parent.data else None
+            links = (
+                supabase.table('parent_student_links').select('student_id').eq('parent_id', parent_id).execute()
+                if parent_id else None
+            )
+            allowed_student_ids = {link['student_id'] for link in (links.data if links else [])}
+            if not allowed_student_ids:
+                return []
+        elif user.get("role") not in ROSTER_VISIBLE_ROLES:
+            raise AuthorizationError("You do not have permission to view students")
+
         query = supabase.table('students').select('*').eq('organization_id', user["school_id"])
-        
+
+        if allowed_student_ids is not None:
+            query = query.in_('id', list(allowed_student_ids))
+
         # Apply filters
         if class_id:
             query = query.eq('current_class_id', str(class_id))
-        
+
         if status:
             query = query.eq('status', status)
-        
+
         if search:
             # Search in admission_number, first_name, last_name
             query = query.or_(f'admission_number.ilike.%{search}%,first_name.ilike.%{search}%,last_name.ilike.%{search}%')
-        
+
         query = query.order('last_name').order('first_name').range(skip, skip + limit - 1)
         response = query.execute()
         
@@ -239,34 +266,43 @@ async def get_student(request: Request, student_id: UUID):
         
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         response = supabase.table('students').select('*').eq('id', str(student_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not response.data:
             raise NotFoundError("Student", student_id)
-        
+
+        # Only parents are scoped here (to their own linked children) - every
+        # other role that could already reach this endpoint (admin, teacher,
+        # bursar, etc.) keeps its existing org-wide access unchanged, since
+        # the reported gap was specifically about parents.
+        if user.get("role") == "parent":
+            await PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
+        elif user.get("role") not in ROSTER_VISIBLE_ROLES:
+            raise AuthorizationError("You do not have permission to view this student")
+
         student = response.data[0]
-        
+
         # Enrich data
         student['full_name'] = f"{student['first_name']} {student.get('middle_name') or ''} {student['last_name']}".replace('  ', ' ')
-        
+
         if student.get('date_of_birth'):
             dob = datetime.fromisoformat(student['date_of_birth']).date()
             student['age'] = calculate_age(dob)
-        
+
         if student.get('current_class_id'):
             class_response = supabase.table('classes').select('name').eq('id', student['current_class_id']).execute()
             if class_response.data:
                 student['class_name'] = class_response.data[0]['name']
-        
+
         return student
-        
+
     except (AuthorizationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:
@@ -403,33 +439,97 @@ async def get_student_guardians(request: Request, student_id: UUID):
         
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # Verify student exists and belongs to user's org
         student_check = supabase.table('students').select('id').eq('id', str(student_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not student_check.data:
             raise NotFoundError("Student", student_id)
-        
+
+        if user.get("role") == "parent":
+            await PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
+        elif user.get("role") not in ROSTER_VISIBLE_ROLES:
+            raise AuthorizationError("You do not have permission to view this student's guardians")
+
         response = supabase.table('student_guardians').select('*').eq('student_id', str(student_id)).order('is_primary', desc=True).execute()
-        
+
         # Add full name
         for guardian in response.data:
             guardian['full_name'] = f"{guardian.get('title') or ''} {guardian['first_name']} {guardian['last_name']}".strip()
-        
+
         logger.info(f"Retrieved {len(response.data)} guardians for student {student_id}")
         return response.data
-        
+
     except (AuthorizationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:
         logger.error(f"Error getting guardians: {e}")
         raise DatabaseError(f"Failed to get guardians: {str(e)}")
+
+
+@router.get("/{student_id}/parents")
+async def get_student_parents(request: Request, student_id: UUID):
+    """
+    Get all registered parent accounts linked to a student (the reverse of
+    GET /parents/{parent_id}/children). Distinct from /guardians above,
+    which lists free-text emergency contacts with no login of their own.
+    """
+    try:
+        token = get_token_from_request(request)
+        if not token:
+            raise AuthorizationError("Authentication token required")
+
+        user = get_current_user_from_token(token)
+        if not user:
+            raise AuthorizationError("User authentication failed - no valid user found")
+
+        if not user.get("school_id"):
+            raise AuthorizationError("User must belong to a school")
+
+        supabase = get_supabase()
+        if not supabase:
+            raise DatabaseError("Database connection not available")
+
+        student_check = supabase.table('students').select('id').eq('id', str(student_id)).eq(
+            'organization_id', user["school_id"]
+        ).execute()
+
+        if not student_check.data:
+            raise NotFoundError("Student", student_id)
+
+        if user.get("role") == "parent":
+            await PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
+        elif user.get("role") not in ROSTER_VISIBLE_ROLES:
+            raise AuthorizationError("You do not have permission to view this student's parents")
+
+        links = supabase.table('parent_student_links').select('*').eq('student_id', str(student_id)).execute()
+
+        enriched_data = []
+        for link in links.data:
+            parent = supabase.table('parents').select('id, title, first_name, last_name, phone, email').eq(
+                'id', link['parent_id']
+            ).execute()
+            if parent.data:
+                p = parent.data[0]
+                link['parent_id'] = p['id']
+                link['full_name'] = f"{p.get('title') or ''} {p['first_name']} {p['last_name']}".strip()
+                link['phone'] = p.get('phone')
+                link['email'] = p.get('email')
+            enriched_data.append(link)
+
+        return enriched_data
+
+    except (AuthorizationError, NotFoundError, DatabaseError):
+        raise
+    except Exception as e:
+        logger.error(f"Error getting student's parents: {e}")
+        raise DatabaseError(f"Failed to get student's parents: {str(e)}")
 
 
 @router.post("/{student_id}/guardians", response_model=GuardianResponse, status_code=status.HTTP_201_CREATED)

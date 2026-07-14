@@ -37,10 +37,13 @@ interface OrganizationData {
 }
 
 const ADMIN_ROLES = ['admin', 'system_admin'];
+const STUDENT_MANAGEMENT_ROLES = [...ADMIN_ROLES, 'teacher'];
 
 export default function SchoolDashboard() {
   const { user } = useAuth();
   const isAdmin = ADMIN_ROLES.includes(user?.role ?? '');
+  const canManageStudents = STUDENT_MANAGEMENT_ROLES.includes(user?.role ?? '');
+  const isParent = user?.role === 'parent';
   const [orgData, setOrgData] = useState<OrganizationData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -133,26 +136,42 @@ export default function SchoolDashboard() {
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
-                <Card title="Student Management">
-                  <div className="space-y-3">
-                    <Link
-                      href="/dashboard/students"
-                      className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-brand-200 transition-colors"
-                    >
-                      <div className="font-medium text-gray-900">Manage Students</div>
-                      <div className="text-sm text-gray-500">Add, edit, view student records</div>
-                    </Link>
-                    {isAdmin && (
+                {canManageStudents && (
+                  <Card title="Student Management">
+                    <div className="space-y-3">
                       <Link
-                        href="/dashboard/enrollments"
+                        href="/dashboard/students"
                         className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-brand-200 transition-colors"
                       >
-                        <div className="font-medium text-gray-900">Class Enrollments</div>
-                        <div className="text-sm text-gray-500">Enroll students in classes</div>
+                        <div className="font-medium text-gray-900">Manage Students</div>
+                        <div className="text-sm text-gray-500">Add, edit, view student records</div>
                       </Link>
-                    )}
-                  </div>
-                </Card>
+                      {isAdmin && (
+                        <Link
+                          href="/dashboard/enrollments"
+                          className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-brand-200 transition-colors"
+                        >
+                          <div className="font-medium text-gray-900">Class Enrollments</div>
+                          <div className="text-sm text-gray-500">Enroll students in classes</div>
+                        </Link>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {isParent && (
+                  <Card title="My Children">
+                    <div className="space-y-3">
+                      <Link
+                        href="/dashboard/my-children"
+                        className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-brand-200 transition-colors"
+                      >
+                        <div className="font-medium text-gray-900">View My Children</div>
+                        <div className="text-sm text-gray-500">Grades, report cards, and attendance</div>
+                      </Link>
+                    </div>
+                  </Card>
+                )}
 
                 {isAdmin && (
                   <Card title="Staff Management">

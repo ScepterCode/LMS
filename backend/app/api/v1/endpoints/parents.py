@@ -55,13 +55,19 @@ async def list_parents(
         
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
+        # A parent has no legitimate reason to browse the school's whole
+        # parent directory - unlike students, there's no "my own parents"
+        # subset to scope this down to, so it's simply not their endpoint.
+        if user.get("role") == "parent":
+            raise AuthorizationError("You do not have permission to list parents")
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         query = supabase.table('parents').select('*').eq('organization_id', user["school_id"])
-        
+
         if search:
             query = query.or_(f'first_name.ilike.%{search}%,last_name.ilike.%{search}%,email.ilike.%{search}%')
         
@@ -162,27 +168,90 @@ async def create_parent(request: Request, data: ParentCreate):
         raise DatabaseError(f"Failed to create parent: {str(e)}")
 
 
+@router.get("/me/children")
+async def get_my_children(request: Request):
+    """
+    Get the calling parent's own linked children. Parent-only self-service
+    endpoint - avoids the parent needing to know their own parent_id, and
+    sidesteps the id-guessing risk of the equivalent /{parent_id}/children
+    route entirely for this common case.
+
+    Declared before /{parent_id} below: FastAPI matches path routes in
+    registration order, and a literal "/me/children" would otherwise be
+    swallowed by the "{parent_id}" pattern (with parent_id="me"), which
+    would then fail UUID validation instead of ever reaching this handler.
+    """
+    try:
+        token = get_token_from_request(request)
+        user = get_current_user_from_token(token)
+
+        if user.get("role") != "parent":
+            raise AuthorizationError("Only parent accounts have a children list")
+
+        supabase = get_supabase()
+        if not supabase:
+            raise DatabaseError("Database connection not available")
+
+        parent = supabase.table('parents').select('id').eq('user_id', user["id"]).execute()
+        if not parent.data:
+            return []
+        parent_id = parent.data[0]['id']
+
+        links = supabase.table('parent_student_links').select('*').eq('parent_id', parent_id).execute()
+
+        enriched_data = []
+        for link in links.data:
+            student = supabase.table('students').select(
+                'first_name, middle_name, last_name, admission_number, current_class_id'
+            ).eq('id', link['student_id']).execute()
+
+            if student.data:
+                s = student.data[0]
+                link['student_name'] = f"{s['first_name']} {s.get('middle_name') or ''} {s['last_name']}".replace('  ', ' ')
+                link['admission_number'] = s.get('admission_number')
+
+                if s.get('current_class_id'):
+                    class_response = supabase.table('classes').select('name').eq('id', s['current_class_id']).execute()
+                    if class_response.data:
+                        link['class_name'] = class_response.data[0]['name']
+
+            enriched_data.append(link)
+
+        return enriched_data
+
+    except (AuthorizationError, DatabaseError):
+        raise
+    except Exception as e:
+        logger.error(f"Error getting own children: {e}")
+        raise DatabaseError(f"Failed to get children: {str(e)}")
+
+
 @router.get("/{parent_id}", response_model=ParentResponse)
 async def get_parent(request: Request, parent_id: UUID):
     """Get parent by ID with full details."""
     try:
         token = get_token_from_request(request)
         user = get_current_user_from_token(token)
-        
+
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         response = supabase.table('parents').select('*').eq('id', str(parent_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not response.data:
             raise NotFoundError("Parent", parent_id)
-        
+
+        # A parent may only view their own record, never another parent's.
+        # Staff roles are unrestricted, unchanged from prior behavior.
+        if user.get("role") == "parent" and response.data[0].get("user_id") != user["id"]:
+            raise AuthorizationError("You can only view your own parent record")
+
         parent = response.data[0]
         
         # Enrich data
@@ -309,13 +378,17 @@ async def get_parent_children(request: Request, parent_id: UUID):
             raise DatabaseError("Database connection not available")
         
         # Verify parent exists and belongs to user's org
-        parent_check = supabase.table('parents').select('id').eq('id', str(parent_id)).eq(
+        parent_check = supabase.table('parents').select('id, user_id').eq('id', str(parent_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not parent_check.data:
             raise NotFoundError("Parent", parent_id)
-        
+
+        # A parent may only view their own children, never another parent's.
+        if user.get("role") == "parent" and parent_check.data[0].get("user_id") != user["id"]:
+            raise AuthorizationError("You can only view your own children")
+
         # Get links
         links = supabase.table('parent_student_links').select('*').eq('parent_id', str(parent_id)).execute()
         

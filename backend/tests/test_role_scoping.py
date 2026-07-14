@@ -254,3 +254,172 @@ class TestLeaveRequestScoping:
             json={"status": "approved"},
         )
         assert res.status_code == 403, res.text
+
+
+# ============================================
+# STUDENT ROSTER SCOPING (parent data leak fix)
+# ============================================
+# GET /students and GET /students/{id} previously had no role check at
+# all beyond "belongs to this school" - any parent could list or fetch
+# every student in the org, not just their own linked children.
+
+class TestStudentRosterScoping:
+    def test_parent_list_students_only_returns_linked_children(self, school, klass):
+        linked = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Linked", "last_name": "Kid",
+            "date_of_birth": "2015-01-01", "gender": "Male", "current_class_id": klass["id"],
+        })
+        assert linked.status_code == 201, linked.text
+        other = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Other", "last_name": "Kid",
+            "date_of_birth": "2015-01-01", "gender": "Male", "current_class_id": klass["id"],
+        })
+        assert other.status_code == 201, other.text
+
+        parent = _make_parent(school, linked.json()["id"])
+
+        res = parent["client"].get("/api/v1/students", params={"limit": 500})
+        assert res.status_code == 200, res.text
+        returned_ids = {s["id"] for s in res.json()}
+        assert linked.json()["id"] in returned_ids
+        assert other.json()["id"] not in returned_ids
+
+    def test_parent_with_no_linked_children_gets_empty_list(self, school):
+        email = f"{unique('lonely-parent')}@example.com"
+        password = "PytestParent123!"
+        user = school["client"].post("/api/v1/users", json={
+            "email": email, "password": password, "full_name": "No Kids", "role": "parent"
+        })
+        assert user.status_code == 201, user.text
+
+        from fastapi.testclient import TestClient
+        from app.main import app
+        client = TestClient(app)
+        login = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+        assert login.status_code == 200, login.text
+
+        res = client.get("/api/v1/students", params={"limit": 500})
+        assert res.status_code == 200, res.text
+        assert res.json() == []
+
+    def test_parent_can_get_linked_student_by_id(self, school, student):
+        parent = _make_parent(school, student["id"])
+        res = parent["client"].get(f"/api/v1/students/{student['id']}")
+        assert res.status_code == 200, res.text
+
+    def test_parent_cannot_get_unlinked_student_by_id(self, school, klass):
+        unlinked = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Not", "last_name": "Mine",
+            "date_of_birth": "2015-01-01", "gender": "Male", "current_class_id": klass["id"],
+        })
+        assert unlinked.status_code == 201, unlinked.text
+        linked = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Is", "last_name": "Mine",
+            "date_of_birth": "2015-01-01", "gender": "Male", "current_class_id": klass["id"],
+        })
+        assert linked.status_code == 201, linked.text
+        parent = _make_parent(school, linked.json()["id"])
+
+        res = parent["client"].get(f"/api/v1/students/{unlinked.json()['id']}")
+        assert res.status_code == 403, res.text
+
+    def test_teacher_list_students_still_sees_whole_roster(self, school, teacher, student):
+        # Teachers are not scoped by the parent fix - unchanged behavior.
+        res = teacher["client"].get("/api/v1/students", params={"limit": 500})
+        assert res.status_code == 200, res.text
+        assert any(s["id"] == student["id"] for s in res.json())
+
+
+# ============================================
+# PARENT RECORD SCOPING
+# ============================================
+# GET /parents/{id} and GET /parents/{id}/children previously let any
+# authenticated user in the org view any parent's record - including
+# another parent's.
+
+class TestParentRecordScoping:
+    def test_parent_cannot_view_another_parents_record(self, school, student):
+        parent_a = _make_parent(school, student["id"])
+
+        other_student = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Second", "last_name": "Kid",
+            "date_of_birth": "2015-01-01", "gender": "Female",
+        })
+        assert other_student.status_code == 201, other_student.text
+        parent_b = _make_parent(school, other_student.json()["id"])
+
+        res = parent_a["client"].get(f"/api/v1/parents/{parent_b['parent']['id']}")
+        assert res.status_code == 403, res.text
+
+    def test_parent_cannot_view_another_parents_children_list(self, school, student):
+        parent_a = _make_parent(school, student["id"])
+
+        other_student = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Third", "last_name": "Kid",
+            "date_of_birth": "2015-01-01", "gender": "Female",
+        })
+        assert other_student.status_code == 201, other_student.text
+        parent_b = _make_parent(school, other_student.json()["id"])
+
+        res = parent_a["client"].get(f"/api/v1/parents/{parent_b['parent']['id']}/children")
+        assert res.status_code == 403, res.text
+
+    def test_get_my_children_returns_own_linked_children_only(self, school, student):
+        parent = _make_parent(school, student["id"], relationship="Mother")
+
+        res = parent["client"].get("/api/v1/parents/me/children")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert len(body) == 1
+        assert body[0]["student_id"] == student["id"]
+        assert body[0]["relationship"] == "Mother"
+
+    def test_get_my_children_rejects_non_parent_roles(self, school):
+        res = school["client"].get("/api/v1/parents/me/children")
+        assert res.status_code == 403, res.text
+
+    def test_parent_cannot_list_parent_directory(self, school, student):
+        parent = _make_parent(school, student["id"])
+        res = parent["client"].get("/api/v1/parents")
+        assert res.status_code == 403, res.text
+
+
+# ============================================
+# STUDENT -> PARENT LINK VISIBILITY
+# ============================================
+# GET /students/{id}/parents is the reverse of GET /parents/{id}/children -
+# it's what the "Add Guardian" UI uses to show already-linked parent
+# accounts on a student's own page.
+
+class TestStudentParentsEndpoint:
+    def test_admin_sees_linked_parent_on_student(self, school, student):
+        parent = _make_parent(school, student["id"], relationship="Father")
+
+        res = school["client"].get(f"/api/v1/students/{student['id']}/parents")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert len(body) == 1
+        assert body[0]["parent_id"] == parent["parent"]["id"]
+        assert body[0]["relationship"] == "Father"
+
+    def test_parent_can_see_own_link_on_their_linked_student(self, school, student):
+        parent = _make_parent(school, student["id"])
+
+        res = parent["client"].get(f"/api/v1/students/{student['id']}/parents")
+        assert res.status_code == 200, res.text
+
+    def test_parent_cannot_see_parents_of_unlinked_student(self, school, klass):
+        unlinked = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Fourth", "last_name": "Kid",
+            "date_of_birth": "2015-01-01", "gender": "Male", "current_class_id": klass["id"],
+        })
+        assert unlinked.status_code == 201, unlinked.text
+        linked = school["client"].post("/api/v1/students", json={
+            "admission_number": unique("ADM"), "first_name": "Fifth", "last_name": "Kid",
+            "date_of_birth": "2015-01-01", "gender": "Male", "current_class_id": klass["id"],
+        })
+        assert linked.status_code == 201, linked.text
+        parent = _make_parent(school, linked.json()["id"])
+
+        res = parent["client"].get(f"/api/v1/students/{unlinked.json()['id']}/parents")
+        assert res.status_code == 403, res.text
