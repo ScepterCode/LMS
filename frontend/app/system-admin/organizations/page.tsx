@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 interface Organization {
   id: string;
@@ -326,8 +327,7 @@ export default function OrganizationsPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Admin Password</label>
-                      <input
-                        type="password"
+                      <PasswordInput
                         value={onboardForm.admin_password}
                         onChange={(e) => setOnboardForm({ ...onboardForm, admin_password: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"

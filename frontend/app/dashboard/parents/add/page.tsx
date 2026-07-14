@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function AddParentPage() {
   const { user, logout } = useAuth();
@@ -267,8 +268,7 @@ export default function AddParentPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Password *
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   name="password"
                   value={formData.password}
                   onChange={handleChange}

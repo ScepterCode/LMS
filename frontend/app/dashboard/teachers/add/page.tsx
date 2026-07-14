@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function AddTeacherPage() {
   const { user } = useAuth();
@@ -172,8 +173,7 @@ export default function AddTeacherPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     name="password"
                     required
                     value={formData.password}
