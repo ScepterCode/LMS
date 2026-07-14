@@ -188,7 +188,7 @@ export default function MyClassesPage() {
                   Mark Attendance
                 </Link>
                 <Link
-                  href={`/dashboard/classes/${formTeacherClass.id}/students`}
+                  href={`/dashboard/students?class_id=${formTeacherClass.id}`}
                   className="px-4 py-2 bg-white text-blue-600 text-sm rounded-lg border border-blue-600 hover:bg-blue-50"
                 >
                   View Students

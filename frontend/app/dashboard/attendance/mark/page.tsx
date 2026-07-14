@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 
@@ -26,10 +28,12 @@ interface AttendanceRecord {
   reason?: string;
 }
 
-export default function MarkAttendancePage() {
+function MarkAttendancePageContent() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedClass, setSelectedClass] = useState(() => searchParams.get('class_id') || '');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceRecord>>({});
   const [loading, setLoading] = useState(false);
@@ -39,9 +43,9 @@ export default function MarkAttendancePage() {
   const [currentTermId, setCurrentTermId] = useState('');
 
   useEffect(() => {
-    fetchClasses();
+    if (user) fetchClasses();
     fetchCurrentSessionAndTerm();
-  }, []);
+  }, [user]);
 
   const fetchCurrentSessionAndTerm = async () => {
     try {
@@ -70,6 +74,22 @@ export default function MarkAttendancePage() {
 
   const fetchClasses = async () => {
     try {
+      // Teachers can only mark attendance for a class they're the form
+      // teacher of - the backend already enforces this, but the class
+      // picker previously listed every class in the school regardless of
+      // role, so a non-form-teacher could select a class just to be
+      // rejected on save. Scope the picker itself to match.
+      if (user?.role === 'teacher') {
+        if (!user.teacher_id) {
+          setClasses([]);
+          return;
+        }
+        const response = await api.getTeacherClasses(user.teacher_id);
+        const teacherClasses = (response.data as any[]) || [];
+        setClasses(teacherClasses.filter((c) => c.is_form_teacher));
+        return;
+      }
+
       const response = await api.get('/api/v1/classes');
       setClasses(response.data ? (response.data as Class[]) : []);
     } catch (error) {
@@ -383,5 +403,19 @@ export default function MarkAttendancePage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function MarkAttendancePage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        </div>
+      </DashboardLayout>
+    }>
+      <MarkAttendancePageContent />
+    </Suspense>
   );
 }

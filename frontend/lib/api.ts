@@ -71,7 +71,14 @@ class ApiClient {
         };
       }
 
-      const data = await response.json();
+      // Many DELETE endpoints (and a few others) return 204 No Content with
+      // an empty body. Calling response.json() on that throws a SyntaxError,
+      // which the catch below turned into a fake "error" even though the
+      // request had already succeeded - every delete/unlink action in the
+      // app showed a scary error message despite working correctly. Read as
+      // text first and only parse if there's actually something to parse.
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : undefined;
       return { data, status: response.status };
     } catch (error) {
       return {

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -34,13 +35,16 @@ interface Class {
   level: string;
 }
 
-export default function StudentsPage() {
+function StudentsPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterClass, setFilterClass] = useState('');
+  // Pre-filter when arriving from a "View Students" link (e.g. My Classes)
+  // that names a specific class via ?class_id=.
+  const [filterClass, setFilterClass] = useState(() => searchParams.get('class_id') || '');
   const [filterStatus, setFilterStatus] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [isFormTeacher, setIsFormTeacher] = useState(false);
@@ -317,5 +321,19 @@ export default function StudentsPage() {
             </>
           )}
     </DashboardLayout>
+  );
+}
+
+export default function StudentsPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </DashboardLayout>
+    }>
+      <StudentsPageContent />
+    </Suspense>
   );
 }
