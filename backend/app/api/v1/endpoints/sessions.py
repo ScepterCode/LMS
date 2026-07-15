@@ -244,16 +244,11 @@ async def update_session(
             ).neq('id', str(session_id)).execute()
         
         # Build update data
+        # model_dump(mode="json") already serializes date fields to ISO strings
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
-            # Convert dates to ISO format
-            if 'start_date' in update_data:
-                update_data['start_date'] = update_data['start_date'].isoformat()
-            if 'end_date' in update_data:
-                update_data['end_date'] = update_data['end_date'].isoformat()
-            
             update_data['updated_at'] = datetime.utcnow().isoformat()
-            
+
             # Update session
             result = supabase.table('academic_sessions').update(update_data).eq(
                 'id', str(session_id)

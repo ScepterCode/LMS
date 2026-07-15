@@ -89,29 +89,36 @@ async def list_teachers(
         
         query = query.order('last_name').order('first_name').range(skip, skip + limit - 1)
         response = query.execute()
-        
+
+        # Count subject assignments for all teachers in one query instead of
+        # one round-trip per teacher (was causing N+1 slowdowns on this page).
+        teacher_ids = [t['id'] for t in response.data]
+        subject_counts: dict = {}
+        if teacher_ids:
+            assignments = supabase.table('subject_assignments').select('teacher_id').in_(
+                'teacher_id', teacher_ids
+            ).execute()
+            for row in (assignments.data or []):
+                subject_counts[row['teacher_id']] = subject_counts.get(row['teacher_id'], 0) + 1
+
         # Enrich data
         enriched_data = []
         for teacher in response.data:
             # Add full name
             teacher['full_name'] = f"{teacher['first_name']} {teacher.get('middle_name') or ''} {teacher['last_name']}".replace('  ', ' ')
-            
+
             # Calculate age
             if teacher.get('date_of_birth'):
                 dob = datetime.fromisoformat(teacher['date_of_birth']).date()
                 teacher['age'] = calculate_age(dob)
-            
+
             # Calculate years of service
             if teacher.get('employment_date'):
                 emp_date = datetime.fromisoformat(teacher['employment_date']).date()
                 teacher['years_of_service'] = calculate_years_of_service(emp_date)
-            
-            # Count subject assignments
-            subject_count = supabase.table('subject_assignments').select('id', count='exact').eq(
-                'teacher_id', teacher['id']
-            ).execute()
-            teacher['subject_count'] = subject_count.count if hasattr(subject_count, 'count') else 0
-            
+
+            teacher['subject_count'] = subject_counts.get(teacher['id'], 0)
+
             enriched_data.append(teacher)
         
         logger.info(f"Listed {len(enriched_data)} teachers for org {user['school_id']}")
@@ -145,11 +152,14 @@ async def create_teacher(request: Request, data: TeacherCreate):
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        # Check if staff number already exists
+        # Check if staff number already exists in this organization (scoped -
+        # staff numbers are only meant to be unique within a school, so an
+        # unscoped check here could wrongly block a valid registration just
+        # because another, unrelated school already used the same number).
         staff_check = supabase.table('teachers').select('id').eq(
             'staff_number', data.staff_number
-        ).execute()
-        
+        ).eq('organization_id', str(user["school_id"])).execute()
+
         if staff_check.data:
             raise DuplicateRecordError("Teacher", "staff_number", data.staff_number)
         
@@ -303,14 +313,9 @@ async def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate
         if not existing.data:
             raise NotFoundError("Teacher", teacher_id)
         
+        # model_dump(mode="json") already serializes date fields to ISO strings
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
-            # Convert dates to ISO format
-            if 'date_of_birth' in update_data:
-                update_data['date_of_birth'] = update_data['date_of_birth'].isoformat()
-            if 'employment_date' in update_data:
-                update_data['employment_date'] = update_data['employment_date'].isoformat()
-            
             update_data['updated_at'] = datetime.utcnow().isoformat()
             
             result = supabase.table('teachers').update(update_data).eq('id', str(teacher_id)).execute()
@@ -413,20 +418,27 @@ async def get_teacher_assignments(request: Request, teacher_id: UUID):
         
         # Get assignments
         response = supabase.table('subject_assignments').select('*').eq('teacher_id', str(teacher_id)).execute()
-        
+
+        # Batch subject/class name lookups in two queries total instead of
+        # two per assignment.
+        subject_ids = list({a['subject_id'] for a in response.data if a.get('subject_id')})
+        class_ids = list({a['class_id'] for a in response.data if a.get('class_id')})
+        subject_names: dict = {}
+        class_names: dict = {}
+        if subject_ids:
+            subjects_resp = supabase.table('subjects').select('id, name').in_('id', subject_ids).execute()
+            subject_names = {row['id']: row['name'] for row in (subjects_resp.data or [])}
+        if class_ids:
+            classes_resp = supabase.table('classes').select('id, name').in_('id', class_ids).execute()
+            class_names = {row['id']: row['name'] for row in (classes_resp.data or [])}
+
         # Enrich with subject and class names
         enriched_data = []
         for assignment in response.data:
-            # Get subject name
-            subject_response = supabase.table('subjects').select('name').eq('id', assignment['subject_id']).execute()
-            if subject_response.data:
-                assignment['subject_name'] = subject_response.data[0]['name']
-            
-            # Get class name
-            class_response = supabase.table('classes').select('name').eq('id', assignment['class_id']).execute()
-            if class_response.data:
-                assignment['class_name'] = class_response.data[0]['name']
-            
+            if assignment.get('subject_id') in subject_names:
+                assignment['subject_name'] = subject_names[assignment['subject_id']]
+            if assignment.get('class_id') in class_names:
+                assignment['class_name'] = class_names[assignment['class_id']]
             enriched_data.append(assignment)
         
         logger.info(f"Retrieved {len(enriched_data)} assignments for teacher {teacher_id}")

@@ -327,13 +327,9 @@ async def update_class_enrollment(request: Request, enrollment_id: UUID, data: C
             if not class_check.data:
                 raise ValidationError("Invalid class ID")
         
+        # model_dump(mode="json") already serializes date/UUID fields to strings
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
-            if 'class_id' in update_data:
-                update_data['class_id'] = str(update_data['class_id'])
-            if 'enrollment_date' in update_data:
-                update_data['enrollment_date'] = update_data['enrollment_date'].isoformat()
-            
             update_data['updated_at'] = datetime.utcnow().isoformat()
             
             result = supabase.table('class_enrollments').update(update_data).eq('id', str(enrollment_id)).execute()
