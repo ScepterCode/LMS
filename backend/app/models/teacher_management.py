@@ -91,8 +91,10 @@ class GradingSchemeResponse(BaseModel):
 # ============================================
 
 class ClassSubjectCreate(BaseModel):
-    """Add subject to class."""
-    class_id: UUID = Field(..., description="Class ID")
+    """Add subject to class. class_id comes from the URL path (POST
+    /classes/{class_id}/subjects), not the body - it was previously also
+    required here, which meant every caller that (correctly) omitted it from
+    the body got a 422 and the subject was silently never attached."""
     subject_id: UUID = Field(..., description="Subject ID")
     session_id: UUID = Field(..., description="Academic session ID")
     is_mandatory: bool = Field(default=True, description="Is this a mandatory subject?")

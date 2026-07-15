@@ -100,9 +100,12 @@ class TestGradingScheme:
 
 class TestClassSubjectCurriculum:
     def test_add_subject_to_class(self, school, klass, subject, academic_session):
+        """class_id comes from the URL path, not the body - the frontend never
+        sends it in the body, so ClassSubjectCreate must not require it there
+        (it previously did, silently 422ing every real caller)."""
         client = school["client"]
         res = client.post(f"/api/v1/teacher-management/classes/{klass['id']}/subjects", json={
-            "class_id": klass["id"], "subject_id": subject["id"], "session_id": academic_session["id"],
+            "subject_id": subject["id"], "session_id": academic_session["id"],
         })
         assert res.status_code == 201, res.text
         assert res.json()["subject_name"] == subject["name"]

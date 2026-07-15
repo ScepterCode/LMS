@@ -73,6 +73,7 @@ export default function AcademicPage() {
     capacity: 40,
     selected_subjects: [] as string[],
   });
+  const [originalClassSubjects, setOriginalClassSubjects] = useState<string[]>([]);
 
   const [subjectForm, setSubjectForm] = useState({
     name: '',
@@ -188,9 +189,10 @@ export default function AcademicPage() {
     setError('');
   };
 
-  const handleOpenModal = (type: ModalType, item?: Session | Class | Subject | Term) => {
+  const handleOpenModal = async (type: ModalType, item?: Session | Class | Subject | Term) => {
     resetForms();
     setEditingId(null);
+    setOriginalClassSubjects([]);
 
     if (item) {
       setEditingId(item.id);
@@ -200,6 +202,18 @@ export default function AcademicPage() {
       } else if (type === 'class') {
         const c = item as Class;
         setClassForm({ name: c.name, level: c.level, section: c.section || '', capacity: c.capacity, selected_subjects: [] });
+
+        // Pre-populate the subjects checklist with this class's current
+        // curriculum for the active session, so editing shows what's
+        // already assigned instead of always starting empty.
+        const sessionsResponse = await api.getSessions();
+        const currentSession = (sessionsResponse.data as Session[] | undefined)?.find((s: Session) => s.is_current);
+        if (currentSession) {
+          const classSubjectsResponse = await api.getClassSubjects(c.id, currentSession.id);
+          const currentSubjectIds = ((classSubjectsResponse.data as any[]) || []).map((cs) => cs.subject_id);
+          setClassForm((prev) => ({ ...prev, selected_subjects: currentSubjectIds }));
+          setOriginalClassSubjects(currentSubjectIds);
+        }
       } else if (type === 'subject') {
         const sub = item as Subject;
         setSubjectForm({ name: sub.name, code: sub.code || '', subject_type: sub.subject_type, description: '' });
@@ -308,27 +322,41 @@ export default function AcademicPage() {
         return;
       }
 
-      // Step 2: Add selected subjects to the class (create mode only - the
-      // subject checklist is intentionally not shown when editing, since
-      // class-subjects is a separate, additive relationship)
+      // Step 2: Sync selected subjects to the class's curriculum for the
+      // current session - on create, add every checked subject; on edit,
+      // diff against what was already assigned so unchecking one removes it.
       const classId = editingId || (response.data as any)?.id;
-      if (!editingId && classId && classForm.selected_subjects.length > 0) {
-        // Get current session
+      if (classId) {
         const sessionsResponse = await api.getSessions();
         const currentSession = (sessionsResponse.data as Session[] | undefined)?.find((s: Session) => s.is_current);
-        
+
         if (currentSession) {
-          // Add each subject to the class
-          for (const subjectId of classForm.selected_subjects) {
-            await api.addSubjectToClass(classId, {
+          const toAdd = classForm.selected_subjects.filter((id) => !originalClassSubjects.includes(id));
+          const toRemove = originalClassSubjects.filter((id) => !classForm.selected_subjects.includes(id));
+
+          for (const subjectId of toAdd) {
+            const addResponse = await api.addSubjectToClass(classId, {
               subject_id: subjectId,
               session_id: currentSession.id,
               is_mandatory: true,
             });
+            if (addResponse.error) {
+              setError(`Class saved, but failed to attach a subject: ${addResponse.error}`);
+              setSubmitting(false);
+              return;
+            }
+          }
+          for (const subjectId of toRemove) {
+            const removeResponse = await api.removeSubjectFromClass(classId, subjectId, currentSession.id);
+            if (removeResponse.error) {
+              setError(`Class saved, but failed to remove a subject: ${removeResponse.error}`);
+              setSubmitting(false);
+              return;
+            }
           }
         }
       }
-      
+
       handleCloseModal();
       loadData();
     } catch (err) {
@@ -737,9 +765,12 @@ export default function AcademicPage() {
 
         {/* Session Modal */}
         {showModal === 'session' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">{editingId ? 'Edit Academic Session' : 'Create Academic Session'}</h3>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold">{editingId ? 'Edit Academic Session' : 'Create Academic Session'}</h3>
+                <button type="button" onClick={handleCloseModal} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+              </div>
 
               {error && (
                 <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
@@ -829,9 +860,12 @@ export default function AcademicPage() {
 
         {/* Class Modal */}
         {showModal === 'class' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">{editingId ? 'Edit Class' : 'Create Class'}</h3>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold">{editingId ? 'Edit Class' : 'Create Class'}</h3>
+                <button type="button" onClick={handleCloseModal} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+              </div>
               
               {error && (
                 <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
@@ -897,40 +931,38 @@ export default function AcademicPage() {
                     />
                   </div>
                   
-                  {!editingId && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Subjects Offered in This Class
-                      </label>
-                      <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
-                        {subjects.length === 0 ? (
-                          <p className="text-sm text-gray-500">No subjects available. Create subjects first.</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {subjects.map((subject) => (
-                              <label key={subject.id} className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={classForm.selected_subjects.includes(subject.id)}
-                                  onChange={(e) => {
-                                    const newSelected = e.target.checked
-                                      ? [...classForm.selected_subjects, subject.id]
-                                      : classForm.selected_subjects.filter(id => id !== subject.id);
-                                    setClassForm({ ...classForm, selected_subjects: newSelected });
-                                  }}
-                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">{subject.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {classForm.selected_subjects.length} subject{classForm.selected_subjects.length !== 1 ? 's' : ''} selected
-                      </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Subjects Offered in This Class
+                    </label>
+                    <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                      {subjects.length === 0 ? (
+                        <p className="text-sm text-gray-500">No subjects available. Create subjects first.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {subjects.map((subject) => (
+                            <label key={subject.id} className="flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={classForm.selected_subjects.includes(subject.id)}
+                                onChange={(e) => {
+                                  const newSelected = e.target.checked
+                                    ? [...classForm.selected_subjects, subject.id]
+                                    : classForm.selected_subjects.filter(id => id !== subject.id);
+                                  setClassForm({ ...classForm, selected_subjects: newSelected });
+                                }}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <span className="ml-2 text-sm text-gray-700">{subject.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      {classForm.selected_subjects.length} subject{classForm.selected_subjects.length !== 1 ? 's' : ''} selected
+                    </p>
+                  </div>
                 </div>
                 
                 <div className="mt-6 flex gap-3">
@@ -956,9 +988,12 @@ export default function AcademicPage() {
 
         {/* Subject Modal */}
         {showModal === 'subject' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">{editingId ? 'Edit Subject' : 'Create Subject'}</h3>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold">{editingId ? 'Edit Subject' : 'Create Subject'}</h3>
+                <button type="button" onClick={handleCloseModal} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+              </div>
               
               {error && (
                 <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
@@ -1047,9 +1082,12 @@ export default function AcademicPage() {
 
         {/* Term Modal */}
         {showModal === 'term' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">{editingId ? 'Edit Term' : 'Create Term'}</h3>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold">{editingId ? 'Edit Term' : 'Create Term'}</h3>
+                <button type="button" onClick={handleCloseModal} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+              </div>
 
               {error && (
                 <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
