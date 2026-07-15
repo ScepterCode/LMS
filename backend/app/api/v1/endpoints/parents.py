@@ -73,19 +73,24 @@ async def list_parents(
         
         query = query.order('last_name').order('first_name').range(skip, skip + limit - 1)
         response = query.execute()
-        
+
+        # Batch children counts in one query instead of one per parent
+        # (was causing N+1 slowdowns on this page).
+        parent_ids = [p['id'] for p in response.data]
+        children_counts: dict = {}
+        if parent_ids:
+            links = supabase.table('parent_student_links').select('parent_id').in_(
+                'parent_id', parent_ids
+            ).execute()
+            for row in (links.data or []):
+                children_counts[row['parent_id']] = children_counts.get(row['parent_id'], 0) + 1
+
         # Enrich data
         enriched_data = []
         for parent in response.data:
             # Add full name
             parent['full_name'] = f"{parent.get('title') or ''} {parent['first_name']} {parent['last_name']}".strip()
-            
-            # Count children
-            children = supabase.table('parent_student_links').select('id', count='exact').eq(
-                'parent_id', parent['id']
-            ).execute()
-            parent['children_count'] = children.count if hasattr(children, 'count') else len(children.data) if children.data else 0
-            
+            parent['children_count'] = children_counts.get(parent['id'], 0)
             enriched_data.append(parent)
         
         logger.info(f"Listed {len(enriched_data)} parents for org {user['school_id']}")

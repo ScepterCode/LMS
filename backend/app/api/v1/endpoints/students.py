@@ -135,24 +135,31 @@ async def list_students(
 
         query = query.order('last_name').order('first_name').range(skip, skip + limit - 1)
         response = query.execute()
-        
+
+        # Batch class name lookups in one query instead of one per student
+        # (was causing N+1 slowdowns on this page).
+        class_ids = list({s['current_class_id'] for s in response.data if s.get('current_class_id')})
+        class_names: dict = {}
+        if class_ids:
+            classes_resp = supabase.table('classes').select('id, name').in_('id', class_ids).execute()
+            for row in (classes_resp.data or []):
+                class_names[row['id']] = row['name']
+
         # Enrich data
         enriched_data = []
         for student in response.data:
             # Add full name
             student['full_name'] = f"{student['first_name']} {student.get('middle_name') or ''} {student['last_name']}".replace('  ', ' ')
-            
+
             # Calculate age
             if student.get('date_of_birth'):
                 dob = datetime.fromisoformat(student['date_of_birth']).date()
                 student['age'] = calculate_age(dob)
-            
+
             # Get class name
-            if student.get('current_class_id'):
-                class_response = supabase.table('classes').select('name').eq('id', student['current_class_id']).execute()
-                if class_response.data:
-                    student['class_name'] = class_response.data[0]['name']
-            
+            if student.get('current_class_id') and student['current_class_id'] in class_names:
+                student['class_name'] = class_names[student['current_class_id']]
+
             enriched_data.append(student)
         
         logger.info(f"Listed {len(enriched_data)} students for org {user['school_id']}")

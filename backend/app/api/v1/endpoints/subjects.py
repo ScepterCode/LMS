@@ -60,15 +60,22 @@ async def list_subjects(
         
         query = query.order('name').range(skip, skip + limit - 1)
         response = query.execute()
-        
+
+        # Batch teacher counts in one query instead of one per subject
+        # (was causing N+1 slowdowns on this page).
+        subject_ids = [s['id'] for s in response.data]
+        teacher_counts: dict = {}
+        if subject_ids:
+            assignments = supabase.table('subject_assignments').select('subject_id').in_(
+                'subject_id', subject_ids
+            ).execute()
+            for row in (assignments.data or []):
+                teacher_counts[row['subject_id']] = teacher_counts.get(row['subject_id'], 0) + 1
+
         # Enrich with teacher count
         enriched_data = []
         for subject in response.data:
-            # Get teacher count
-            teacher_count_response = supabase.table('subject_assignments').select('id', count='exact').eq(
-                'subject_id', subject['id']
-            ).execute()
-            subject['teacher_count'] = teacher_count_response.count if hasattr(teacher_count_response, 'count') else 0
+            subject['teacher_count'] = teacher_counts.get(subject['id'], 0)
             enriched_data.append(subject)
         
         logger.info(f"Listed {len(enriched_data)} subjects for org {user['school_id']}")

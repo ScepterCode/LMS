@@ -60,24 +60,35 @@ async def list_classes(
         
         query = query.order('name').range(skip, skip + limit - 1)
         response = query.execute()
-        
+
+        # Batch student counts and class teacher names in two queries total
+        # instead of two per class (was causing N+1 slowdowns on this page).
+        class_ids = [cls['id'] for cls in response.data]
+        student_counts: dict = {}
+        if class_ids:
+            students_resp = supabase.table('students').select('current_class_id').in_(
+                'current_class_id', class_ids
+            ).execute()
+            for row in (students_resp.data or []):
+                cid = row['current_class_id']
+                student_counts[cid] = student_counts.get(cid, 0) + 1
+
+        teacher_ids = list({cls['class_teacher_id'] for cls in response.data if cls.get('class_teacher_id')})
+        teacher_names: dict = {}
+        if teacher_ids:
+            teachers_resp = supabase.table('users').select('id, full_name').in_('id', teacher_ids).execute()
+            for row in (teachers_resp.data or []):
+                teacher_names[row['id']] = row['full_name']
+
         # Enrich with student count
         enriched_data = []
         for cls in response.data:
-            # Get student count
-            student_count_response = supabase.table('students').select('id', count='exact').eq(
-                'current_class_id', cls['id']
-            ).execute()
-            cls['student_count'] = student_count_response.count if hasattr(student_count_response, 'count') else 0
-            
+            cls['student_count'] = student_counts.get(cls['id'], 0)
+
             # Get class teacher name if assigned
-            if cls.get('class_teacher_id'):
-                teacher_response = supabase.table('users').select('full_name').eq(
-                    'id', cls['class_teacher_id']
-                ).execute()
-                if teacher_response.data:
-                    cls['class_teacher_name'] = teacher_response.data[0]['full_name']
-            
+            if cls.get('class_teacher_id') and cls['class_teacher_id'] in teacher_names:
+                cls['class_teacher_name'] = teacher_names[cls['class_teacher_id']]
+
             enriched_data.append(cls)
         
         logger.info(f"Listed {len(enriched_data)} classes for org {user['school_id']}")
