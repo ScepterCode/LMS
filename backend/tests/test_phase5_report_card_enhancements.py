@@ -134,6 +134,37 @@ class TestSkillCategories:
 
 
 # ============================================
+# DEFAULT SKILL CATEGORY SEEDING
+# ============================================
+# A one-time migration originally seeded the 7 default traits, but only for
+# organizations that existed at the time it ran - every school registered
+# afterwards got an empty, unconfigured skills list. seed_default_skill_categories()
+# now runs at org-creation time instead (both register_school and the
+# system-admin assisted onboarding path).
+
+class TestDefaultSkillCategorySeeding:
+    def test_freshly_registered_school_has_default_categories(self, school):
+        client = school["client"]
+        res = client.get("/api/v1/skills/categories")
+        assert res.status_code == 200, res.text
+        names = {c["name"] for c in res.json()}
+        domains = {c["name"]: c["domain"] for c in res.json()}
+
+        expected = {
+            "Sports & Games": "psychomotor",
+            "Handling of Tools/Equipment": "psychomotor",
+            "Handwriting": "psychomotor",
+            "Musical Skills": "psychomotor",
+            "Punctuality": "affective",
+            "Neatness": "affective",
+            "Honesty": "affective",
+        }
+        for name, domain in expected.items():
+            assert name in names, f"missing default trait {name!r}"
+            assert domains[name] == domain
+
+
+# ============================================
 # STUDENT SKILL RATINGS (form-teacher permission)
 # ============================================
 

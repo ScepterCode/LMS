@@ -27,6 +27,7 @@ from app.core.security import (
 )
 from app.core.exceptions import AuthenticationError, InsufficientPermissionsError, DatabaseError, DuplicateRecordError
 from app.core.audit import log_audit_event
+from app.api.v1.endpoints.skills import seed_default_skill_categories
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -350,6 +351,8 @@ async def create_organization_by_system_admin(
                 logger.info(f"Created default campus for organization {org_id}")
         except Exception as e:
             logger.warning(f"Failed to create campus (non-critical): {e}")
+
+        seed_default_skill_categories(supabase, org_id)
 
         log_audit_event(
             supabase, current_user, "organization.created",

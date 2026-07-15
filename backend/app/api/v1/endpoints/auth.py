@@ -30,6 +30,7 @@ from app.core.exceptions import (
     DatabaseError,
     DuplicateRecordError,
 )
+from app.api.v1.endpoints.skills import seed_default_skill_categories
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -428,7 +429,11 @@ async def register_school(data: SchoolRegistrationRequest):
                 logger.info(f"Created default campus for organization {org_id}")
         except Exception as e:
             logger.warning(f"Failed to create campus (non-critical): {e}")
-        
+
+        # Step 6: Seed default report card skill traits (non-critical - an
+        # admin can always add these manually if this fails)
+        seed_default_skill_categories(supabase, org_id)
+
         return {
             "message": "School registered successfully! You can now login with your admin credentials.",
             "organization_id": org_id,

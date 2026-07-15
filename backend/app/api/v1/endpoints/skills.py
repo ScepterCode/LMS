@@ -64,6 +64,48 @@ def _require_admin(user: dict):
         raise AuthorizationError("Only school administrators can manage skill categories")
 
 
+# The classic Nigerian report card psychomotor/affective domain traits.
+# Matches the one-time backfill in database/phase5_report_card_enhancements.sql
+# exactly - that migration seeded these for orgs that existed at the time,
+# but nothing seeded them for schools created afterwards, so every school
+# onboarded since then got an empty, unconfigured skills list. Called from
+# both onboarding paths (public register-school and system-admin assisted
+# onboarding) so newly created schools start with the same defaults.
+DEFAULT_SKILL_CATEGORIES = [
+    ("Sports & Games", "psychomotor", 1),
+    ("Handling of Tools/Equipment", "psychomotor", 2),
+    ("Handwriting", "psychomotor", 3),
+    ("Musical Skills", "psychomotor", 4),
+    ("Punctuality", "affective", 1),
+    ("Neatness", "affective", 2),
+    ("Honesty", "affective", 3),
+]
+
+
+def seed_default_skill_categories(supabase, organization_id: str) -> None:
+    """Insert the default skill traits for a newly created organization.
+    Best-effort: never raises, so a seeding hiccup can't break onboarding -
+    an admin can always add traits manually from the Skills Settings page."""
+    try:
+        now = datetime.utcnow().isoformat()
+        rows = [
+            {
+                'id': str(uuid.uuid4()),
+                'organization_id': organization_id,
+                'name': name,
+                'domain': domain,
+                'display_order': order,
+                'is_active': True,
+                'created_at': now,
+                'updated_at': now,
+            }
+            for name, domain, order in DEFAULT_SKILL_CATEGORIES
+        ]
+        supabase.table('skill_categories').insert(rows).execute()
+    except Exception as e:
+        logger.warning(f"Failed to seed default skill categories for org {organization_id}: {e}")
+
+
 # ============================================
 # SKILL CATEGORIES (admin-configurable)
 # ============================================
