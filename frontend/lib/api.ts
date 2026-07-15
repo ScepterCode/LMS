@@ -166,6 +166,16 @@ class ApiClient {
     });
   }
 
+  async getUsers(params?: { skip?: number; limit?: number; role?: string; is_active?: boolean }) {
+    const queryParams = new URLSearchParams();
+    if (params?.skip) queryParams.append('skip', params.skip.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.role) queryParams.append('role', params.role);
+    if (params?.is_active !== undefined) queryParams.append('is_active', String(params.is_active));
+
+    return this.request(`/api/v1/users?${queryParams}`, { method: 'GET' });
+  }
+
   async registerSchool(data: {
     school_name: string;
     school_email: string;

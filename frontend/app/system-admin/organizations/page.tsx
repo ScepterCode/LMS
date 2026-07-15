@@ -331,6 +331,8 @@ export default function OrganizationsPage() {
                         value={onboardForm.admin_password}
                         onChange={(e) => setOnboardForm({ ...onboardForm, admin_password: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                        minLength={8}
+                        showRequirements
                       />
                     </div>
                   </div>

@@ -276,6 +276,7 @@ export default function AddParentPage() {
                   minLength={8}
                   placeholder="Minimum 8 characters"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  showRequirements
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Parent will use this to login and view their ward's information
