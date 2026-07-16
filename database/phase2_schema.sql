@@ -81,7 +81,7 @@ CREATE TABLE subjects (
 CREATE TABLE students (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    admission_number VARCHAR(50) UNIQUE NOT NULL,
+    admission_number VARCHAR(50) NOT NULL,
     first_name VARCHAR(100) NOT NULL,
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
@@ -102,7 +102,11 @@ CREATE TABLE students (
     admission_date DATE DEFAULT CURRENT_DATE,
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'graduated', 'suspended', 'withdrawn', 'transferred')),
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    -- Admission numbers are only meant to be unique within a school, not
+    -- platform-wide - two schools independently using "ADM001" is a normal
+    -- collision, not a data error.
+    UNIQUE(organization_id, admission_number)
 );
 
 -- Student Guardians/Parents (denormalized for quick access)
@@ -133,7 +137,7 @@ CREATE TABLE teachers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    staff_number VARCHAR(50) UNIQUE NOT NULL,
+    staff_number VARCHAR(50) NOT NULL,
     first_name VARCHAR(100) NOT NULL,
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
@@ -152,7 +156,10 @@ CREATE TABLE teachers (
     employment_type VARCHAR(20) DEFAULT 'full-time' CHECK (employment_type IN ('full-time', 'part-time', 'contract')),
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'on-leave', 'terminated', 'retired')),
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    -- Staff numbers are only meant to be unique within a school, not
+    -- platform-wide - see the matching note on students.admission_number.
+    UNIQUE(organization_id, staff_number)
 );
 
 -- ============================================
