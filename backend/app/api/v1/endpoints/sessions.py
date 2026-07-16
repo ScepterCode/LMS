@@ -36,7 +36,7 @@ def require_school_admin(user: dict):
     """Ensure user is school admin or system admin."""
     if not user:
         raise AuthorizationError("User authentication failed - no valid user found")
-    if user.get("role") not in ["admin", "system_admin"]:
+    if user.get("role") not in ["admin", "system_admin", "dean"]:
         raise AuthorizationError("Only school administrators can manage academic sessions")
 
 

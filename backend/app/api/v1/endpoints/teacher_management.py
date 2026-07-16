@@ -54,8 +54,8 @@ logger = logging.getLogger(__name__)
 
 
 def require_admin(user: dict):
-    """Ensure user is school admin or system admin."""
-    if user.get("role") not in ["admin", "system_admin"]:
+    """Ensure user is school admin, system admin, or dean."""
+    if user.get("role") not in ["admin", "system_admin", "dean"]:
         raise AuthorizationError("Only administrators can perform this action")
 
 

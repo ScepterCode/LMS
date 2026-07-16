@@ -16,6 +16,10 @@ interface SidebarProps {
 // files - so a teacher's sidebar reflects what they can actually do instead
 // of showing every admin page and 403ing on click.
 const ADMIN_ROLES = ['admin', 'system_admin'];
+// Dean has the same academic/staff/student management access as admin, but
+// not Finance or Administration (school settings, subscription) - those stay
+// ADMIN_ROLES-only below.
+const DEAN_ROLES = [...ADMIN_ROLES, 'dean'];
 
 interface NavLink {
   name: string;
@@ -60,7 +64,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/students',
-          roles: [...ADMIN_ROLES, 'teacher'],
+          roles: [...DEAN_ROLES, 'teacher'],
         },
         {
           name: 'My Children',
@@ -80,7 +84,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/parents',
-          roles: ADMIN_ROLES,
+          roles: DEAN_ROLES,
         },
         {
           name: 'Class Enrollments',
@@ -90,13 +94,13 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/enrollments',
-          roles: ADMIN_ROLES,
+          roles: DEAN_ROLES,
         },
       ],
     },
     {
       section: 'Staff Management',
-      roles: ADMIN_ROLES,
+      roles: DEAN_ROLES,
       items: [
         {
           name: 'Teachers',
@@ -116,11 +120,21 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
           ),
           href: '/dashboard/assignments',
         },
+        {
+          name: 'Deans',
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          ),
+          href: '/dashboard/deans',
+          roles: ADMIN_ROLES,
+        },
       ],
     },
     {
       section: 'Academic Setup',
-      roles: ADMIN_ROLES,
+      roles: DEAN_ROLES,
       items: [
         {
           name: 'Sessions & Terms',
@@ -153,7 +167,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
     },
     {
       section: 'Grading & Assessments',
-      roles: [...ADMIN_ROLES, 'teacher'],
+      roles: [...DEAN_ROLES, 'teacher'],
       items: [
         {
           name: 'Assessments',
@@ -186,7 +200,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
     },
     {
       section: 'Attendance',
-      roles: [...ADMIN_ROLES, 'teacher'],
+      roles: [...DEAN_ROLES, 'teacher'],
       items: [
         {
           name: 'Mark Attendance',
@@ -271,7 +285,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/grading-schemes',
-          roles: ADMIN_ROLES,
+          roles: DEAN_ROLES,
         },
         {
           name: 'Class Subjects',
@@ -281,7 +295,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/class-subjects',
-          roles: ADMIN_ROLES,
+          roles: DEAN_ROLES,
         },
         {
           name: 'Teacher Assignments',
@@ -291,7 +305,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/teacher-assignments',
-          roles: ADMIN_ROLES,
+          roles: DEAN_ROLES,
         },
         {
           name: 'My Classes',
@@ -301,7 +315,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/my-classes',
-          roles: [...ADMIN_ROLES, 'teacher'],
+          roles: [...DEAN_ROLES, 'teacher'],
         },
         {
           name: 'Class Remarks',
@@ -311,7 +325,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/my-class-remarks',
-          roles: [...ADMIN_ROLES, 'teacher'],
+          roles: [...DEAN_ROLES, 'teacher'],
         },
         {
           name: 'Send Reports',
@@ -321,7 +335,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/teacher-management/send-reports',
-          roles: [...ADMIN_ROLES, 'teacher'],
+          roles: [...DEAN_ROLES, 'teacher'],
         },
       ],
     },

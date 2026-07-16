@@ -60,7 +60,7 @@ class SkillRatingsBulkSubmit(BaseModel):
 
 
 def _require_admin(user: dict):
-    if user.get("role") not in ["admin", "system_admin"]:
+    if user.get("role") not in ["admin", "system_admin", "dean"]:
         raise AuthorizationError("Only school administrators can manage skill categories")
 
 

@@ -53,7 +53,7 @@ class UserCreate(BaseModel):
     @field_validator('role')
     @classmethod
     def validate_role(cls, v):
-        valid_roles = ['admin', 'teacher', 'bursar', 'parent', 'student']
+        valid_roles = ['admin', 'teacher', 'bursar', 'parent', 'student', 'dean']
         if v not in valid_roles:
             raise ValueError(f'Role must be one of: {", ".join(valid_roles)}')
         return v
@@ -86,11 +86,26 @@ class UserResponse(BaseModel):
 # ============================================
 
 def require_admin(user: dict):
-    """Ensure user is school admin or system admin."""
+    """Ensure user is school admin, system admin, or dean.
+    Deans are further restricted to teacher/parent accounts only - see
+    _restrict_dean_target_role - since account provisioning for admin,
+    bursar, dean, or system_admin accounts stays admin-only."""
     if not user:
         raise AuthorizationError("User authentication failed")
-    if user.get("role") not in ["admin", "system_admin"]:
+    if user.get("role") not in ["admin", "system_admin", "dean"]:
         raise AuthorizationError("Only administrators can manage users")
+
+
+DEAN_MANAGEABLE_ROLES = ["teacher", "parent"]
+
+
+def _restrict_dean_target_role(user: dict, target_role: str):
+    """A dean may only create/update/deactivate teacher and parent
+    accounts - not admin, bursar, dean, or system_admin accounts."""
+    if user.get("role") == "dean" and target_role not in DEAN_MANAGEABLE_ROLES:
+        raise AuthorizationError(
+            f"Deans can only manage {' and '.join(DEAN_MANAGEABLE_ROLES)} accounts"
+        )
 
 
 # ============================================
@@ -175,14 +190,15 @@ async def create_user(
             raise AuthorizationError("User authentication failed")
         
         require_admin(user)
-        
+        _restrict_dean_target_role(user, data.role)
+
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # Check if email already exists
         existing = supabase.table('users').select('id').eq('email', data.email).execute()
         if existing.data:
@@ -305,10 +321,12 @@ async def update_user(
             existing_query = existing_query.eq('school_id', user["school_id"])
         
         existing = existing_query.execute()
-        
+
         if not existing.data:
             raise NotFoundError("User", user_id)
-        
+
+        _restrict_dean_target_role(user, existing.data[0].get("role"))
+
         # Build update data
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         
@@ -384,7 +402,9 @@ async def delete_user(
         
         if not existing.data:
             raise NotFoundError("User", user_id)
-        
+
+        _restrict_dean_target_role(user, existing.data[0].get("role"))
+
         # Soft delete - set is_active to false
         supabase.table('users').update({
             'is_active': False,

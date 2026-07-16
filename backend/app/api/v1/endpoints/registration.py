@@ -162,10 +162,10 @@ class ParentRegistration(BaseModel):
 # ============================================
 
 def require_admin(user: dict):
-    """Ensure user is school admin or system admin."""
+    """Ensure user is school admin, system admin, or dean."""
     if not user:
         raise AuthorizationError("User authentication failed")
-    if user.get("role") not in ["admin", "system_admin"]:
+    if user.get("role") not in ["admin", "system_admin", "dean"]:
         raise AuthorizationError("Only administrators can register users")
 
 

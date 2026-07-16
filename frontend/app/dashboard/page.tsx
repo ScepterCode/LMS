@@ -36,7 +36,7 @@ interface OrganizationData {
   };
 }
 
-const ADMIN_ROLES = ['admin', 'system_admin'];
+const ADMIN_ROLES = ['admin', 'system_admin', 'dean'];
 const STUDENT_MANAGEMENT_ROLES = [...ADMIN_ROLES, 'teacher'];
 
 export default function SchoolDashboard() {
@@ -95,7 +95,7 @@ export default function SchoolDashboard() {
       </div>
 
       {/* Onboarding Checklist */}
-      {user?.role === 'admin' || user?.role === 'system_admin' ? (
+      {isAdmin ? (
         <OnboardingChecklist />
       ) : null}
 

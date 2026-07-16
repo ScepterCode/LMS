@@ -56,7 +56,7 @@ async def create_assessment_type(
 ):
     """Create new assessment type (admin only)"""
     
-    if current_user["role"] not in ["admin", "bursar"]:
+    if current_user["role"] not in ["admin", "bursar", "dean"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can create assessment types"
@@ -107,7 +107,7 @@ async def create_grade_config(
 ):
     """Create a grade band (admin only)"""
 
-    if current_user["role"] not in ["admin", "bursar"]:
+    if current_user["role"] not in ["admin", "bursar", "dean"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can configure grade bands"
@@ -140,7 +140,7 @@ async def update_grade_config(
 ):
     """Update a grade band (admin only)"""
 
-    if current_user["role"] not in ["admin", "bursar"]:
+    if current_user["role"] not in ["admin", "bursar", "dean"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can configure grade bands"

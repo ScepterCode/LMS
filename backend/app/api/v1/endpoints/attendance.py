@@ -122,7 +122,7 @@ async def get_class_attendance(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Form teacher access required: {str(e)}"
             )
-    elif current_user["role"] not in ["admin", "system_admin"]:
+    elif current_user["role"] not in ["admin", "system_admin", "dean"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the form teacher or an admin can view a class's attendance records"
@@ -271,7 +271,7 @@ async def get_class_attendance_summaries(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Form teacher access required: {str(e)}"
             )
-    elif current_user["role"] not in ["admin", "system_admin"]:
+    elif current_user["role"] not in ["admin", "system_admin", "dean"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the form teacher or an admin can view a class's attendance summary"
