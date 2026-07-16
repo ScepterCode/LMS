@@ -34,6 +34,7 @@ Thumbs.db
 # Database backups
 *.sql.backup
 *.sql.bak
+database/backups/
 
 # Logs
 *.log
