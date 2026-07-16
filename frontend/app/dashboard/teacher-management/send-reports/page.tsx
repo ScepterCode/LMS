@@ -5,35 +5,27 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/DashboardLayout';
 
-interface Report {
-  id: string;
-  report_type: string;
-  class_name?: string;
-  recipient_count?: number;
-  created_at: string;
+interface StudentReportStatus {
+  student_id: string;
+  student_name: string;
+  admission_number: string;
+  report_card_id: string | null;
+  status: string | null;
 }
 
 export default function SendReportsPage() {
   const { user } = useAuth();
-  const [reports, setReports] = useState<Report[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [parents, setParents] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [terms, setTerms] = useState<any[]>([]);
   const [formTeacherClass, setFormTeacherClass] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showSendModal, setShowSendModal] = useState(false);
-  const [sendingReport, setSendingReport] = useState(false);
+  const [loadingStatuses, setLoadingStatuses] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   const [selectedSession, setSelectedSession] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
-
-  // Form state
-  const [formData, setFormData] = useState({
-    report_type: 'end_of_term',
-    selected_parents: [] as string[],
-    send_to_all: true,
-  });
+  const [rows, setRows] = useState<StudentReportStatus[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadInitialData();
@@ -47,37 +39,24 @@ export default function SendReportsPage() {
 
   useEffect(() => {
     if (formTeacherClass && selectedSession && selectedTerm) {
-      loadReports();
-      loadStudentsAndParents();
+      loadReportStatuses();
     }
   }, [formTeacherClass, selectedSession, selectedTerm]);
 
   const loadInitialData = async () => {
     setLoading(true);
-
     try {
-      const [sessionsRes, termsRes] = await Promise.all([
-        api.getSessions(),
-        api.getTerms(),
-      ]);
+      const [sessionsRes, termsRes] = await Promise.all([api.getSessions(), api.getTerms()]);
 
-      if (sessionsRes.data) {
-        const sessions = sessionsRes.data as any[];
-        setSessions(sessions);
-        const currentSession = sessions.find(s => s.is_current);
-        if (currentSession) setSelectedSession(currentSession.id);
-      } else {
-        setSessions([]);
-      }
+      const sessionsList = (sessionsRes.data as any[]) || [];
+      setSessions(sessionsList);
+      const currentSession = sessionsList.find((s) => s.is_current);
+      if (currentSession) setSelectedSession(currentSession.id);
 
-      if (termsRes.data) {
-        const terms = termsRes.data as any[];
-        setTerms(terms);
-        const currentTerm = terms.find(t => t.is_current);
-        if (currentTerm) setSelectedTerm(currentTerm.id);
-      } else {
-        setTerms([]);
-      }
+      const termsList = (termsRes.data as any[]) || [];
+      setTerms(termsList);
+      const currentTerm = termsList.find((t) => t.is_current);
+      if (currentTerm) setSelectedTerm(currentTerm.id);
     } catch (error) {
       console.error('Error loading initial data:', error);
       setSessions([]);
@@ -95,15 +74,15 @@ export default function SendReportsPage() {
       if (!teachersRes.data) return;
 
       const teachers = teachersRes.data as any[];
-      const teacher = teachers.find(t => t.user_id === user.id);
+      const teacher = teachers.find((t) => t.user_id === user.id);
       if (!teacher) return;
 
       const classesRes = await api.getTeacherClasses(teacher.id, selectedSession);
       if (!classesRes.data) return;
 
       const classes = classesRes.data as any[];
-      const formClass = classes.find(c => c.is_form_teacher);
-      
+      const formClass = classes.find((c) => c.is_form_teacher);
+
       if (formClass) {
         setFormTeacherClass(formClass);
       }
@@ -112,130 +91,93 @@ export default function SendReportsPage() {
     }
   };
 
-  const loadStudentsAndParents = async () => {
+  const loadReportStatuses = async () => {
     if (!formTeacherClass) return;
 
+    setLoadingStatuses(true);
     try {
       const studentsRes = await api.getClassStudents(formTeacherClass.id);
-      if (studentsRes.data) {
-        const students = studentsRes.data as any[];
-        setStudents(students);
+      const students = (studentsRes.data as any[]) || [];
 
-        // Get all parents for these students
-        const parentsPromises = students.map(s => api.getStudentGuardians(s.id));
-        const parentsResults = await Promise.all(parentsPromises);
-        
-        const allParents: any[] = [];
-        parentsResults.forEach((result, index) => {
-          if (result.data) {
-            const studentParents = result.data as any[];
-            studentParents.forEach(p => {
-              if (!allParents.find(ap => ap.id === p.id)) {
-                allParents.push({
-                  ...p,
-                  student_name: `${students[index].first_name} ${students[index].last_name}`,
-                });
-              }
-            });
-          }
-        });
-        setParents(allParents);
-      } else {
-        setStudents([]);
-        setParents([]);
-      }
+      const statusResults = await Promise.all(
+        students.map(async (s) => {
+          const res = await api.get(
+            `/api/v1/grading/students/${s.id}/report-cards?session_id=${selectedSession}`
+          );
+          const reportCards = (res.data as any[]) || [];
+          const match = reportCards.find((rc) => rc.term_id === selectedTerm);
+          return {
+            student_id: s.id,
+            student_name: `${s.first_name} ${s.last_name}`,
+            admission_number: s.admission_number,
+            report_card_id: match?.id || null,
+            status: match?.status || null,
+          } as StudentReportStatus;
+        })
+      );
+
+      setRows(statusResults);
+      setSelected(new Set());
     } catch (error) {
-      console.error('Error loading students and parents:', error);
-      setStudents([]);
-      setParents([]);
-    }
-  };
-
-  const loadReports = async () => {
-    if (!formTeacherClass) return;
-
-    try {
-      const response = await api.getReports({
-        class_id: formTeacherClass.id,
-        session_id: selectedSession,
-        term_id: selectedTerm,
-      });
-
-      setReports(response.data ? (response.data as Report[]) : []);
-    } catch (error) {
-      console.error('Error loading reports:', error);
-      setReports([]);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSendingReport(true);
-
-    try {
-      let response;
-
-      if (formData.send_to_all) {
-        // Bulk send to all parents
-        response = await api.bulkSendReports({
-          class_id: formTeacherClass.id,
-          session_id: selectedSession,
-          term_id: selectedTerm,
-          report_type: formData.report_type,
-          include_all_parents: true,
-        });
-      } else {
-        // Send to selected parents
-        if (formData.selected_parents.length === 0) {
-          alert('Please select at least one parent');
-          setSendingReport(false);
-          return;
-        }
-
-        response = await api.createReport({
-          class_id: formTeacherClass.id,
-          session_id: selectedSession,
-          term_id: selectedTerm,
-          report_type: formData.report_type,
-          parent_ids: formData.selected_parents,
-        });
-      }
-
-      if (response.error) {
-        alert(response.error);
-      } else {
-        alert('Reports sent successfully!');
-        await loadReports();
-        setShowSendModal(false);
-        resetForm();
-      }
-    } catch (error) {
-      alert('Failed to send reports');
+      console.error('Error loading report statuses:', error);
+      setRows([]);
     } finally {
-      setSendingReport(false);
+      setLoadingStatuses(false);
     }
   };
 
-  const toggleParent = (parentId: string) => {
-    if (formData.selected_parents.includes(parentId)) {
-      setFormData({
-        ...formData,
-        selected_parents: formData.selected_parents.filter(id => id !== parentId),
-      });
-    } else {
-      setFormData({
-        ...formData,
-        selected_parents: [...formData.selected_parents, parentId],
-      });
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      report_type: 'end_of_term',
-      selected_parents: [],
-      send_to_all: true,
+  const toggleSelected = (studentId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
     });
+  };
+
+  const publishableRows = rows.filter((r) => r.report_card_id && r.status !== 'published');
+
+  const handlePublishSelected = async () => {
+    const toPublish = publishableRows.filter((r) => selected.has(r.student_id));
+    if (toPublish.length === 0) {
+      alert('Select at least one student with a ready report card.');
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      const results = await Promise.all(
+        toPublish.map((r) => api.publishReportCard(r.report_card_id as string))
+      );
+      const failed = results.filter((r) => r.error);
+      if (failed.length > 0) {
+        alert(`Published ${results.length - failed.length} of ${results.length}. ${failed[0].error}`);
+      } else {
+        alert(`Published ${results.length} report card(s) to parents!`);
+      }
+      await loadReportStatuses();
+    } catch (error) {
+      console.error('Error publishing reports:', error);
+      alert('Failed to publish reports');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const statusBadge = (status: string | null) => {
+    if (!status) {
+      return <span className="px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">No report yet</span>;
+    }
+    const colors: Record<string, string> = {
+      generated: 'bg-blue-100 text-blue-800',
+      approved: 'bg-yellow-100 text-yellow-800',
+      published: 'bg-green-100 text-green-800',
+    };
+    return (
+      <span className={`px-2 py-1 text-xs rounded-full capitalize ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+        {status}
+      </span>
+    );
   };
 
   if (loading) {
@@ -279,7 +221,10 @@ export default function SendReportsPage() {
     <DashboardLayout>
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Send Reports to Parents</h2>
-        <p className="text-gray-600 mt-1">Send reports for your form teacher class: {formTeacherClass.name}</p>
+        <p className="text-gray-600 mt-1">
+          Publishing a report card makes it visible to that student's parent(s) under My Children.
+          Class: {formTeacherClass.name}
+        </p>
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
@@ -318,196 +263,70 @@ export default function SendReportsPage() {
 
           <div className="flex items-end">
             <button
-              onClick={() => setShowSendModal(true)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              disabled={parents.length === 0}
+              onClick={handlePublishSelected}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              disabled={publishing || selected.size === 0}
             >
-              Send Report
+              {publishing ? 'Publishing...' : `Publish Selected (${selected.size})`}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="text-sm text-gray-600 mb-1">Students in Class</div>
-          <div className="text-3xl font-bold text-gray-900">{students.length}</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="text-sm text-gray-600 mb-1">Parent Accounts</div>
-          <div className="text-3xl font-bold text-gray-900">{parents.length}</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="text-sm text-gray-600 mb-1">Reports Sent</div>
-          <div className="text-3xl font-bold text-blue-600">{reports.length}</div>
-        </div>
-      </div>
-
       <div className="bg-white rounded-lg shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Report History</h3>
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Students in {formTeacherClass.name}</h3>
+          {publishableRows.length > 0 && (
+            <button
+              onClick={() => setSelected(new Set(publishableRows.map((r) => r.student_id)))}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Select all ready ({publishableRows.length})
+            </button>
+          )}
         </div>
 
         <div className="p-6">
-          {reports.length === 0 ? (
-            <div className="text-center py-12">
-              <svg
-                className="mx-auto h-12 w-12 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <p className="mt-4 text-gray-500">No reports sent yet for this term</p>
-              <button
-                onClick={() => setShowSendModal(true)}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                disabled={parents.length === 0}
-              >
-                Send First Report
-              </button>
+          {loadingStatuses ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
+          ) : rows.length === 0 ? (
+            <p className="text-center py-12 text-gray-500">No students found in this class.</p>
           ) : (
-            <div className="space-y-3">
-              {reports.map((report) => (
-                <div key={report.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-center">
-                  <div>
-                    <div className="font-medium text-gray-900 capitalize">
-                      {report.report_type.replace(/_/g, ' ')}
-                    </div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      Sent {new Date(report.created_at).toLocaleDateString()} · {report.recipient_count} recipients
-                    </div>
-                  </div>
-                  <span className="px-3 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                    Sent
-                  </span>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3"></th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Admission No.</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Report Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {rows.map((row) => (
+                    <tr key={row.student_id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(row.student_id)}
+                          onChange={() => toggleSelected(row.student_id)}
+                          disabled={!row.report_card_id || row.status === 'published'}
+                          className="rounded"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.student_name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{row.admission_number}</td>
+                      <td className="px-4 py-3">{statusBadge(row.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
       </div>
-
-      {/* Send Report Modal */}
-      {showSendModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900">Send Report to Parents</h3>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Report Type <span className="text-red-600">*</span>
-                </label>
-                <select
-                  value={formData.report_type}
-                  onChange={(e) => setFormData({ ...formData, report_type: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  required
-                >
-                  <option value="mid_term">Mid-Term Report</option>
-                  <option value="end_of_term">End of Term Report</option>
-                  <option value="annual">Annual Report</option>
-                  <option value="progress_report">Progress Report</option>
-                  <option value="custom">Custom Report</option>
-                </select>
-              </div>
-
-              <div className="border-t pt-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <input
-                    type="checkbox"
-                    id="send_to_all"
-                    checked={formData.send_to_all}
-                    onChange={(e) => setFormData({ ...formData, send_to_all: e.target.checked, selected_parents: [] })}
-                    className="rounded"
-                  />
-                  <label htmlFor="send_to_all" className="text-sm font-medium text-gray-700">
-                    Send to all parents ({parents.length} recipients)
-                  </label>
-                </div>
-
-                {!formData.send_to_all && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Parents
-                    </label>
-                    <div className="border border-gray-300 rounded-lg max-h-64 overflow-y-auto">
-                      {parents.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
-                          No parent accounts found for students in this class
-                        </div>
-                      ) : (
-                        <div className="p-2 space-y-1">
-                          {parents.map((parent) => (
-                            <div
-                              key={parent.id}
-                              className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded"
-                            >
-                              <input
-                                type="checkbox"
-                                id={`parent-${parent.id}`}
-                                checked={formData.selected_parents.includes(parent.id)}
-                                onChange={() => toggleParent(parent.id)}
-                                className="rounded"
-                              />
-                              <label htmlFor={`parent-${parent.id}`} className="flex-1 text-sm cursor-pointer">
-                                {parent.first_name} {parent.last_name}
-                                <span className="text-gray-500 ml-2">({parent.student_name})</span>
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {!formData.send_to_all && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Selected: {formData.selected_parents.length} parent{formData.selected_parents.length !== 1 ? 's' : ''}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-900">
-                  <strong>Note:</strong> This will send {formData.send_to_all ? `reports to all ${parents.length} parent accounts` : `reports to ${formData.selected_parents.length} selected parent${formData.selected_parents.length !== 1 ? 's' : ''}`} for students in {formTeacherClass.name}.
-                </p>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSendModal(false);
-                    resetForm();
-                  }}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  disabled={sendingReport}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  disabled={sendingReport || (!formData.send_to_all && formData.selected_parents.length === 0)}
-                >
-                  {sendingReport ? 'Sending...' : 'Send Reports'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   );
 }

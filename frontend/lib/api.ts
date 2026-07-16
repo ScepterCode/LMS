@@ -724,22 +724,15 @@ class ApiClient {
     return this.request('/api/v1/skills/ratings/bulk', { method: 'POST', body: JSON.stringify(data) });
   }
 
-  // Phase 4: School Reports
-  async createReport(data: any) {
-    return this.request('/api/v1/teacher-management/reports', { method: 'POST', body: JSON.stringify(data) });
-  }
-
-  async bulkSendReports(data: any) {
-    return this.request('/api/v1/teacher-management/reports/bulk-send', { method: 'POST', body: JSON.stringify(data) });
-  }
-
-  async getReports(params?: { class_id?: string; session_id?: string; term_id?: string; report_type?: string }) {
-    const queryParams = new URLSearchParams();
-    if (params?.class_id) queryParams.append('class_id', params.class_id);
-    if (params?.session_id) queryParams.append('session_id', params.session_id);
-    if (params?.term_id) queryParams.append('term_id', params.term_id);
-    if (params?.report_type) queryParams.append('report_type', params.report_type);
-    return this.request(`/api/v1/teacher-management/reports?${queryParams}`, { method: 'GET' });
+  // Note: the old createReport/bulkSendReports/getReports methods (school_reports
+  // table) never actually delivered report card content to parents - they
+  // referenced a stale parent_student_relationships table from before the
+  // parent_student_links rebuild, and logged a "pending" recipient row that
+  // nothing ever marked delivered. Send Reports now works by publishing the
+  // real report_cards rows directly (see publishReportCard below), which is
+  // what my-children/report-cards already gate on.
+  async publishReportCard(reportCardId: string) {
+    return this.request(`/api/v1/grading/report-cards/${reportCardId}/publish`, { method: 'POST' });
   }
 
   async getReport(reportId: string) {

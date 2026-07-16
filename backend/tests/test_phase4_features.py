@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from tests.conftest import make_teacher, unique
+from tests.test_role_scoping import _make_parent
 
 
 # ============================================
@@ -289,17 +290,137 @@ class TestReportCardGeneration:
         assert body["overall_position"] == 1
         assert body["class_size"] == 1
 
-    def test_cannot_generate_duplicate_report_card(self, school, klass, academic_session, term, student):
+    def test_regenerating_report_card_updates_in_place(
+        self, school, klass, subject, academic_session, term, student
+    ):
+        """Generating a second time (e.g. after new scores are entered) must
+        refresh the existing report card rather than 409ing - it previously
+        blocked outright, so a school could never bring a report card up to
+        date after entering more assessment scores."""
         client = school["client"]
         first = client.post("/api/v1/grading/report-cards/generate", json={
             "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
         })
         assert first.status_code == 201, first.text
+        first_id = first.json()["id"]
+        assert first.json()["average_score"] == 0
+
+        at = client.post("/api/v1/grading/assessment-types", json={
+            "name": unique("Exam"), "code": unique("E")[:10].upper(), "weight_percentage": 100,
+        })
+        assess = client.post("/api/v1/grading/assessments", json={
+            "assessment_type_id": at.json()["id"], "subject_id": subject["id"], "class_id": klass["id"],
+            "session_id": academic_session["id"], "term_id": term["id"], "title": "Final",
+            "max_score": 100, "assessment_date": "2099-09-06",
+        })
+        assessment_id = assess.json()["id"]
+        client.post(f"/api/v1/grading/assessments/{assessment_id}/publish")
+        client.post("/api/v1/grading/grades/bulk", json={
+            "assessment_id": assessment_id, "grades": [{"student_id": student["id"], "score": 75}],
+        })
 
         second = client.post("/api/v1/grading/report-cards/generate", json={
             "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
         })
-        assert second.status_code == 409, second.text
+        assert second.status_code == 201, second.text
+        assert second.json()["id"] == first_id, "should update the same row, not create a duplicate"
+        assert second.json()["average_score"] == 75.0
+
+        all_reports = client.get(f"/api/v1/grading/students/{student['id']}/report-cards").json()
+        assert len(all_reports) == 1, "regenerating must not leave a duplicate row behind"
+
+    def test_regenerating_report_card_preserves_remarks_but_resets_publish_status(
+        self, school, klass, academic_session, term, student
+    ):
+        client = school["client"]
+        report = client.post("/api/v1/grading/report-cards/generate", json={
+            "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
+        })
+        report_id = report.json()["id"]
+
+        update = client.put(f"/api/v1/grading/report-cards/{report_id}", json={
+            "class_teacher_remark": "Excellent student", "principal_remark": "Keep it up",
+        })
+        assert update.status_code == 200, update.text
+
+        publish = client.post(f"/api/v1/grading/report-cards/{report_id}/publish")
+        assert publish.status_code == 200, publish.text
+
+        regenerated = client.post("/api/v1/grading/report-cards/generate", json={
+            "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
+        })
+        assert regenerated.status_code == 201, regenerated.text
+        body = regenerated.json()
+        assert body["class_teacher_remark"] == "Excellent student"
+        assert body["principal_remark"] == "Keep it up"
+        assert body["status"] == "generated", "recomputed numbers must require a fresh publish"
+
+
+class TestReportCardPublishing:
+    def _assign_form_teacher(self, school, teacher, klass, subject, academic_session):
+        res = school["client"].post("/api/v1/teacher-management/teacher-assignments", json={
+            "teacher_id": teacher["teacher"]["id"], "class_id": klass["id"],
+            "subject_id": subject["id"], "session_id": academic_session["id"],
+            "is_form_teacher": True,
+        })
+        assert res.status_code == 201, res.text
+
+    def test_form_teacher_can_publish_own_class_report_card(
+        self, school, teacher, klass, subject, academic_session, term, student
+    ):
+        self._assign_form_teacher(school, teacher, klass, subject, academic_session)
+        report = school["client"].post("/api/v1/grading/report-cards/generate", json={
+            "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
+        })
+        report_id = report.json()["id"]
+
+        res = teacher["client"].post(f"/api/v1/grading/report-cards/{report_id}/publish")
+        assert res.status_code == 200, res.text
+
+    def test_non_form_teacher_cannot_publish_report_card(
+        self, school, teacher, klass, academic_session, term, student
+    ):
+        report = school["client"].post("/api/v1/grading/report-cards/generate", json={
+            "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
+        })
+        report_id = report.json()["id"]
+
+        res = teacher["client"].post(f"/api/v1/grading/report-cards/{report_id}/publish")
+        assert res.status_code == 403, res.text
+
+    def test_parent_only_sees_published_report_cards(
+        self, school, klass, academic_session, term, student
+    ):
+        parent = _make_parent(school, student["id"])
+
+        report = school["client"].post("/api/v1/grading/report-cards/generate", json={
+            "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
+        })
+        report_id = report.json()["id"]
+
+        before = parent["client"].get(f"/api/v1/grading/students/{student['id']}/report-cards")
+        assert before.status_code == 200, before.text
+        assert before.json() == [], "unpublished report card must not be visible to the parent"
+
+        publish = school["client"].post(f"/api/v1/grading/report-cards/{report_id}/publish")
+        assert publish.status_code == 200, publish.text
+
+        after = parent["client"].get(f"/api/v1/grading/students/{student['id']}/report-cards")
+        assert after.status_code == 200, after.text
+        assert len(after.json()) == 1
+        assert after.json()[0]["id"] == report_id
+
+    def test_parent_cannot_view_unpublished_report_card_by_id(
+        self, school, klass, academic_session, term, student
+    ):
+        parent = _make_parent(school, student["id"])
+        report = school["client"].post("/api/v1/grading/report-cards/generate", json={
+            "student_id": student["id"], "session_id": academic_session["id"], "term_id": term["id"],
+        })
+        report_id = report.json()["id"]
+
+        res = parent["client"].get(f"/api/v1/grading/report-cards/{report_id}")
+        assert res.status_code == 404, res.text
 
 
 # ============================================

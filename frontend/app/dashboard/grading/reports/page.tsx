@@ -97,6 +97,12 @@ export default function ReportCardsPage() {
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
   const [ratingsDraft, setRatingsDraft] = useState<Record<string, number>>({});
   const [savingRatings, setSavingRatings] = useState(false);
+  const [classTeacherRemarkDraft, setClassTeacherRemarkDraft] = useState('');
+  const [principalRemarkDraft, setPrincipalRemarkDraft] = useState('');
+  const [savingRemarks, setSavingRemarks] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  const isPrincipal = user?.role === 'admin' || user?.role === 'dean' || user?.role === 'system_admin';
 
   useEffect(() => {
     fetchSkillCategories();
@@ -283,6 +289,8 @@ export default function ReportCardsPage() {
         const report = response.data as ReportCard;
         setSelectedReport(report);
         setSubjectGrades(report.subject_grades || []);
+        setClassTeacherRemarkDraft(report.class_teacher_remark || '');
+        setPrincipalRemarkDraft(report.principal_remark || '');
         if (canCompileFor(report) && report.session_id && report.term_id) {
           await loadRatingsDraft(report.student_id, report.session_id, report.term_id);
         }
@@ -383,7 +391,7 @@ export default function ReportCardsPage() {
         return;
       }
 
-      alert('Report card generated successfully!');
+      alert('Report card saved successfully!');
       setShowGenerateModal(false);
       fetchStudentReports();
     } catch (error: any) {
@@ -391,6 +399,59 @@ export default function ReportCardsPage() {
       alert(error.response?.data?.detail || 'Failed to generate report card');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSaveRemarks = async () => {
+    if (!selectedReport) return;
+
+    setSavingRemarks(true);
+    try {
+      const payload: { class_teacher_remark?: string; principal_remark?: string } = {
+        class_teacher_remark: classTeacherRemarkDraft,
+      };
+      // Only admins/dean/system_admin may set the principal's remark - a
+      // form teacher's request simply omits the field rather than the
+      // backend silently overwriting it with an empty string.
+      if (isPrincipal) {
+        payload.principal_remark = principalRemarkDraft;
+      }
+
+      const response = await api.put(`/api/v1/grading/report-cards/${selectedReport.id}`, payload);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+
+      alert('Remarks saved!');
+      handleViewReport(selectedReport.id);
+    } catch (error) {
+      console.error('Error saving remarks:', error);
+      alert('Failed to save remarks');
+    } finally {
+      setSavingRemarks(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!selectedReport) return;
+    if (!window.confirm("Publish this report card? It will become visible to the student's parents.")) return;
+
+    setPublishing(true);
+    try {
+      const response = await api.post(`/api/v1/grading/report-cards/${selectedReport.id}/publish`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+
+      alert('Report card published! Parents can now view it.');
+      handleViewReport(selectedReport.id);
+    } catch (error) {
+      console.error('Error publishing report card:', error);
+      alert('Failed to publish report card');
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -639,13 +700,20 @@ export default function ReportCardsPage() {
                 </svg>
                 Back to list
               </button>
-              <Button onClick={() => window.print()} icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-              }>
-                Print Report Card
-              </Button>
+              <div className="flex items-center gap-3">
+                {isPrincipal && selectedReport.status !== 'published' && (
+                  <Button onClick={handlePublish} disabled={publishing} variant="secondary">
+                    {publishing ? 'Publishing...' : 'Publish to Parents'}
+                  </Button>
+                )}
+                <Button onClick={() => window.print()} icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                }>
+                  Print Report Card
+                </Button>
+              </div>
             </div>
 
             {canCompileFor(selectedReport) && skillCategories.length > 0 && (
@@ -868,6 +936,41 @@ export default function ReportCardsPage() {
               </div>
             </div>
             </div>
+
+            {/* Edit Remarks (screen only - the printed copy above always
+                shows the saved text) */}
+            {(isPrincipal || canCompileFor(selectedReport)) && (
+              <div className="no-print bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit Remarks</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Class Teacher's Remark</label>
+                    <textarea
+                      value={classTeacherRemarkDraft}
+                      onChange={(e) => setClassTeacherRemarkDraft(e.target.value)}
+                      rows={3}
+                      placeholder="e.g. A hardworking student who participates actively in class."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    />
+                  </div>
+                  {isPrincipal && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Principal's Remark</label>
+                      <textarea
+                        value={principalRemarkDraft}
+                        onChange={(e) => setPrincipalRemarkDraft(e.target.value)}
+                        rows={3}
+                        placeholder="e.g. Keep up the good work."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      />
+                    </div>
+                  )}
+                  <Button onClick={handleSaveRemarks} disabled={savingRemarks}>
+                    {savingRemarks ? 'Saving...' : 'Save Remarks'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -899,8 +1002,9 @@ export default function ReportCardsPage() {
           <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4 text-gray-900">Generate Report Card</h2>
             <p className="text-gray-500 mb-6">
-              This will generate a report card for the selected student for the current term.
-              All grades and attendance records will be compiled.
+              This will generate a report card for the selected student for the current term,
+              compiling all grades and attendance records. If one already exists for this term,
+              it will be refreshed with the latest scores instead of creating a duplicate.
             </p>
             <div className="flex gap-3">
               <Button onClick={handleGenerateReport} disabled={generating} className="flex-1">

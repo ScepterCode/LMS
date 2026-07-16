@@ -776,19 +776,18 @@ async def generate_report_card(
                 detail=f"Form teacher access required: {str(e)}"
             )
     
-    # Check if report card already exists
-    existing = db.table("report_cards").select("id").eq(
+    # A report card for this student/term may already exist (e.g. new
+    # assessment scores were entered after the first generation) - in that
+    # case recompute and update it in place rather than blocking with a
+    # conflict, so "Generate" doubles as "Refresh" instead of requiring a
+    # separate update path that doesn't exist.
+    existing = db.table("report_cards").select("id, status").eq(
         "student_id", data.student_id
     ).eq("session_id", data.session_id).eq(
         "term_id", data.term_id
     ).execute()
-    
-    if existing.data:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Report card already exists for this term"
-        )
-    
+    existing_report_card = existing.data[0] if existing.data else None
+
     # student_data and class_id already extracted above
     organization_id = current_user["school_id"]
 
@@ -848,7 +847,10 @@ async def generate_report_card(
         "punctuality_percentage": None
     }
 
-    # Create report card
+    # Create or refresh the report card. Deliberately excludes
+    # class_teacher_remark/principal_remark/resumption_date, which are
+    # never touched by this recompute - set independently via
+    # PUT /report-cards/{id} and preserved across regeneration.
     report_card_data = {
         "organization_id": current_user["school_id"],
         "student_id": data.student_id,
@@ -867,12 +869,22 @@ async def generate_report_card(
         "total_school_days": attendance_data["total_school_days"],
         "attendance_percentage": attendance_data.get("attendance_percentage"),
         "punctuality_percentage": attendance_data.get("punctuality_percentage"),
-        "status": "generated",
         "generated_at": datetime.utcnow().isoformat()
     }
-    
-    response = db.table("report_cards").insert(report_card_data).execute()
-    
+
+    if existing_report_card:
+        # Recomputed numbers may no longer match what was already shown to
+        # parents - if this had been published/approved, drop it back to
+        # "generated" so it goes through an explicit re-publish rather than
+        # silently updating what a parent sees.
+        report_card_data["status"] = "generated"
+        response = db.table("report_cards").update(report_card_data).eq(
+            "id", existing_report_card["id"]
+        ).execute()
+    else:
+        report_card_data["status"] = "generated"
+        response = db.table("report_cards").insert(report_card_data).execute()
+
     return response.data[0]
 
 
@@ -903,6 +915,15 @@ async def get_report_card(
     report_card = response.data[0]
 
     await PermissionChecker.verify_can_view_student(current_user, report_card["student_id"], db)
+
+    # A parent guessing/being given the id of an unpublished report card
+    # shouldn't be able to view it directly - same rule the list endpoint
+    # applies.
+    if current_user.get("role") == "parent" and report_card.get("status") != "published":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report card not found"
+        )
 
     if report_card.get("students"):
         student = report_card["students"]
@@ -973,7 +994,10 @@ async def get_student_report_cards(
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
 ):
-    """Get all report cards for a student"""
+    """Get all report cards for a student. Parents only ever see published
+    report cards - draft/generated/approved ones may still change before
+    the school is ready to show a parent, same intent as the "make visible
+    to parents" comment on publish_report_card."""
 
     await PermissionChecker.verify_can_view_student(current_user, student_id, db)
 
@@ -984,7 +1008,10 @@ async def get_student_report_cards(
     ).eq("student_id", student_id).eq(
         "organization_id", current_user["school_id"]
     )
-    
+
+    if current_user.get("role") == "parent":
+        query = query.eq("status", "published")
+
     if session_id:
         query = query.eq("session_id", session_id)
     
@@ -1068,14 +1095,34 @@ async def publish_report_card(
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
 ):
-    """Publish report card (make visible to parents)"""
-    
-    if current_user["role"] != "admin":
+    """Publish report card (make visible to parents). Admin/dean/system_admin,
+    or the form teacher of the student's class - same set of people who can
+    generate the report card in the first place."""
+
+    if current_user["role"] not in ["admin", "system_admin", "dean", "teacher"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can publish report cards"
+            detail="Only admins, deans, or the class's form teacher can publish report cards"
         )
-    
+
+    if current_user["role"] == "teacher":
+        existing = db.table("report_cards").select("class_id").eq(
+            "id", report_card_id
+        ).eq("organization_id", current_user["school_id"]).execute()
+
+        if not existing.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report card not found")
+
+        try:
+            await PermissionChecker.verify_form_teacher_permission(
+                current_user.get("teacher_id"), existing.data[0]["class_id"], db
+            )
+        except AuthorizationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Form teacher access required: {str(e)}"
+            )
+
     response = db.table("report_cards").update({
         "status": "published",
         "published_at": datetime.utcnow().isoformat()
