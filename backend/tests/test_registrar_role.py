@@ -61,8 +61,9 @@ class TestRegistrarExclusions:
         })
         assert res.status_code == 403, res.text
 
-    def test_registrar_cannot_manage_grading_schemes(self, school, registrar):
+    def test_registrar_cannot_manage_grading_schemes(self, school, registrar, academic_session):
         res = registrar["client"].post("/api/v1/teacher-management/grading-schemes", json={
-            "name": unique("Scheme"), "components": [],
+            "session_id": academic_session["id"], "name": unique("Scheme"),
+            "components": [{"component_type": "exam", "component_name": "Final Exam", "weight_percentage": 100}],
         })
         assert res.status_code == 403, res.text
