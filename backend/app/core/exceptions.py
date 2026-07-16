@@ -165,14 +165,15 @@ class InvalidRoleError(ValidationError):
 
 class DatabaseError(NigerianLMSException):
     """Database related errors."""
-    
+
     def __init__(
         self,
         detail: str = "Database error occurred",
         error_code: str = "DATABASE_ERROR",
+        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
     ):
         super().__init__(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status_code,
             detail=detail,
             error_code=error_code,
         )
@@ -180,11 +181,12 @@ class DatabaseError(NigerianLMSException):
 
 class RecordNotFoundError(DatabaseError):
     """Requested record not found in database."""
-    
+
     def __init__(self, record_type: str, record_id: str):
         super().__init__(
             detail=f"{record_type} with ID '{record_id}' not found",
             error_code="RECORD_NOT_FOUND",
+            status_code=status.HTTP_404_NOT_FOUND,
         )
 
 
@@ -201,11 +203,12 @@ class NotFoundError(NigerianLMSException):
 
 class DuplicateRecordError(DatabaseError):
     """Attempt to create duplicate record."""
-    
+
     def __init__(self, record_type: str, field: str, value: str):
         super().__init__(
             detail=f"{record_type} with {field} '{value}' already exists",
             error_code="DUPLICATE_RECORD",
+            status_code=status.HTTP_409_CONFLICT,
         )
 
 
