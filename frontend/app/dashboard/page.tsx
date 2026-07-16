@@ -37,12 +37,16 @@ interface OrganizationData {
 }
 
 const ADMIN_ROLES = ['admin', 'system_admin', 'dean'];
-const STUDENT_MANAGEMENT_ROLES = [...ADMIN_ROLES, 'teacher'];
+// Registrar only covers admissions intake (students + enrollments), not
+// the staff/academic setup cards further down that isAdmin gates.
+const STUDENT_MANAGEMENT_ROLES = [...ADMIN_ROLES, 'registrar', 'teacher'];
+const ENROLLMENT_MANAGEMENT_ROLES = [...ADMIN_ROLES, 'registrar'];
 
 export default function SchoolDashboard() {
   const { user } = useAuth();
   const isAdmin = ADMIN_ROLES.includes(user?.role ?? '');
   const canManageStudents = STUDENT_MANAGEMENT_ROLES.includes(user?.role ?? '');
+  const canManageEnrollments = ENROLLMENT_MANAGEMENT_ROLES.includes(user?.role ?? '');
   const isParent = user?.role === 'parent';
   const [orgData, setOrgData] = useState<OrganizationData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,7 +150,7 @@ export default function SchoolDashboard() {
                         <div className="font-medium text-gray-900">Manage Students</div>
                         <div className="text-sm text-gray-500">Add, edit, view student records</div>
                       </Link>
-                      {isAdmin && (
+                      {canManageEnrollments && (
                         <Link
                           href="/dashboard/enrollments"
                           className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-brand-200 transition-colors"

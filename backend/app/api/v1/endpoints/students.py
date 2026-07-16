@@ -26,7 +26,7 @@ from app.core.permissions import PermissionChecker
 # are deliberately excluded - they only ever see their own linked children,
 # via the scoping in list_students() and the verify_can_view_student() check
 # in get_student().
-ROSTER_VISIBLE_ROLES = ["admin", "system_admin", "dean", "teacher", "bursar"]
+ROSTER_VISIBLE_ROLES = ["admin", "system_admin", "dean", "registrar", "teacher", "bursar"]
 from app.core.exceptions import (
     NotFoundError,
     ValidationError,
@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 def require_school_admin(user: dict):
-    """Ensure user is school admin, system admin, dean, or teacher."""
-    if user.get("role") not in ["admin", "system_admin", "dean", "teacher"]:
+    """Ensure user is school admin, system admin, dean, registrar, or teacher."""
+    if user.get("role") not in ["admin", "system_admin", "dean", "registrar", "teacher"]:
         raise AuthorizationError("Insufficient permissions to manage students")
 
 

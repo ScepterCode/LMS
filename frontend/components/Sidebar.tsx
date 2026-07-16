@@ -20,6 +20,11 @@ const ADMIN_ROLES = ['admin', 'system_admin'];
 // not Finance or Administration (school settings, subscription) - those stay
 // ADMIN_ROLES-only below.
 const DEAN_ROLES = [...ADMIN_ROLES, 'dean'];
+// Registrar (front desk) only covers admissions intake: students, class
+// enrollments, and parent/guardian contact records - nothing academic,
+// staff, grading, or finance related. Built on DEAN_ROLES since dean
+// already has this same subset of access.
+const REGISTRAR_ROLES = [...DEAN_ROLES, 'registrar'];
 
 interface NavLink {
   name: string;
@@ -64,7 +69,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/students',
-          roles: [...DEAN_ROLES, 'teacher'],
+          roles: [...DEAN_ROLES, 'registrar', 'teacher'],
         },
         {
           name: 'My Children',
@@ -84,7 +89,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/parents',
-          roles: DEAN_ROLES,
+          roles: REGISTRAR_ROLES,
         },
         {
           name: 'Class Enrollments',
@@ -94,7 +99,17 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
             </svg>
           ),
           href: '/dashboard/enrollments',
-          roles: DEAN_ROLES,
+          roles: REGISTRAR_ROLES,
+        },
+        {
+          name: 'Registrars',
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          ),
+          href: '/dashboard/registrars',
+          roles: ADMIN_ROLES,
         },
       ],
     },

@@ -173,3 +173,28 @@ def make_dean(school, email=None, password="PytestDean123!"):
 @pytest.fixture
 def dean(school):
     return make_dean(school)
+
+
+def make_registrar(school, email=None, password="PytestRegistrar123!"):
+    """Creates a registrar (front desk) user - no separate profile table,
+    just a users row with role='registrar' - and returns a logged-in
+    TestClient."""
+    admin_client = school["client"]
+    email = email or f"{unique('registrar')}@example.com"
+
+    user_res = admin_client.post("/api/v1/users", json={
+        "email": email, "password": password, "full_name": "Pytest Registrar", "role": "registrar"
+    })
+    assert user_res.status_code == 201, user_res.text
+    user = user_res.json()
+
+    registrar_client = TestClient(app)
+    login = registrar_client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200, login.text
+
+    return {"user": user, "client": registrar_client, "email": email, "password": password}
+
+
+@pytest.fixture
+def registrar(school):
+    return make_registrar(school)

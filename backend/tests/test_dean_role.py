@@ -84,7 +84,7 @@ class TestDeanAccountManagement:
 class TestDeanExclusions:
     def test_dean_cannot_access_fees(self, school, dean):
         res = dean["client"].post("/api/v1/fees/categories", json={
-            "name": unique("Tuition"), "description": "Should be rejected",
+            "name": unique("Tuition"), "code": unique("TUI")[:10].upper(), "description": "Should be rejected",
         })
         assert res.status_code == 403, res.text
 

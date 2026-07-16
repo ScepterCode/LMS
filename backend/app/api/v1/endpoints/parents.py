@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 def require_admin(user: dict):
-    """Ensure user is school admin, system admin, or dean."""
-    if user.get("role") not in ["admin", "system_admin", "dean"]:
+    """Ensure user is school admin, system admin, dean, or registrar."""
+    if user.get("role") not in ["admin", "system_admin", "dean", "registrar"]:
         raise AuthorizationError("Insufficient permissions to manage parents")
 
 
