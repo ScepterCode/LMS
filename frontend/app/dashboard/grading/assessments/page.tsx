@@ -28,6 +28,7 @@ interface AssessmentType {
   code: string;
   max_score: number;
   weight_percentage?: number;
+  is_active?: boolean;
 }
 
 interface Subject {
@@ -86,7 +87,9 @@ export default function AssessmentsPage() {
     code: '',
     max_score: 100,
     weight_percentage: 0,
+    is_active: true,
   });
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [gradeConfigs, setGradeConfigs] = useState<GradeConfig[]>([]);
   const [showGradeConfigsModal, setShowGradeConfigsModal] = useState(false);
   const [gradeConfigSubmitting, setGradeConfigSubmitting] = useState(false);
@@ -234,25 +237,66 @@ export default function AssessmentsPage() {
     }
   };
 
+  const resetTypeForm = () => {
+    setTypeFormData({ name: '', code: '', max_score: 100, weight_percentage: 0, is_active: true });
+    setEditingTypeId(null);
+    setTypeError('');
+  };
+
   const handleCreateType = async (e: React.FormEvent) => {
     e.preventDefault();
     setTypeError('');
     setTypeSubmitting(true);
 
     try {
-      const response = await api.post('/api/v1/grading/assessment-types', typeFormData);
+      const response = editingTypeId
+        ? await api.put(`/api/v1/grading/assessment-types/${editingTypeId}`, {
+            name: typeFormData.name,
+            max_score: typeFormData.max_score,
+            weight_percentage: typeFormData.weight_percentage,
+            is_active: typeFormData.is_active,
+          })
+        : await api.post('/api/v1/grading/assessment-types', typeFormData);
       if (response.error) {
         setTypeError(response.error);
         return;
       }
-      setTypeFormData({ name: '', code: '', max_score: 100, weight_percentage: 0 });
+      resetTypeForm();
       const typesRes = await api.get('/api/v1/grading/assessment-types');
       setAssessmentTypes(typesRes.data ? (typesRes.data as AssessmentType[]) : []);
     } catch (error) {
-      console.error('Error creating assessment type:', error);
-      setTypeError('Failed to create assessment type');
+      console.error('Error saving assessment type:', error);
+      setTypeError(editingTypeId ? 'Failed to update assessment type' : 'Failed to create assessment type');
     } finally {
       setTypeSubmitting(false);
+    }
+  };
+
+  const openEditType = (type: AssessmentType) => {
+    setEditingTypeId(type.id);
+    setTypeFormData({
+      name: type.name,
+      code: type.code,
+      max_score: type.max_score,
+      weight_percentage: type.weight_percentage ?? 0,
+      is_active: type.is_active ?? true,
+    });
+    setTypeError('');
+  };
+
+  const handleDeleteType = async (id: string) => {
+    if (!confirm('Delete this assessment type?')) return;
+    try {
+      const response = await api.delete(`/api/v1/grading/assessment-types/${id}`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setAssessmentTypes((prev) => prev.filter((t) => t.id !== id));
+      if (editingTypeId === id) resetTypeForm();
+    } catch (error) {
+      console.error('Error deleting assessment type:', error);
+      alert('Failed to delete assessment type');
     }
   };
 
@@ -720,7 +764,7 @@ export default function AssessmentsPage() {
                 <h3 className="text-lg font-semibold">Assessment Types</h3>
                 <p className="text-sm text-gray-600 mt-1">e.g. Continuous Assessment, Exam, Assignment</p>
               </div>
-              <button onClick={() => setShowTypesModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setShowTypesModal(false); resetTypeForm(); }} className="text-gray-400 hover:text-gray-600">
                 ✕
               </button>
             </div>
@@ -733,19 +777,42 @@ export default function AssessmentsPage() {
                   assessmentTypes.map((type) => (
                     <div key={type.id} className="flex items-center justify-between px-4 py-2">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{type.name}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {type.name}
+                          {type.is_active === false && <span className="ml-2 text-xs text-gray-400">(inactive)</span>}
+                        </p>
                         <p className="text-xs text-gray-500">{type.code}</p>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        Max {type.max_score} &middot; {type.weight_percentage ?? 0}% weight
-                      </p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-xs text-gray-500">
+                          Max {type.max_score} &middot; {type.weight_percentage ?? 0}% weight
+                        </p>
+                        {isAdminOrBursar && (
+                          <button
+                            onClick={() => openEditType(type)}
+                            className="text-gray-600 hover:text-gray-900 text-sm"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {canDeleteAssessments && (
+                          <button
+                            onClick={() => handleDeleteType(type.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
               </div>
 
               <form onSubmit={handleCreateType} className="space-y-4 border-t pt-4">
-                <h4 className="text-sm font-semibold text-gray-900">Add a new type</h4>
+                <h4 className="text-sm font-semibold text-gray-900">
+                  {editingTypeId ? 'Edit type' : 'Add a new type'}
+                </h4>
 
                 {typeError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded text-sm">
@@ -770,11 +837,15 @@ export default function AssessmentsPage() {
                     <input
                       type="text"
                       required
+                      disabled={!!editingTypeId}
                       value={typeFormData.code}
                       onChange={(e) => setTypeFormData({ ...typeFormData, code: e.target.value.toUpperCase() })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                       placeholder="e.g., CA"
                     />
+                    {editingTypeId && (
+                      <p className="text-xs text-gray-400 mt-1">Code can't be changed after creation.</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Max Score *</label>
@@ -805,13 +876,39 @@ export default function AssessmentsPage() {
                   Weight % is how much this type counts toward a subject's final score (e.g. CA 30% + Exam 70%).
                 </p>
 
-                <button
-                  type="submit"
-                  disabled={typeSubmitting}
-                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-                >
-                  {typeSubmitting ? 'Adding...' : 'Add Assessment Type'}
-                </button>
+                {editingTypeId && (
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="type_is_active"
+                      checked={typeFormData.is_active}
+                      onChange={(e) => setTypeFormData({ ...typeFormData, is_active: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="type_is_active" className="ml-2 text-sm text-gray-700">
+                      Active (uncheck to hide from new assessments without deleting)
+                    </label>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={typeSubmitting}
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {typeSubmitting ? 'Saving...' : editingTypeId ? 'Save Changes' : 'Add Assessment Type'}
+                  </button>
+                  {editingTypeId && (
+                    <button
+                      type="button"
+                      onClick={resetTypeForm}
+                      className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           </div>

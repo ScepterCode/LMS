@@ -81,6 +81,72 @@ async def create_assessment_type(
     return response.data[0]
 
 
+@router.put("/assessment-types/{assessment_type_id}", response_model=AssessmentType)
+async def update_assessment_type(
+    assessment_type_id: str,
+    data: AssessmentTypeUpdate,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Update an assessment type (admin only)"""
+
+    if current_user["role"] not in ["admin", "bursar", "dean"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update assessment types"
+        )
+
+    update_data = data.model_dump(mode="json", exclude_unset=True)
+    update_data["updated_at"] = datetime.utcnow().isoformat()
+
+    response = db.table("assessment_types").update(update_data).eq(
+        "id", assessment_type_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment type not found"
+        )
+
+    return response.data[0]
+
+
+@router.delete("/assessment-types/{assessment_type_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_assessment_type(
+    assessment_type_id: str,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Delete an assessment type (admin only, only if no assessments use it)"""
+
+    if current_user["role"] != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete assessment types"
+        )
+
+    in_use = db.table("assessments").select("id").eq(
+        "assessment_type_id", assessment_type_id
+    ).limit(1).execute()
+
+    if in_use.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete: this type is used by existing assessments. Deactivate it instead by editing it."
+        )
+
+    response = db.table("assessment_types").delete().eq(
+        "id", assessment_type_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment type not found"
+        )
+
+
 # ============================================
 # GRADE CONFIGS (grade letter bands, e.g. A=70-100)
 # ============================================
