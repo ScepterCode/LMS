@@ -104,7 +104,13 @@ export default function TeacherAssignmentsPage() {
       return;
     }
 
-    const response = await api.createTeacherAssignment(formData);
+    // term_id is optional - the backend expects a real UUID or the field
+    // omitted/null, not an empty string, which fails UUID validation with
+    // a 422 the "Term (Optional)" dropdown's blank default value produces.
+    const response = await api.createTeacherAssignment({
+      ...formData,
+      term_id: formData.term_id || null,
+    });
 
     if (response.error) {
       alert(response.error);
