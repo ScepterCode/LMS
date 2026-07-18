@@ -292,10 +292,10 @@ def delete_term(request: Request, term_id: UUID):
             raise NotFoundError("Term", term_id)
         
         # Check for dependencies
-        assignments = supabase.table('subject_assignments').select('id', count='exact').eq(
+        assignments = supabase.table('teacher_class_assignments').select('id', count='exact').eq(
             'term_id', str(term_id)
         ).execute()
-        
+
         if assignments.data:
             raise ValidationError(
                 f"Cannot delete term with {len(assignments.data)} subject assignments. "

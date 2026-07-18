@@ -62,15 +62,19 @@ def list_subjects(
         response = query.execute()
 
         # Batch teacher counts in one query instead of one per subject
-        # (was causing N+1 slowdowns on this page).
+        # (was causing N+1 slowdowns on this page). Reads from
+        # teacher_class_assignments - the table actually written to by the
+        # Teacher/Subject Assignments pages, not the dead subject_assignments
+        # table this used to read from.
         subject_ids = [s['id'] for s in response.data]
-        teacher_counts: dict = {}
+        teacher_sets: dict = {}
         if subject_ids:
-            assignments = supabase.table('subject_assignments').select('subject_id').in_(
+            assignments = supabase.table('teacher_class_assignments').select('subject_id, teacher_id').in_(
                 'subject_id', subject_ids
             ).execute()
             for row in (assignments.data or []):
-                teacher_counts[row['subject_id']] = teacher_counts.get(row['subject_id'], 0) + 1
+                teacher_sets.setdefault(row['subject_id'], set()).add(row['teacher_id'])
+        teacher_counts = {sid: len(teachers) for sid, teachers in teacher_sets.items()}
 
         # Enrich with teacher count
         enriched_data = []
@@ -163,11 +167,11 @@ def get_subject(request: Request, subject_id: UUID):
         
         subject = response.data[0]
         
-        # Get teacher count
-        teacher_count_response = supabase.table('subject_assignments').select('id', count='exact').eq(
+        # Get teacher count (distinct teachers, from teacher_class_assignments)
+        teacher_rows = supabase.table('teacher_class_assignments').select('teacher_id').eq(
             'subject_id', str(subject_id)
         ).execute()
-        subject['teacher_count'] = teacher_count_response.count if hasattr(teacher_count_response, 'count') else 0
+        subject['teacher_count'] = len({row['teacher_id'] for row in (teacher_rows.data or [])})
         
         return subject
         
@@ -253,10 +257,10 @@ def delete_subject(request: Request, subject_id: UUID):
             raise NotFoundError("Subject", subject_id)
         
         # Check if subject has assignments
-        assignment_check = supabase.table('subject_assignments').select('id', count='exact').eq(
+        assignment_check = supabase.table('teacher_class_assignments').select('id', count='exact').eq(
             'subject_id', str(subject_id)
         ).execute()
-        
+
         if hasattr(assignment_check, 'count') and assignment_check.count > 0:
             raise ValidationError(f"Cannot delete subject with {assignment_check.count} teacher assignments")
         

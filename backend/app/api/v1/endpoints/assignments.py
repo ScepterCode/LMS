@@ -43,71 +43,81 @@ def require_admin(user: dict):
 
 @router.post("/subject", response_model=SubjectAssignmentResponse, status_code=status.HTTP_201_CREATED)
 def create_subject_assignment(request: Request, data: SubjectAssignmentCreate):
-    """Assign a teacher to teach a subject to a class. Only admins can create assignments."""
+    """Assign a teacher to teach a subject to a class. Only admins can create assignments.
+
+    Writes to teacher_class_assignments - the table the Teacher Assignments
+    page, report cards, and every teacher stat actually read from. This
+    endpoint used to write to the older, parallel subject_assignments table,
+    which meant an assignment made here would show "successful" but the
+    teacher would still show 0 subjects everywhere else in the app.
+    """
     try:
         token = get_token_from_request(request)
         user = get_current_user_from_token(token)
         require_admin(user)
-        
+
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # Verify teacher exists and belongs to organization
         teacher_check = supabase.table('teachers').select('id').eq('id', str(data.teacher_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not teacher_check.data:
             raise ValidationError("Invalid teacher ID or teacher not in your organization")
-        
+
         # Verify subject exists and belongs to organization
         subject_check = supabase.table('subjects').select('id').eq('id', str(data.subject_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not subject_check.data:
             raise ValidationError("Invalid subject ID or subject not in your organization")
-        
+
         # Verify class exists and belongs to organization
         class_check = supabase.table('classes').select('id').eq('id', str(data.class_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not class_check.data:
             raise ValidationError("Invalid class ID or class not in your organization")
-        
+
         # Verify session exists and belongs to organization
         session_check = supabase.table('academic_sessions').select('id').eq('id', str(data.session_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not session_check.data:
             raise ValidationError("Invalid session ID or session not in your organization")
-        
+
         # Verify term if provided
         if data.term_id:
             term_check = supabase.table('terms').select('id, session_id').eq('id', str(data.term_id)).execute()
-            
+
             if not term_check.data:
                 raise ValidationError("Invalid term ID")
-            
+
             if term_check.data[0]['session_id'] != str(data.session_id):
                 raise ValidationError("Term does not belong to the specified session")
-        
+
         # Check for duplicate assignment
-        dup_check = supabase.table('subject_assignments').select('id').eq(
+        dup_query = supabase.table('teacher_class_assignments').select('id').eq(
             'teacher_id', str(data.teacher_id)
-        ).eq('subject_id', str(data.subject_id)).eq(
-            'class_id', str(data.class_id)
-        ).eq('term_id', str(data.term_id) if data.term_id else None).execute()
-        
+        ).eq('subject_id', str(data.subject_id)).eq('class_id', str(data.class_id))
+        if data.term_id:
+            dup_query = dup_query.eq('term_id', str(data.term_id))
+        else:
+            dup_query = dup_query.is_('term_id', 'null')
+        dup_check = dup_query.execute()
+
         if dup_check.data:
             raise DuplicateRecordError("Subject assignment", "teacher-subject-class-term", "this combination")
-        
+
         # Create assignment
         assignment_data = {
             'id': str(uuid.uuid4()),
@@ -116,36 +126,38 @@ def create_subject_assignment(request: Request, data: SubjectAssignmentCreate):
             'class_id': str(data.class_id),
             'session_id': str(data.session_id),
             'term_id': str(data.term_id) if data.term_id else None,
-            'created_at': datetime.utcnow().isoformat()
+            'is_form_teacher': data.is_form_teacher,
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat(),
         }
-        
-        result = supabase.table('subject_assignments').insert(assignment_data).execute()
-        
+
+        result = supabase.table('teacher_class_assignments').insert(assignment_data).execute()
+
         if not result.data:
             raise DatabaseError("Failed to create subject assignment")
-        
+
         logger.info(f"Created subject assignment for teacher {data.teacher_id}")
-        
+
         # Enrich response
         assignment = result.data[0]
-        
+
         # Get teacher name
         teacher = supabase.table('teachers').select('first_name, last_name').eq('id', assignment['teacher_id']).execute()
         if teacher.data:
             assignment['teacher_name'] = f"{teacher.data[0]['first_name']} {teacher.data[0]['last_name']}"
-        
+
         # Get subject name
         subject = supabase.table('subjects').select('name').eq('id', assignment['subject_id']).execute()
         if subject.data:
             assignment['subject_name'] = subject.data[0]['name']
-        
+
         # Get class name
         cls = supabase.table('classes').select('name').eq('id', assignment['class_id']).execute()
         if cls.data:
             assignment['class_name'] = cls.data[0]['name']
-        
+
         return assignment
-        
+
     except (AuthorizationError, ValidationError, DatabaseError, DuplicateRecordError):
         raise
     except Exception as e:
@@ -160,30 +172,30 @@ def delete_subject_assignment(request: Request, assignment_id: UUID):
         token = get_token_from_request(request)
         user = get_current_user_from_token(token)
         require_admin(user)
-        
+
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # Get assignment and verify through teacher's organization
-        assignment = supabase.table('subject_assignments').select('*, teachers!inner(organization_id)').eq(
+        assignment = supabase.table('teacher_class_assignments').select('*, teachers!inner(organization_id)').eq(
             'id', str(assignment_id)
         ).execute()
-        
+
         if not assignment.data:
             raise NotFoundError("Subject assignment", assignment_id)
-        
+
         # Verify organization
         if assignment.data[0]['teachers']['organization_id'] != str(user["school_id"]):
             raise NotFoundError("Subject assignment", assignment_id)
-        
-        supabase.table('subject_assignments').delete().eq('id', str(assignment_id)).execute()
-        
+
+        supabase.table('teacher_class_assignments').delete().eq('id', str(assignment_id)).execute()
+
         logger.info(f"Deleted subject assignment: {assignment_id}")
-        
+
     except (AuthorizationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:
