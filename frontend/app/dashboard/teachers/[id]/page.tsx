@@ -29,6 +29,7 @@ interface Teacher {
   years_of_service?: number;
   subject_count?: number;
   class_count?: number;
+  form_teacher_for?: { id: string; name: string }[];
   created_at: string;
 }
 
@@ -38,6 +39,7 @@ interface SubjectAssignment {
   class_name: string;
   session_name: string;
   term_name: string;
+  is_form_teacher?: boolean;
 }
 
 export default function TeacherDetailPage() {
@@ -213,11 +215,11 @@ export default function TeacherDetailPage() {
           {/* Subject Assignments */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-900">
-              Subject Assignments ({assignments.length})
+              Class &amp; Subject Assignments ({assignments.length})
             </h2>
-            
+
             {assignments.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No subject assignments yet</p>
+              <p className="text-gray-500 text-center py-4">No assignments yet</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -227,6 +229,7 @@ export default function TeacherDetailPage() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Session</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Term</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -236,6 +239,13 @@ export default function TeacherDetailPage() {
                         <td className="px-4 py-3 text-sm text-gray-600">{assignment.class_name}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{assignment.session_name}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{assignment.term_name}</td>
+                        <td className="px-4 py-3 text-sm">
+                          {assignment.is_form_teacher && (
+                            <span className="inline-block px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full font-medium">
+                              Form Teacher
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -250,6 +260,7 @@ export default function TeacherDetailPage() {
           {/* Quick Stats */}
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold mb-4 text-gray-900">Quick Stats</h3>
+            <p className="text-xs text-gray-400 -mt-2 mb-3">Subjects/classes reflect the current academic session</p>
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-600">Status</span>
@@ -276,6 +287,26 @@ export default function TeacherDetailPage() {
                 <span className="font-semibold">{teacher.years_of_service || 0}</span>
               </div>
             </div>
+          </div>
+
+          {/* Form Teacher For */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">Form Teacher For</h3>
+            {teacher.form_teacher_for && teacher.form_teacher_for.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {teacher.form_teacher_for.map((cls) => (
+                  <Link
+                    key={cls.id}
+                    href={`/dashboard/academic?tab=classes`}
+                    className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium hover:bg-green-200"
+                  >
+                    {cls.name}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">Not a form teacher this session</p>
+            )}
           </div>
 
           {/* Additional Info */}

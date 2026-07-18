@@ -3,9 +3,15 @@ Pydantic models for teacher management.
 """
 
 from pydantic import BaseModel, Field, field_validator, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 from uuid import UUID
+
+
+class ClassRef(BaseModel):
+    """Minimal class reference used in teacher stats (id + display name)."""
+    id: UUID
+    name: str
 
 
 class TeacherCreate(BaseModel):
@@ -117,13 +123,14 @@ class TeacherResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    # Computed fields
+    # Computed fields - scoped to the current academic session where noted
     full_name: Optional[str] = None
     age: Optional[int] = None
     years_of_service: Optional[int] = None
-    subject_count: Optional[int] = 0
-    assigned_classes: Optional[list] = []
-    form_teacher_for: Optional[UUID] = None  # Class ID if form teacher, else None
+    subject_count: Optional[int] = 0  # distinct subjects taught, current session
+    class_count: Optional[int] = 0  # distinct classes taught, current session
+    assigned_classes: Optional[List[ClassRef]] = []  # classes taught, current session
+    form_teacher_for: Optional[List[ClassRef]] = []  # classes they're form teacher of, current session
     
     class Config:
         from_attributes = True

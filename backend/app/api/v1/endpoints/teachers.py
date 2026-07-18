@@ -82,6 +82,62 @@ def _apply_status_side_effects(supabase, teacher: dict, old_status: str, new_sta
         logger.info(f"Teacher {teacher['id']} reactivated: login restored")
 
 
+def _get_current_session_id(supabase, organization_id: str) -> Optional[str]:
+    session = supabase.table('academic_sessions').select('id').eq(
+        'organization_id', organization_id
+    ).eq('is_current', True).execute()
+    return session.data[0]['id'] if session.data else None
+
+
+def _compute_teacher_stats(supabase, organization_id: str, teacher_ids: List[str]) -> dict:
+    """Subject/class counts and form-teacher classes per teacher, scoped to
+    the current academic session (falls back to all assignments if no
+    session is marked current, so a fresh school isn't shown all-zero).
+
+    Reads from teacher_class_assignments - the table actually written to by
+    the Teacher Assignments page - not the older, no-longer-written-to
+    subject_assignments table.
+    """
+    if not teacher_ids:
+        return {}
+
+    query = supabase.table('teacher_class_assignments').select(
+        'teacher_id, class_id, subject_id, is_form_teacher'
+    ).in_('teacher_id', teacher_ids)
+
+    session_id = _get_current_session_id(supabase, organization_id)
+    if session_id:
+        query = query.eq('session_id', session_id)
+
+    assignments = query.execute().data or []
+
+    class_ids = list({a['class_id'] for a in assignments})
+    class_names: dict = {}
+    if class_ids:
+        classes_resp = supabase.table('classes').select('id, name').in_('id', class_ids).execute()
+        class_names = {row['id']: row['name'] for row in (classes_resp.data or [])}
+
+    per_teacher = {tid: {'subjects': set(), 'classes': set(), 'form_classes': set()} for tid in teacher_ids}
+    for a in assignments:
+        bucket = per_teacher.get(a['teacher_id'])
+        if bucket is None:
+            continue
+        bucket['subjects'].add(a['subject_id'])
+        bucket['classes'].add(a['class_id'])
+        if a.get('is_form_teacher'):
+            bucket['form_classes'].add(a['class_id'])
+
+    result = {}
+    for tid, bucket in per_teacher.items():
+        result[tid] = {
+            'subject_count': len(bucket['subjects']),
+            'class_count': len(bucket['classes']),
+            'assigned_classes': [{'id': cid, 'name': class_names.get(cid, 'Unknown')} for cid in bucket['classes']],
+            'form_teacher_for': [{'id': cid, 'name': class_names.get(cid, 'Unknown')} for cid in bucket['form_classes']],
+        }
+    return result
+
+
 # ============================================
 # TEACHER ENDPOINTS
 # ============================================
@@ -124,16 +180,10 @@ def list_teachers(
         query = query.order('last_name').order('first_name').range(skip, skip + limit - 1)
         response = query.execute()
 
-        # Count subject assignments for all teachers in one query instead of
-        # one round-trip per teacher (was causing N+1 slowdowns on this page).
+        # Batched for all teachers in one query instead of one round-trip
+        # per teacher (was causing N+1 slowdowns on this page).
         teacher_ids = [t['id'] for t in response.data]
-        subject_counts: dict = {}
-        if teacher_ids:
-            assignments = supabase.table('subject_assignments').select('teacher_id').in_(
-                'teacher_id', teacher_ids
-            ).execute()
-            for row in (assignments.data or []):
-                subject_counts[row['teacher_id']] = subject_counts.get(row['teacher_id'], 0) + 1
+        stats_by_teacher = _compute_teacher_stats(supabase, user["school_id"], teacher_ids)
 
         # Enrich data
         enriched_data = []
@@ -151,7 +201,9 @@ def list_teachers(
                 emp_date = datetime.fromisoformat(teacher['employment_date']).date()
                 teacher['years_of_service'] = calculate_years_of_service(emp_date)
 
-            teacher['subject_count'] = subject_counts.get(teacher['id'], 0)
+            teacher.update(stats_by_teacher.get(teacher['id'], {
+                'subject_count': 0, 'class_count': 0, 'assigned_classes': [], 'form_teacher_for': []
+            }))
 
             enriched_data.append(teacher)
         
@@ -304,12 +356,12 @@ def get_teacher(request: Request, teacher_id: UUID):
             emp_date = datetime.fromisoformat(teacher['employment_date']).date()
             teacher['years_of_service'] = calculate_years_of_service(emp_date)
         
-        # Count subject assignments
-        subject_count = supabase.table('subject_assignments').select('id', count='exact').eq(
-            'teacher_id', teacher['id']
-        ).execute()
-        teacher['subject_count'] = subject_count.count if hasattr(subject_count, 'count') else 0
-        
+        stats = _compute_teacher_stats(supabase, user["school_id"], [teacher['id']])
+        teacher.update(stats.get(teacher['id'], {
+            'subject_count': 0, 'class_count': 0, 'assigned_classes': [], 'form_teacher_for': []
+        }))
+
+
         return teacher
         
     except (AuthorizationError, NotFoundError, DatabaseError):
@@ -366,7 +418,12 @@ def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate):
 
             updated_teacher = result.data[0]
             updated_teacher['full_name'] = f"{updated_teacher['first_name']} {updated_teacher.get('middle_name') or ''} {updated_teacher['last_name']}".replace('  ', ' ')
-            
+
+            stats = _compute_teacher_stats(supabase, user["school_id"], [updated_teacher['id']])
+            updated_teacher.update(stats.get(updated_teacher['id'], {
+                'subject_count': 0, 'class_count': 0, 'assigned_classes': [], 'form_teacher_for': []
+            }))
+
             return updated_teacher
         
         return existing.data[0]
@@ -406,14 +463,15 @@ def delete_teacher(request: Request, teacher_id: UUID):
         if not existing.data:
             raise NotFoundError("Teacher", teacher_id)
         
-        # Check for dependencies (subject assignments)
-        assignments = supabase.table('subject_assignments').select('id', count='exact').eq(
+        # Check for dependencies (class/subject assignments, any session -
+        # deleting the teacher would cascade-delete this assignment history)
+        assignments = supabase.table('teacher_class_assignments').select('id', count='exact').eq(
             'teacher_id', str(teacher_id)
         ).execute()
-        
+
         if assignments.data:
             raise ValidationError(
-                f"Cannot delete teacher with {len(assignments.data)} active subject assignments. "
+                f"Cannot delete teacher with {len(assignments.data)} active class/subject assignments. "
                 "Remove assignments first."
             )
         
@@ -430,56 +488,72 @@ def delete_teacher(request: Request, teacher_id: UUID):
 
 @router.get("/{teacher_id}/assignments")
 def get_teacher_assignments(request: Request, teacher_id: UUID):
-    """Get all subject assignments for a teacher."""
+    """Get all class/subject assignments for a teacher (full history, every session)."""
     try:
         token = get_token_from_request(request)
         if not token:
             raise AuthorizationError("Authentication token required")
-        
+
         user = get_current_user_from_token(token)
         if not user:
             raise AuthorizationError("User authentication failed - no valid user found")
-        
+
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # Verify teacher exists and belongs to user's org
         teacher_check = supabase.table('teachers').select('id').eq('id', str(teacher_id)).eq(
             'organization_id', user["school_id"]
         ).execute()
-        
+
         if not teacher_check.data:
             raise NotFoundError("Teacher", teacher_id)
-        
-        # Get assignments
-        response = supabase.table('subject_assignments').select('*').eq('teacher_id', str(teacher_id)).execute()
 
-        # Batch subject/class name lookups in two queries total instead of
-        # two per assignment.
+        # Get assignments (reads from teacher_class_assignments - the table
+        # the Teacher Assignments page actually writes to)
+        response = supabase.table('teacher_class_assignments').select('*').eq(
+            'teacher_id', str(teacher_id)
+        ).execute()
+
+        # Batch subject/class/session/term name lookups instead of several
+        # round-trips per assignment.
         subject_ids = list({a['subject_id'] for a in response.data if a.get('subject_id')})
         class_ids = list({a['class_id'] for a in response.data if a.get('class_id')})
+        session_ids = list({a['session_id'] for a in response.data if a.get('session_id')})
+        term_ids = list({a['term_id'] for a in response.data if a.get('term_id')})
         subject_names: dict = {}
         class_names: dict = {}
+        session_names: dict = {}
+        term_names: dict = {}
         if subject_ids:
             subjects_resp = supabase.table('subjects').select('id, name').in_('id', subject_ids).execute()
             subject_names = {row['id']: row['name'] for row in (subjects_resp.data or [])}
         if class_ids:
             classes_resp = supabase.table('classes').select('id, name').in_('id', class_ids).execute()
             class_names = {row['id']: row['name'] for row in (classes_resp.data or [])}
+        if session_ids:
+            sessions_resp = supabase.table('academic_sessions').select('id, name').in_('id', session_ids).execute()
+            session_names = {row['id']: row['name'] for row in (sessions_resp.data or [])}
+        if term_ids:
+            terms_resp = supabase.table('terms').select('id, name').in_('id', term_ids).execute()
+            term_names = {row['id']: row['name'] for row in (terms_resp.data or [])}
 
-        # Enrich with subject and class names
+        # Enrich with subject/class/session/term names
         enriched_data = []
         for assignment in response.data:
             if assignment.get('subject_id') in subject_names:
                 assignment['subject_name'] = subject_names[assignment['subject_id']]
             if assignment.get('class_id') in class_names:
                 assignment['class_name'] = class_names[assignment['class_id']]
+            if assignment.get('session_id') in session_names:
+                assignment['session_name'] = session_names[assignment['session_id']]
+            assignment['term_name'] = term_names.get(assignment.get('term_id'), 'All Terms')
             enriched_data.append(assignment)
-        
+
         logger.info(f"Retrieved {len(enriched_data)} assignments for teacher {teacher_id}")
         return enriched_data
         
