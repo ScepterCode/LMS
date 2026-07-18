@@ -30,7 +30,7 @@ def require_school_admin(user: dict):
 
 
 @router.get("", response_model=List[SubjectResponse])
-async def list_subjects(
+def list_subjects(
     request: Request,
     skip: int = 0,
     limit: int = 100,
@@ -89,7 +89,7 @@ async def list_subjects(
 
 
 @router.post("", response_model=SubjectResponse, status_code=status.HTTP_201_CREATED)
-async def create_subject(request: Request, data: SubjectCreate):
+def create_subject(request: Request, data: SubjectCreate):
     """Create a new subject. Only school admins can create subjects."""
     try:
         token = get_token_from_request(request)
@@ -141,7 +141,7 @@ async def create_subject(request: Request, data: SubjectCreate):
 
 
 @router.get("/{subject_id}", response_model=SubjectResponse)
-async def get_subject(request: Request, subject_id: UUID):
+def get_subject(request: Request, subject_id: UUID):
     """Get subject by ID."""
     try:
         token = get_token_from_request(request)
@@ -179,7 +179,7 @@ async def get_subject(request: Request, subject_id: UUID):
 
 
 @router.put("/{subject_id}", response_model=SubjectResponse)
-async def update_subject(request: Request, subject_id: UUID, data: SubjectUpdate):
+def update_subject(request: Request, subject_id: UUID, data: SubjectUpdate):
     """Update subject. Only school admins can update subjects."""
     try:
         token = get_token_from_request(request)
@@ -231,7 +231,7 @@ async def update_subject(request: Request, subject_id: UUID, data: SubjectUpdate
 
 
 @router.delete("/{subject_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_subject(request: Request, subject_id: UUID):
+def delete_subject(request: Request, subject_id: UUID):
     """Delete subject. Only school admins can delete subjects."""
     try:
         token = get_token_from_request(request)

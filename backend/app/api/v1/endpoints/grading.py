@@ -28,7 +28,7 @@ router = APIRouter()
 # ============================================
 
 @router.get("/assessment-types", response_model=List[AssessmentType])
-async def get_assessment_types(
+def get_assessment_types(
     is_active: Optional[bool] = None,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -49,7 +49,7 @@ async def get_assessment_types(
 
 
 @router.post("/assessment-types", response_model=AssessmentType, status_code=status.HTTP_201_CREATED)
-async def create_assessment_type(
+def create_assessment_type(
     data: AssessmentTypeCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -82,7 +82,7 @@ async def create_assessment_type(
 
 
 @router.put("/assessment-types/{assessment_type_id}", response_model=AssessmentType)
-async def update_assessment_type(
+def update_assessment_type(
     assessment_type_id: str,
     data: AssessmentTypeUpdate,
     current_user: dict = Depends(get_current_user),
@@ -113,7 +113,7 @@ async def update_assessment_type(
 
 
 @router.delete("/assessment-types/{assessment_type_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_assessment_type(
+def delete_assessment_type(
     assessment_type_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -152,7 +152,7 @@ async def delete_assessment_type(
 # ============================================
 
 @router.get("/grade-configs", response_model=List[GradeConfig])
-async def get_grade_configs(
+def get_grade_configs(
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
 ):
@@ -166,7 +166,7 @@ async def get_grade_configs(
 
 
 @router.post("/grade-configs", response_model=GradeConfig, status_code=status.HTTP_201_CREATED)
-async def create_grade_config(
+def create_grade_config(
     data: GradeConfigCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -198,7 +198,7 @@ async def create_grade_config(
 
 
 @router.put("/grade-configs/{grade_config_id}", response_model=GradeConfig)
-async def update_grade_config(
+def update_grade_config(
     grade_config_id: str,
     data: GradeConfigUpdate,
     current_user: dict = Depends(get_current_user),
@@ -229,7 +229,7 @@ async def update_grade_config(
 
 
 @router.delete("/grade-configs/{grade_config_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_grade_config(
+def delete_grade_config(
     grade_config_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -258,7 +258,7 @@ async def delete_grade_config(
 # ============================================
 
 @router.get("/assessments", response_model=List[Assessment])
-async def get_assessments(
+def get_assessments(
     subject_id: Optional[str] = None,
     class_id: Optional[str] = None,
     session_id: Optional[str] = None,
@@ -320,7 +320,7 @@ async def get_assessments(
 
 
 @router.get("/assessments/{assessment_id}", response_model=Assessment)
-async def get_assessment(
+def get_assessment(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -346,7 +346,7 @@ async def get_assessment(
 
 
 @router.post("/assessments", response_model=Assessment, status_code=status.HTTP_201_CREATED)
-async def create_assessment(
+def create_assessment(
     data: AssessmentCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -365,7 +365,7 @@ async def create_assessment(
         teacher_id = current_user.get("teacher_id")
         
         try:
-            await PermissionChecker.verify_subject_teacher_permission(
+            PermissionChecker.verify_subject_teacher_permission(
                 teacher_id, data.subject_id, data.class_id, supabase
             )
         except AuthorizationError as e:
@@ -388,7 +388,7 @@ async def create_assessment(
 
 
 @router.put("/assessments/{assessment_id}", response_model=Assessment)
-async def update_assessment(
+def update_assessment(
     assessment_id: str,
     data: AssessmentUpdate,
     current_user: dict = Depends(get_current_user),
@@ -421,7 +421,7 @@ async def update_assessment(
         supabase = get_supabase()
         teacher_id = current_user.get("teacher_id")
         try:
-            await PermissionChecker.verify_subject_teacher_permission(
+            PermissionChecker.verify_subject_teacher_permission(
                 teacher_id, assessment["subject_id"], assessment["class_id"], supabase
             )
         except AuthorizationError as e:
@@ -448,7 +448,7 @@ async def update_assessment(
 
 
 @router.post("/assessments/{assessment_id}/publish")
-async def publish_assessment(
+def publish_assessment(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -477,7 +477,7 @@ async def publish_assessment(
         supabase = get_supabase()
         teacher_id = current_user.get("teacher_id")
         try:
-            await PermissionChecker.verify_subject_teacher_permission(
+            PermissionChecker.verify_subject_teacher_permission(
                 teacher_id, assessment["subject_id"], assessment["class_id"], supabase
             )
         except AuthorizationError as e:
@@ -503,7 +503,7 @@ async def publish_assessment(
 
 
 @router.delete("/assessments/{assessment_id}")
-async def delete_assessment(
+def delete_assessment(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -545,7 +545,7 @@ async def delete_assessment(
 # ============================================
 
 @router.get("/assessments/{assessment_id}/grades", response_model=List[Grade])
-async def get_assessment_grades(
+def get_assessment_grades(
     assessment_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -561,7 +561,7 @@ async def get_assessment_grades(
 
     if current_user["role"] == "teacher":
         try:
-            await PermissionChecker.verify_subject_teacher_permission(
+            PermissionChecker.verify_subject_teacher_permission(
                 current_user.get("teacher_id"), assessment.data[0]["subject_id"],
                 assessment.data[0]["class_id"], db
             )
@@ -593,7 +593,7 @@ async def get_assessment_grades(
 
 
 @router.post("/grades/bulk", status_code=status.HTTP_201_CREATED)
-async def bulk_grade_entry(
+def bulk_grade_entry(
     data: BulkGradeEntry,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -628,7 +628,7 @@ async def bulk_grade_entry(
         teacher_id = current_user.get("teacher_id")
         
         try:
-            await PermissionChecker.verify_subject_teacher_permission(
+            PermissionChecker.verify_subject_teacher_permission(
                 teacher_id, subject_id, class_id, supabase
             )
         except AuthorizationError as e:
@@ -695,7 +695,7 @@ async def bulk_grade_entry(
 
 
 @router.get("/students/{student_id}/grades")
-async def get_student_grades(
+def get_student_grades(
     student_id: str,
     session_id: Optional[str] = None,
     term_id: Optional[str] = None,
@@ -705,7 +705,7 @@ async def get_student_grades(
 ):
     """Get all grades for a student"""
 
-    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+    PermissionChecker.verify_can_view_student(current_user, student_id, db)
 
     query = db.table("grades").select(
         "*, assessments(title, max_score, assessment_date, subjects(name))"
@@ -800,7 +800,7 @@ def _compute_subject_grades_for_student(
 
 
 @router.post("/report-cards/generate", status_code=status.HTTP_201_CREATED)
-async def generate_report_card(
+def generate_report_card(
     data: ReportCardGenerate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -833,7 +833,7 @@ async def generate_report_card(
         teacher_id = current_user.get("teacher_id")
         
         try:
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 teacher_id, class_id, supabase
             )
         except AuthorizationError as e:
@@ -955,7 +955,7 @@ async def generate_report_card(
 
 
 @router.get("/report-cards/{report_card_id}", response_model=ReportCard)
-async def get_report_card(
+def get_report_card(
     report_card_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -980,7 +980,7 @@ async def get_report_card(
     
     report_card = response.data[0]
 
-    await PermissionChecker.verify_can_view_student(current_user, report_card["student_id"], db)
+    PermissionChecker.verify_can_view_student(current_user, report_card["student_id"], db)
 
     # A parent guessing/being given the id of an unpublished report card
     # shouldn't be able to view it directly - same rule the list endpoint
@@ -1054,7 +1054,7 @@ async def get_report_card(
 
 
 @router.get("/students/{student_id}/report-cards")
-async def get_student_report_cards(
+def get_student_report_cards(
     student_id: str,
     session_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
@@ -1065,7 +1065,7 @@ async def get_student_report_cards(
     the school is ready to show a parent, same intent as the "make visible
     to parents" comment on publish_report_card."""
 
-    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+    PermissionChecker.verify_can_view_student(current_user, student_id, db)
 
     query = db.table("report_cards").select(
         "*, "
@@ -1097,7 +1097,7 @@ async def get_student_report_cards(
 
 
 @router.put("/report-cards/{report_card_id}")
-async def update_report_card(
+def update_report_card(
     report_card_id: str,
     data: ReportCardUpdate,
     current_user: dict = Depends(get_current_user),
@@ -1130,7 +1130,7 @@ async def update_report_card(
         teacher_id = current_user.get("teacher_id")
         
         try:
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 teacher_id, class_id, supabase
             )
         except AuthorizationError as e:
@@ -1156,7 +1156,7 @@ async def update_report_card(
 
 
 @router.post("/report-cards/{report_card_id}/publish")
-async def publish_report_card(
+def publish_report_card(
     report_card_id: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -1180,7 +1180,7 @@ async def publish_report_card(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report card not found")
 
         try:
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 current_user.get("teacher_id"), existing.data[0]["class_id"], db
             )
         except AuthorizationError as e:
@@ -1210,7 +1210,7 @@ async def publish_report_card(
 # ============================================
 
 @router.get("/analytics/class-performance")
-async def get_class_performance(
+def get_class_performance(
     class_id: str,
     subject_id: str,
     session_id: str,
@@ -1226,10 +1226,10 @@ async def get_class_performance(
         teacher_id = current_user.get("teacher_id")
         
         # Check if form teacher OR subject teacher
-        is_form_teacher = await PermissionChecker.can_view_class_grades(
+        is_form_teacher = PermissionChecker.can_view_class_grades(
             teacher_id, class_id, supabase
         )
-        is_subject_teacher = await PermissionChecker.can_enter_grades(
+        is_subject_teacher = PermissionChecker.can_enter_grades(
             teacher_id, subject_id, class_id, supabase
         )
         
@@ -1296,7 +1296,7 @@ async def get_class_performance(
 
 
 @router.get("/analytics/student-performance/{student_id}")
-async def get_student_performance(
+def get_student_performance(
     student_id: str,
     session_id: str,
     term_id: str,
@@ -1305,7 +1305,7 @@ async def get_student_performance(
 ):
     """Get performance summary for a student across all subjects"""
 
-    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+    PermissionChecker.verify_can_view_student(current_user, student_id, db)
 
     # Get student details
     student = db.table("students").select(

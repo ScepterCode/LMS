@@ -111,7 +111,7 @@ def seed_default_skill_categories(supabase, organization_id: str) -> None:
 # ============================================
 
 @router.get("/categories")
-async def list_skill_categories(request: Request, include_inactive: bool = False):
+def list_skill_categories(request: Request, include_inactive: bool = False):
     """List this school's skill categories, grouped implicitly by domain."""
     try:
         token = get_token_from_request(request)
@@ -141,7 +141,7 @@ async def list_skill_categories(request: Request, include_inactive: bool = False
 
 
 @router.post("/categories", status_code=status.HTTP_201_CREATED)
-async def create_skill_category(request: Request, data: SkillCategoryCreate):
+def create_skill_category(request: Request, data: SkillCategoryCreate):
     """Create a new skill category. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -186,7 +186,7 @@ async def create_skill_category(request: Request, data: SkillCategoryCreate):
 
 
 @router.patch("/categories/{category_id}")
-async def update_skill_category(request: Request, category_id: UUID, data: SkillCategoryUpdate):
+def update_skill_category(request: Request, category_id: UUID, data: SkillCategoryUpdate):
     """Update or deactivate a skill category. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -234,7 +234,7 @@ async def update_skill_category(request: Request, category_id: UUID, data: Skill
 # ============================================
 
 @router.get("/student/{student_id}")
-async def get_student_skill_ratings(
+def get_student_skill_ratings(
     request: Request,
     student_id: UUID,
     session_id: UUID,
@@ -284,7 +284,7 @@ async def get_student_skill_ratings(
 
 
 @router.post("/ratings/bulk", status_code=status.HTTP_201_CREATED)
-async def submit_skill_ratings(request: Request, data: SkillRatingsBulkSubmit):
+def submit_skill_ratings(request: Request, data: SkillRatingsBulkSubmit):
     """
     Submit/update skill ratings for a student for a term.
     Only the form teacher of the student's current class (or an admin) may do this -
@@ -316,7 +316,7 @@ async def submit_skill_ratings(request: Request, data: SkillRatingsBulkSubmit):
         if user.get("role") == "teacher":
             teacher_id = user.get("teacher_id")
             try:
-                await PermissionChecker.verify_form_teacher_permission(teacher_id, class_id, supabase)
+                PermissionChecker.verify_form_teacher_permission(teacher_id, class_id, supabase)
             except AuthorizationError as e:
                 raise AuthorizationError(f"Form teacher access required: {str(e)}")
 

@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # DEPENDENCY: Require Authentication
 # ============================================
 
-async def get_current_user(request: Request):
+def get_current_user(request: Request):
     """Dependency to get current authenticated user."""
     token = get_token_from_request(request)
     if not token:
@@ -50,7 +50,7 @@ async def get_current_user(request: Request):
 # ============================================
 
 @router.get("/{org_id}")
-async def get_organization_details(
+def get_organization_details(
     org_id: str,
     current_user = Depends(get_current_user),
 ):
@@ -127,7 +127,7 @@ async def get_organization_details(
 # ============================================
 
 @router.get("/{org_id}/users")
-async def list_organization_users(
+def list_organization_users(
     org_id: str,
     current_user = Depends(get_current_user),
     skip: int = 0,
@@ -193,7 +193,7 @@ async def list_organization_users(
 # ============================================
 
 @router.get("/{org_id}/campuses")
-async def list_organization_campuses(
+def list_organization_campuses(
     org_id: str,
     current_user = Depends(get_current_user),
 ):
@@ -252,7 +252,7 @@ def _require_school_admin(current_user: dict, org_id: str):
 
 
 @router.patch("/{org_id}")
-async def update_organization(
+def update_organization(
     org_id: str,
     data: OrganizationUpdate,
     current_user = Depends(get_current_user),
@@ -280,7 +280,7 @@ async def update_organization(
 
 
 @router.post("/{org_id}/logo")
-async def upload_organization_logo(
+def upload_organization_logo(
     org_id: str,
     file: UploadFile = File(...),
     current_user = Depends(get_current_user),
@@ -291,7 +291,7 @@ async def upload_organization_logo(
     if file.content_type not in ALLOWED_LOGO_TYPES:
         raise ValidationError("Logo must be a PNG, JPEG, or WebP image")
 
-    contents = await file.read()
+    contents = file.file.read()
     if len(contents) > MAX_LOGO_SIZE_BYTES:
         raise ValidationError("Logo must be smaller than 2MB")
 

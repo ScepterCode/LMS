@@ -45,7 +45,7 @@ def require_school_admin(user: dict):
         raise AuthorizationError("Insufficient permissions to manage students")
 
 
-async def require_teacher_owns_class(user: dict, class_id, supabase):
+def require_teacher_owns_class(user: dict, class_id, supabase):
     """For teacher role, verify they are the form teacher of class_id.
 
     Admins/system_admins are unrestricted; called only after
@@ -58,7 +58,7 @@ async def require_teacher_owns_class(user: dict, class_id, supabase):
         return
     if not class_id:
         raise AuthorizationError("Teachers must assign the student to one of their own classes")
-    await PermissionChecker.verify_form_teacher_permission(
+    PermissionChecker.verify_form_teacher_permission(
         user.get("teacher_id"), str(class_id), supabase
     )
 
@@ -74,7 +74,7 @@ def calculate_age(dob: date) -> int:
 # ============================================
 
 @router.get("", response_model=List[StudentResponse])
-async def list_students(
+def list_students(
     request: Request,
     skip: int = 0,
     limit: int = 100,
@@ -173,7 +173,7 @@ async def list_students(
 
 
 @router.post("", response_model=StudentResponse, status_code=status.HTTP_201_CREATED)
-async def create_student(request: Request, data: StudentCreate):
+def create_student(request: Request, data: StudentCreate):
     """Register a new student. Only admins and teachers can register students."""
     try:
         token = get_token_from_request(request)
@@ -210,7 +210,7 @@ async def create_student(request: Request, data: StudentCreate):
             if not class_check.data:
                 raise ValidationError("Invalid class ID")
 
-        await require_teacher_owns_class(user, data.current_class_id, supabase)
+        require_teacher_owns_class(user, data.current_class_id, supabase)
 
         # Create student
         student_data = {
@@ -260,7 +260,7 @@ async def create_student(request: Request, data: StudentCreate):
 
 
 @router.get("/{student_id}", response_model=StudentResponse)
-async def get_student(request: Request, student_id: UUID):
+def get_student(request: Request, student_id: UUID):
     """Get student by ID with full details."""
     try:
         token = get_token_from_request(request)
@@ -290,7 +290,7 @@ async def get_student(request: Request, student_id: UUID):
         # bursar, etc.) keeps its existing org-wide access unchanged, since
         # the reported gap was specifically about parents.
         if user.get("role") == "parent":
-            await PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
+            PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
         elif user.get("role") not in ROSTER_VISIBLE_ROLES:
             raise AuthorizationError("You do not have permission to view this student")
 
@@ -318,7 +318,7 @@ async def get_student(request: Request, student_id: UUID):
 
 
 @router.put("/{student_id}", response_model=StudentResponse)
-async def update_student(request: Request, student_id: UUID, data: StudentUpdate):
+def update_student(request: Request, student_id: UUID, data: StudentUpdate):
     """Update student details. Only admins and teachers can update."""
     try:
         token = get_token_from_request(request)
@@ -347,7 +347,7 @@ async def update_student(request: Request, student_id: UUID, data: StudentUpdate
 
         # A teacher may only edit students currently in a class they are
         # the form teacher of.
-        await require_teacher_owns_class(user, existing.data[0].get('current_class_id'), supabase)
+        require_teacher_owns_class(user, existing.data[0].get('current_class_id'), supabase)
 
         # Validate class if provided
         if data.current_class_id:
@@ -361,7 +361,7 @@ async def update_student(request: Request, student_id: UUID, data: StudentUpdate
             # If a teacher is also moving the student to a different
             # class, they must be the form teacher of the destination
             # class too, not just the origin.
-            await require_teacher_owns_class(user, data.current_class_id, supabase)
+            require_teacher_owns_class(user, data.current_class_id, supabase)
 
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
@@ -389,7 +389,7 @@ async def update_student(request: Request, student_id: UUID, data: StudentUpdate
 
 
 @router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_student(request: Request, student_id: UUID):
+def delete_student(request: Request, student_id: UUID):
     """Delete student. Only admins can delete students."""
     try:
         token = get_token_from_request(request)
@@ -433,7 +433,7 @@ async def delete_student(request: Request, student_id: UUID):
 # ============================================
 
 @router.get("/{student_id}/guardians", response_model=List[GuardianResponse])
-async def get_student_guardians(request: Request, student_id: UUID):
+def get_student_guardians(request: Request, student_id: UUID):
     """Get all guardians for a student."""
     try:
         token = get_token_from_request(request)
@@ -460,7 +460,7 @@ async def get_student_guardians(request: Request, student_id: UUID):
             raise NotFoundError("Student", student_id)
 
         if user.get("role") == "parent":
-            await PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
+            PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
         elif user.get("role") not in ROSTER_VISIBLE_ROLES:
             raise AuthorizationError("You do not have permission to view this student's guardians")
 
@@ -481,7 +481,7 @@ async def get_student_guardians(request: Request, student_id: UUID):
 
 
 @router.get("/{student_id}/parents")
-async def get_student_parents(request: Request, student_id: UUID):
+def get_student_parents(request: Request, student_id: UUID):
     """
     Get all registered parent accounts linked to a student (the reverse of
     GET /parents/{parent_id}/children). Distinct from /guardians above,
@@ -511,7 +511,7 @@ async def get_student_parents(request: Request, student_id: UUID):
             raise NotFoundError("Student", student_id)
 
         if user.get("role") == "parent":
-            await PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
+            PermissionChecker.verify_can_view_student(user, str(student_id), supabase)
         elif user.get("role") not in ROSTER_VISIBLE_ROLES:
             raise AuthorizationError("You do not have permission to view this student's parents")
 
@@ -540,7 +540,7 @@ async def get_student_parents(request: Request, student_id: UUID):
 
 
 @router.post("/{student_id}/guardians", response_model=GuardianResponse, status_code=status.HTTP_201_CREATED)
-async def add_guardian(request: Request, student_id: UUID, data: GuardianCreate):
+def add_guardian(request: Request, student_id: UUID, data: GuardianCreate):
     """Add a guardian to a student."""
     try:
         token = get_token_from_request(request)
@@ -568,7 +568,7 @@ async def add_guardian(request: Request, student_id: UUID, data: GuardianCreate)
         if not student_check.data:
             raise NotFoundError("Student", student_id)
 
-        await require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
+        require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
 
         # If setting as primary, unset other primary guardians
         if data.is_primary:
@@ -611,7 +611,7 @@ async def add_guardian(request: Request, student_id: UUID, data: GuardianCreate)
 
 
 @router.put("/{student_id}/guardians/{guardian_id}", response_model=GuardianResponse)
-async def update_guardian(request: Request, student_id: UUID, guardian_id: UUID, data: GuardianUpdate):
+def update_guardian(request: Request, student_id: UUID, guardian_id: UUID, data: GuardianUpdate):
     """Update a guardian's information."""
     try:
         token = get_token_from_request(request)
@@ -641,7 +641,7 @@ async def update_guardian(request: Request, student_id: UUID, guardian_id: UUID,
         if not student_check.data:
             raise NotFoundError("Student", student_id)
 
-        await require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
+        require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
 
         # Verify guardian exists and belongs to student
         existing = supabase.table('student_guardians').select('*').eq('id', str(guardian_id)).eq(
@@ -679,7 +679,7 @@ async def update_guardian(request: Request, student_id: UUID, guardian_id: UUID,
 
 
 @router.delete("/{student_id}/guardians/{guardian_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_guardian(request: Request, student_id: UUID, guardian_id: UUID):
+def delete_guardian(request: Request, student_id: UUID, guardian_id: UUID):
     """Remove a guardian from a student."""
     try:
         token = get_token_from_request(request)
@@ -708,7 +708,7 @@ async def delete_guardian(request: Request, student_id: UUID, guardian_id: UUID)
         if not student_check.data:
             raise NotFoundError("Student", student_id)
 
-        await require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
+        require_teacher_owns_class(user, student_check.data[0].get('current_class_id'), supabase)
 
         # Verify guardian exists
         existing = supabase.table('student_guardians').select('*').eq('id', str(guardian_id)).eq(

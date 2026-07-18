@@ -31,7 +31,7 @@ router = APIRouter()
 # ============================================
 
 @router.get("/categories", response_model=List[FeeCategory])
-async def get_fee_categories(
+def get_fee_categories(
     is_active: Optional[bool] = None,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -52,7 +52,7 @@ async def get_fee_categories(
 
 
 @router.post("/categories", response_model=FeeCategory, status_code=status.HTTP_201_CREATED)
-async def create_fee_category(
+def create_fee_category(
     data: FeeCategoryCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -78,7 +78,7 @@ async def create_fee_category(
 # ============================================
 
 @router.get("/structures", response_model=List[FeeStructure])
-async def get_fee_structures(
+def get_fee_structures(
     session_id: Optional[str] = None,
     class_id: Optional[str] = None,
     is_active: Optional[bool] = None,
@@ -114,7 +114,7 @@ async def get_fee_structures(
 
 
 @router.post("/structures", response_model=FeeStructure, status_code=status.HTTP_201_CREATED)
-async def create_fee_structure(
+def create_fee_structure(
     data: FeeStructureCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -136,7 +136,7 @@ async def create_fee_structure(
 
 
 @router.put("/structures/{structure_id}", response_model=FeeStructure)
-async def update_fee_structure(
+def update_fee_structure(
     structure_id: str,
     data: FeeStructureUpdate,
     current_user: dict = Depends(get_current_user),
@@ -171,7 +171,7 @@ async def update_fee_structure(
 # ============================================
 
 @router.get("/student-fees", response_model=List[StudentFee])
-async def get_student_fees(
+def get_student_fees(
     student_id: Optional[str] = None,
     session_id: Optional[str] = None,
     status_filter: Optional[str] = Query(None, alias="status"),
@@ -181,7 +181,7 @@ async def get_student_fees(
     """Get student fees"""
 
     if student_id:
-        await PermissionChecker.verify_can_view_student(
+        PermissionChecker.verify_can_view_student(
             current_user, student_id, db, extra_full_access_roles=("bursar",)
         )
     elif current_user["role"] not in ["admin", "system_admin", "bursar"]:
@@ -221,7 +221,7 @@ async def get_student_fees(
 
 
 @router.post("/student-fees", response_model=StudentFee, status_code=status.HTTP_201_CREATED)
-async def assign_fee_to_student(
+def assign_fee_to_student(
     data: StudentFeeCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -246,7 +246,7 @@ async def assign_fee_to_student(
 
 
 @router.post("/student-fees/bulk-assign")
-async def bulk_assign_fees(
+def bulk_assign_fees(
     session_id: str,
     class_id: str,
     fee_structure_ids: List[str],
@@ -305,7 +305,7 @@ async def bulk_assign_fees(
 
 
 @router.post("/student-fees/{fee_id}/waive")
-async def waive_student_fee(
+def waive_student_fee(
     fee_id: str,
     data: StudentFeeWaiver,
     current_user: dict = Depends(get_current_user),
@@ -353,7 +353,7 @@ def generate_receipt_number():
 
 
 @router.get("/payments", response_model=List[Payment])
-async def get_payments(
+def get_payments(
     student_id: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -364,7 +364,7 @@ async def get_payments(
     """Get payments"""
 
     if student_id:
-        await PermissionChecker.verify_can_view_student(
+        PermissionChecker.verify_can_view_student(
             current_user, student_id, db, extra_full_access_roles=("bursar",)
         )
     elif current_user["role"] not in ["admin", "system_admin", "bursar"]:
@@ -403,7 +403,7 @@ async def get_payments(
 
 
 @router.post("/payments", response_model=Payment, status_code=status.HTTP_201_CREATED)
-async def record_payment(
+def record_payment(
     data: PaymentCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -481,7 +481,7 @@ async def record_payment(
 # ============================================
 
 @router.get("/analytics/financial")
-async def get_financial_analytics(
+def get_financial_analytics(
     session_id: str,
     term_id: Optional[str] = None,
     class_id: Optional[str] = None,
@@ -548,7 +548,7 @@ async def get_financial_analytics(
 
 
 @router.get("/analytics/student/{student_id}")
-async def get_student_fees_summary(
+def get_student_fees_summary(
     student_id: str,
     session_id: str,
     current_user: dict = Depends(get_current_user),
@@ -556,7 +556,7 @@ async def get_student_fees_summary(
 ):
     """Get fee summary for a student"""
 
-    await PermissionChecker.verify_can_view_student(
+    PermissionChecker.verify_can_view_student(
         current_user, student_id, db, extra_full_access_roles=("bursar",)
     )
 
@@ -597,7 +597,7 @@ async def get_student_fees_summary(
 
 
 @router.get("/receipts/{receipt_number}")
-async def get_receipt(
+def get_receipt(
     receipt_number: str,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -619,7 +619,7 @@ async def get_receipt(
     receipt = response.data[0]
     student_id = (receipt.get("payments") or {}).get("student_id")
     if student_id:
-        await PermissionChecker.verify_can_view_student(
+        PermissionChecker.verify_can_view_student(
             current_user, student_id, db, extra_full_access_roles=("bursar",)
         )
     elif current_user["role"] not in ["admin", "system_admin", "bursar"]:

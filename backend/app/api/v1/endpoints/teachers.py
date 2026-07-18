@@ -53,7 +53,7 @@ def calculate_years_of_service(employment_date: date) -> int:
 # ============================================
 
 @router.get("", response_model=List[TeacherResponse])
-async def list_teachers(
+def list_teachers(
     request: Request,
     skip: int = 0,
     limit: int = 100,
@@ -132,7 +132,7 @@ async def list_teachers(
 
 
 @router.post("", response_model=TeacherResponse, status_code=status.HTTP_201_CREATED)
-async def create_teacher(request: Request, data: TeacherCreate):
+def create_teacher(request: Request, data: TeacherCreate):
     """Register a new teacher. Only admins can register teachers."""
     try:
         token = get_token_from_request(request)
@@ -232,7 +232,7 @@ async def create_teacher(request: Request, data: TeacherCreate):
 
 
 @router.get("/{teacher_id}", response_model=TeacherResponse)
-async def get_teacher(request: Request, teacher_id: UUID):
+def get_teacher(request: Request, teacher_id: UUID):
     """Get teacher by ID with full details."""
     try:
         token = get_token_from_request(request)
@@ -286,7 +286,7 @@ async def get_teacher(request: Request, teacher_id: UUID):
 
 
 @router.put("/{teacher_id}", response_model=TeacherResponse)
-async def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate):
+def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate):
     """Update teacher details. Only admins can update."""
     try:
         token = get_token_from_request(request)
@@ -340,7 +340,7 @@ async def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate
 
 
 @router.delete("/{teacher_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_teacher(request: Request, teacher_id: UUID):
+def delete_teacher(request: Request, teacher_id: UUID):
     """Delete teacher. Only admins can delete teachers."""
     try:
         token = get_token_from_request(request)
@@ -390,7 +390,7 @@ async def delete_teacher(request: Request, teacher_id: UUID):
 
 
 @router.get("/{teacher_id}/assignments")
-async def get_teacher_assignments(request: Request, teacher_id: UUID):
+def get_teacher_assignments(request: Request, teacher_id: UUID):
     """Get all subject assignments for a teacher."""
     try:
         token = get_token_from_request(request)

@@ -42,10 +42,10 @@ async def lifespan(_: FastAPI):
     print_config_summary()
     
     # Initialize database connections
-    await initialize_database()
+    initialize_database()
 
     # Check database health
-    health = await check_database_health()
+    health = check_database_health()
     if not health["overall"]:
         logger.warning("⚠️  No database connection available. Some features may not work.")
         logger.warning("   Please check your SUPABASE configuration.")
@@ -57,7 +57,7 @@ async def lifespan(_: FastAPI):
     finally:
         # Shutdown
         logger.info("🛑 Shutting down Nigerian LMS Backend...")
-        await cleanup_database()
+        cleanup_database()
         logger.info("✅ Cleanup complete")
 
 
@@ -102,7 +102,7 @@ app.include_router(api_router, prefix="/api/v1")
 # ============================================
 
 @app.get("/")
-async def root():
+def root():
     """
     Root endpoint - API information.
     """
@@ -123,12 +123,12 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+def health_check():
     """
     Health check endpoint for monitoring.
     """
     # Check database health
-    db_health = await check_database_health()
+    db_health = check_database_health()
     
     health_status = {
         "status": "healthy",
@@ -152,7 +152,7 @@ async def health_check():
 
 
 @app.get("/info")
-async def system_info():
+def system_info():
     """
     System information endpoint.
     """
@@ -194,7 +194,7 @@ async def system_info():
 if settings.DEBUG:
     
     @app.get("/debug/config")
-    async def debug_config():
+    def debug_config():
         """
         Debug endpoint to show current configuration.
         Only available in debug mode.
@@ -211,7 +211,7 @@ if settings.DEBUG:
         }
     
     @app.get("/debug/routes")
-    async def debug_routes():
+    def debug_routes():
         """
         Debug endpoint to list all available routes.
         Only available in debug mode.
@@ -235,7 +235,7 @@ if settings.DEBUG:
 # ============================================
 
 @app.get("/error-test")
-async def error_test():
+def error_test():
     """
     Test endpoint to demonstrate error handling.
     """

@@ -42,7 +42,7 @@ def require_admin(user: dict):
 # ============================================
 
 @router.get("", response_model=List[ParentResponse])
-async def list_parents(
+def list_parents(
     request: Request,
     skip: int = 0,
     limit: int = 100,
@@ -104,7 +104,7 @@ async def list_parents(
 
 
 @router.post("", response_model=ParentResponse, status_code=status.HTTP_201_CREATED)
-async def create_parent(request: Request, data: ParentCreate):
+def create_parent(request: Request, data: ParentCreate):
     """Register a new parent. Only admins can register parents."""
     try:
         token = get_token_from_request(request)
@@ -174,7 +174,7 @@ async def create_parent(request: Request, data: ParentCreate):
 
 
 @router.get("/me/children")
-async def get_my_children(request: Request):
+def get_my_children(request: Request):
     """
     Get the calling parent's own linked children. Parent-only self-service
     endpoint - avoids the parent needing to know their own parent_id, and
@@ -232,7 +232,7 @@ async def get_my_children(request: Request):
 
 
 @router.get("/{parent_id}", response_model=ParentResponse)
-async def get_parent(request: Request, parent_id: UUID):
+def get_parent(request: Request, parent_id: UUID):
     """Get parent by ID with full details."""
     try:
         token = get_token_from_request(request)
@@ -278,7 +278,7 @@ async def get_parent(request: Request, parent_id: UUID):
 
 
 @router.put("/{parent_id}", response_model=ParentResponse)
-async def update_parent(request: Request, parent_id: UUID, data: ParentUpdate):
+def update_parent(request: Request, parent_id: UUID, data: ParentUpdate):
     """Update parent details. Only admins can update."""
     try:
         token = get_token_from_request(request)
@@ -325,7 +325,7 @@ async def update_parent(request: Request, parent_id: UUID, data: ParentUpdate):
 
 
 @router.delete("/{parent_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_parent(request: Request, parent_id: UUID):
+def delete_parent(request: Request, parent_id: UUID):
     """Delete parent. Only admins can delete parents."""
     try:
         token = get_token_from_request(request)
@@ -369,7 +369,7 @@ async def delete_parent(request: Request, parent_id: UUID):
 
 
 @router.get("/{parent_id}/children")
-async def get_parent_children(request: Request, parent_id: UUID):
+def get_parent_children(request: Request, parent_id: UUID):
     """Get all children linked to a parent."""
     try:
         token = get_token_from_request(request)
@@ -422,7 +422,7 @@ async def get_parent_children(request: Request, parent_id: UUID):
 
 
 @router.post("/{parent_id}/children", status_code=status.HTTP_201_CREATED)
-async def link_parent_to_student(
+def link_parent_to_student(
     request: Request,
     parent_id: UUID,
     data: ParentStudentLinkCreate
@@ -501,7 +501,7 @@ async def link_parent_to_student(
 
 
 @router.delete("/{parent_id}/children/{student_id}")
-async def unlink_parent_from_student(
+def unlink_parent_from_student(
     request: Request,
     parent_id: UUID,
     student_id: UUID

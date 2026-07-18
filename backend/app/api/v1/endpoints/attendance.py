@@ -29,7 +29,7 @@ router = APIRouter()
 # ============================================
 
 @router.post("/mark", status_code=status.HTTP_201_CREATED)
-async def mark_attendance_bulk(
+def mark_attendance_bulk(
     data: BulkAttendanceEntry,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -50,7 +50,7 @@ async def mark_attendance_bulk(
         
         try:
             # Check if teacher is form teacher of this class
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 teacher_id, data.class_id, supabase
             )
         except AuthorizationError as e:
@@ -86,7 +86,7 @@ async def mark_attendance_bulk(
     ).execute()
     
     # Update attendance summaries
-    await update_attendance_summaries(
+    update_attendance_summaries(
         db,
         current_user["school_id"],
         data.session_id,
@@ -101,7 +101,7 @@ async def mark_attendance_bulk(
 
 
 @router.get("/class/{class_id}/date/{attendance_date}")
-async def get_class_attendance(
+def get_class_attendance(
     class_id: str,
     attendance_date: date,
     current_user: dict = Depends(get_current_user),
@@ -114,7 +114,7 @@ async def get_class_attendance(
         teacher_id = current_user.get("teacher_id")
 
         try:
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 teacher_id, class_id, supabase
             )
         except AuthorizationError as e:
@@ -173,7 +173,7 @@ async def get_class_attendance(
 
 
 @router.get("/student/{student_id}")
-async def get_student_attendance(
+def get_student_attendance(
     student_id: str,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -184,7 +184,7 @@ async def get_student_attendance(
 ):
     """Get attendance history for a student"""
 
-    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+    PermissionChecker.verify_can_view_student(current_user, student_id, db)
 
     query = db.table("attendance_records").select("*").eq(
         "student_id", student_id
@@ -210,7 +210,7 @@ async def get_student_attendance(
 # ============================================
 
 @router.get("/summary/student/{student_id}")
-async def get_student_attendance_summary(
+def get_student_attendance_summary(
     student_id: str,
     session_id: str,
     term_id: str,
@@ -219,7 +219,7 @@ async def get_student_attendance_summary(
 ):
     """Get attendance summary for a student"""
 
-    await PermissionChecker.verify_can_view_student(current_user, student_id, db)
+    PermissionChecker.verify_can_view_student(current_user, student_id, db)
 
     response = db.table("attendance_summaries").select(
         "*, students(admission_number, first_name, last_name)"
@@ -246,7 +246,7 @@ async def get_student_attendance_summary(
 
 
 @router.get("/summary/class/{class_id}")
-async def get_class_attendance_summaries(
+def get_class_attendance_summaries(
     class_id: str,
     session_id: str,
     term_id: str,
@@ -263,7 +263,7 @@ async def get_class_attendance_summaries(
         teacher_id = current_user.get("teacher_id")
 
         try:
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 teacher_id, class_id, supabase
             )
         except AuthorizationError as e:
@@ -313,7 +313,7 @@ async def get_class_attendance_summaries(
 # ============================================
 
 @router.get("/leave-requests", response_model=List[LeaveRequest])
-async def get_leave_requests(
+def get_leave_requests(
     status_filter: Optional[str] = Query(None, alias="status"),
     student_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
@@ -346,7 +346,7 @@ async def get_leave_requests(
 
 
 @router.post("/leave-requests", response_model=LeaveRequest, status_code=status.HTTP_201_CREATED)
-async def create_leave_request(
+def create_leave_request(
     data: LeaveRequestCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -370,7 +370,7 @@ async def create_leave_request(
                 detail="Student not found or has no assigned class"
             )
         try:
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 current_user.get("teacher_id"), class_id, db
             )
         except AuthorizationError as e:
@@ -412,7 +412,7 @@ async def create_leave_request(
 
 
 @router.put("/leave-requests/{request_id}/approve")
-async def approve_leave_request(
+def approve_leave_request(
     request_id: str,
     data: LeaveRequestApproval,
     current_user: dict = Depends(get_current_user),
@@ -451,7 +451,7 @@ async def approve_leave_request(
             )
 
         try:
-            await PermissionChecker.verify_form_teacher_permission(
+            PermissionChecker.verify_form_teacher_permission(
                 current_user.get("teacher_id"), class_id, db
             )
         except AuthorizationError as e:
@@ -487,7 +487,7 @@ async def approve_leave_request(
 # ============================================
 
 @router.get("/settings", response_model=AttendanceSettings)
-async def get_attendance_settings(
+def get_attendance_settings(
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
 ):
@@ -518,7 +518,7 @@ async def get_attendance_settings(
 
 
 @router.post("/settings", response_model=AttendanceSettings, status_code=status.HTTP_201_CREATED)
-async def create_attendance_settings(
+def create_attendance_settings(
     data: AttendanceSettingsCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -540,7 +540,7 @@ async def create_attendance_settings(
 
 
 @router.put("/settings", response_model=AttendanceSettings)
-async def update_attendance_settings(
+def update_attendance_settings(
     data: AttendanceSettingsUpdate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -574,7 +574,7 @@ async def update_attendance_settings(
 # ============================================
 
 @router.get("/holidays", response_model=List[Holiday])
-async def get_holidays(
+def get_holidays(
     session_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -595,7 +595,7 @@ async def get_holidays(
 
 
 @router.post("/holidays", response_model=Holiday, status_code=status.HTTP_201_CREATED)
-async def create_holiday(
+def create_holiday(
     data: HolidayCreate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
@@ -620,7 +620,7 @@ async def create_holiday(
 # HELPER FUNCTIONS
 # ============================================
 
-async def update_attendance_summaries(
+def update_attendance_summaries(
     db,
     organization_id: str,
     session_id: str,

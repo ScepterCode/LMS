@@ -104,7 +104,7 @@ class SchoolRegistrationResponse(BaseModel):
 # ============================================
 
 @router.post("/login", response_model=TokenResponse)
-async def login(response: Response, data: LoginRequest):
+def login(response: Response, data: LoginRequest):
     """
     Login endpoint for all user types (admin, teacher, bursar, parent,
     system_admin). All credentials live in the users table.
@@ -201,7 +201,7 @@ async def login(response: Response, data: LoginRequest):
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(request: Request, response: Response):
+def logout(request: Request, response: Response):
     """
     Logout endpoint - blacklists the token and clears the cookie.
     """
@@ -228,7 +228,7 @@ async def logout(request: Request, response: Response):
 
 
 @router.get("/me", response_model=dict)
-async def get_current_user_profile(request: Request):
+def get_current_user_profile(request: Request):
     """
     Get current user profile from token.
     """
@@ -317,7 +317,7 @@ async def get_current_user_profile(request: Request):
 # ============================================
 
 @router.post("/register-school", response_model=SchoolRegistrationResponse)
-async def register_school(data: SchoolRegistrationRequest):
+def register_school(data: SchoolRegistrationRequest):
     """
     Public endpoint for school registration.
     Creates organization, admin user, and sets up trial subscription.
@@ -453,7 +453,7 @@ async def register_school(data: SchoolRegistrationRequest):
 # ============================================
 
 @router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(email: EmailStr):
+def forgot_password(email: EmailStr):
     """
     Request password reset (placeholder for Phase 2).
     """
@@ -462,7 +462,7 @@ async def forgot_password(email: EmailStr):
 
 
 @router.post("/reset-password", response_model=MessageResponse)
-async def reset_password(token: str, new_password: str):
+def reset_password(token: str, new_password: str):
     """
     Reset password with token (placeholder for Phase 2).
     """

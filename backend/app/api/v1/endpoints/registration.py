@@ -174,7 +174,7 @@ def require_admin(user: dict):
 # ============================================
 
 @router.post("/register-teacher", status_code=status.HTTP_201_CREATED)
-async def register_teacher(request: Request, data: TeacherRegistration):
+def register_teacher(request: Request, data: TeacherRegistration):
     """
     Register a new teacher with user account and profile in one atomic operation.
     Only admins can register teachers.
@@ -281,7 +281,7 @@ async def register_teacher(request: Request, data: TeacherRegistration):
 
 
 @router.post("/register-student", status_code=status.HTTP_201_CREATED)
-async def register_student(request: Request, data: StudentRegistration):
+def register_student(request: Request, data: StudentRegistration):
     """
     Register a new student with optional user account.
     Only admins can register students.
@@ -400,7 +400,7 @@ async def register_student(request: Request, data: StudentRegistration):
 
 
 @router.post("/register-parent", status_code=status.HTTP_201_CREATED)
-async def register_parent(request: Request, data: ParentRegistration):
+def register_parent(request: Request, data: ParentRegistration):
     """
     Register a new parent with user account and profile in one atomic operation.
     Only admins can register parents.

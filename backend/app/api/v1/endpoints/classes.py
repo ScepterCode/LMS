@@ -30,7 +30,7 @@ def require_school_admin(user: dict):
 
 
 @router.get("", response_model=List[ClassResponse])
-async def list_classes(
+def list_classes(
     request: Request,
     skip: int = 0,
     limit: int = 100,
@@ -102,7 +102,7 @@ async def list_classes(
 
 
 @router.post("", response_model=ClassResponse, status_code=status.HTTP_201_CREATED)
-async def create_class(request: Request, data: ClassCreate):
+def create_class(request: Request, data: ClassCreate):
     """Create a new class. Only school admins can create classes."""
     try:
         token = get_token_from_request(request)
@@ -189,7 +189,7 @@ async def create_class(request: Request, data: ClassCreate):
 
 
 @router.get("/{class_id}", response_model=ClassResponse)
-async def get_class(request: Request, class_id: UUID):
+def get_class(request: Request, class_id: UUID):
     """Get class by ID."""
     try:
         token = get_token_from_request(request)
@@ -235,7 +235,7 @@ async def get_class(request: Request, class_id: UUID):
 
 
 @router.put("/{class_id}", response_model=ClassResponse)
-async def update_class(request: Request, class_id: UUID, data: ClassUpdate):
+def update_class(request: Request, class_id: UUID, data: ClassUpdate):
     """Update class. Only school admins can update classes."""
     try:
         token = get_token_from_request(request)
@@ -290,7 +290,7 @@ async def update_class(request: Request, class_id: UUID, data: ClassUpdate):
 
 
 @router.delete("/{class_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_class(request: Request, class_id: UUID):
+def delete_class(request: Request, class_id: UUID):
     """Delete class. Only school admins can delete classes."""
     try:
         token = get_token_from_request(request)
@@ -331,7 +331,7 @@ async def delete_class(request: Request, class_id: UUID):
 
 
 @router.get("/{class_id}/students", response_model=List[dict])
-async def get_class_students(request: Request, class_id: UUID):
+def get_class_students(request: Request, class_id: UUID):
     """Get all students in a class."""
     try:
         token = get_token_from_request(request)

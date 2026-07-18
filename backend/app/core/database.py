@@ -57,7 +57,7 @@ def test_supabase_connection() -> bool:
         return False
 
 
-async def initialize_database():
+def initialize_database():
     """Initialize database connections (Supabase only)."""
     logger.info("Initializing database connections...")
 
@@ -70,12 +70,12 @@ async def initialize_database():
         logger.error("❌ Supabase not configured (SUPABASE_URL/SUPABASE_SERVICE_KEY missing)")
 
 
-async def cleanup_database() -> None:
+def cleanup_database() -> None:
     """Clean up database connections. No-op for the Supabase REST client."""
     logger.info("Database cleanup complete")
 
 
-async def check_database_health() -> Dict[str, Any]:
+def check_database_health() -> Dict[str, Any]:
     """Check database health status."""
     health = {
         "supabase": {

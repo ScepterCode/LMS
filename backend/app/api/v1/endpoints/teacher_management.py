@@ -85,7 +85,7 @@ def require_form_teacher_or_admin(user: dict, class_id: str = None):
 # ============================================
 
 @router.post("/grading-schemes", response_model=GradingSchemeResponse, status_code=status.HTTP_201_CREATED)
-async def create_grading_scheme(request: Request, data: GradingSchemeCreate):
+def create_grading_scheme(request: Request, data: GradingSchemeCreate):
     """Create a new grading scheme with components. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -169,7 +169,7 @@ async def create_grading_scheme(request: Request, data: GradingSchemeCreate):
 
 
 @router.get("/grading-schemes", response_model=List[GradingSchemeResponse])
-async def list_grading_schemes(
+def list_grading_schemes(
     request: Request,
     session_id: Optional[UUID] = None,
     is_active: Optional[bool] = None
@@ -217,7 +217,7 @@ async def list_grading_schemes(
 
 
 @router.get("/grading-schemes/{scheme_id}", response_model=GradingSchemeResponse)
-async def get_grading_scheme(request: Request, scheme_id: UUID):
+def get_grading_scheme(request: Request, scheme_id: UUID):
     """Get a specific grading scheme with its components."""
     try:
         token = get_token_from_request(request)
@@ -257,7 +257,7 @@ async def get_grading_scheme(request: Request, scheme_id: UUID):
 
 
 @router.put("/grading-schemes/{scheme_id}", response_model=GradingSchemeResponse)
-async def update_grading_scheme(request: Request, scheme_id: UUID, data: GradingSchemeUpdate):
+def update_grading_scheme(request: Request, scheme_id: UUID, data: GradingSchemeUpdate):
     """Update a grading scheme. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -320,7 +320,7 @@ async def update_grading_scheme(request: Request, scheme_id: UUID, data: Grading
 
 
 @router.delete("/grading-schemes/{scheme_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_grading_scheme(request: Request, scheme_id: UUID):
+def delete_grading_scheme(request: Request, scheme_id: UUID):
     """Delete a grading scheme. Admin only. Will cascade delete components."""
     try:
         token = get_token_from_request(request)
@@ -360,7 +360,7 @@ async def delete_grading_scheme(request: Request, scheme_id: UUID):
 # ============================================
 
 @router.post("/classes/{class_id}/subjects", response_model=ClassSubjectResponse, status_code=status.HTTP_201_CREATED)
-async def add_subject_to_class(request: Request, class_id: UUID, data: ClassSubjectCreate):
+def add_subject_to_class(request: Request, class_id: UUID, data: ClassSubjectCreate):
     """Add a subject to a class curriculum. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -432,7 +432,7 @@ async def add_subject_to_class(request: Request, class_id: UUID, data: ClassSubj
 
 
 @router.get("/classes/{class_id}/subjects", response_model=List[ClassSubjectResponse])
-async def list_class_subjects(
+def list_class_subjects(
     request: Request,
     class_id: UUID,
     session_id: Optional[UUID] = None
@@ -482,7 +482,7 @@ async def list_class_subjects(
 
 
 @router.delete("/classes/{class_id}/subjects/{subject_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_subject_from_class(
+def remove_subject_from_class(
     request: Request,
     class_id: UUID,
     subject_id: UUID,
@@ -529,7 +529,7 @@ async def remove_subject_from_class(
 # ============================================
 
 @router.post("/teacher-assignments", response_model=TeacherClassAssignmentResponse, status_code=status.HTTP_201_CREATED)
-async def create_teacher_assignment(request: Request, data: TeacherClassAssignmentCreate):
+def create_teacher_assignment(request: Request, data: TeacherClassAssignmentCreate):
     """Assign a teacher to teach a subject in a class. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -626,7 +626,7 @@ async def create_teacher_assignment(request: Request, data: TeacherClassAssignme
 
 
 @router.get("/teacher-assignments", response_model=List[TeacherClassAssignmentResponse])
-async def list_teacher_assignments(
+def list_teacher_assignments(
     request: Request,
     teacher_id: Optional[UUID] = None,
     class_id: Optional[UUID] = None,
@@ -695,7 +695,7 @@ async def list_teacher_assignments(
 
 
 @router.get("/teacher-assignments/{assignment_id}", response_model=TeacherClassAssignmentResponse)
-async def get_teacher_assignment(request: Request, assignment_id: UUID):
+def get_teacher_assignment(request: Request, assignment_id: UUID):
     """Get a specific teacher assignment."""
     try:
         token = get_token_from_request(request)
@@ -742,7 +742,7 @@ async def get_teacher_assignment(request: Request, assignment_id: UUID):
 
 
 @router.put("/teacher-assignments/{assignment_id}", response_model=TeacherClassAssignmentResponse)
-async def update_teacher_assignment(request: Request, assignment_id: UUID, data: TeacherClassAssignmentUpdate):
+def update_teacher_assignment(request: Request, assignment_id: UUID, data: TeacherClassAssignmentUpdate):
     """Update a teacher assignment. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -818,7 +818,7 @@ async def update_teacher_assignment(request: Request, assignment_id: UUID, data:
 
 
 @router.delete("/teacher-assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_teacher_assignment(request: Request, assignment_id: UUID):
+def delete_teacher_assignment(request: Request, assignment_id: UUID):
     """Delete a teacher assignment. Admin only."""
     try:
         token = get_token_from_request(request)
@@ -853,7 +853,7 @@ async def delete_teacher_assignment(request: Request, assignment_id: UUID):
 
 
 @router.get("/teacher-assignments/teacher/{teacher_id}/classes", response_model=List[dict])
-async def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Optional[UUID] = None):
+def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Optional[UUID] = None):
     """Get all classes a teacher is assigned to (with subjects)."""
     try:
         token = get_token_from_request(request)
@@ -904,7 +904,7 @@ async def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Op
 
 
 @router.get("/form-teachers", response_model=List[dict])
-async def list_form_teachers(request: Request, session_id: Optional[UUID] = None):
+def list_form_teachers(request: Request, session_id: Optional[UUID] = None):
     """List all form teachers with their classes."""
     try:
         token = get_token_from_request(request)
@@ -961,7 +961,7 @@ async def list_form_teachers(request: Request, session_id: Optional[UUID] = None
 # ============================================
 
 @router.post("/remarks", response_model=StudentRemarkResponse, status_code=status.HTTP_201_CREATED)
-async def create_student_remark(request: Request, data: StudentRemarkCreate):
+def create_student_remark(request: Request, data: StudentRemarkCreate):
     """Add a remark to a student's report card. Form teacher or admin only."""
     try:
         token = get_token_from_request(request)
@@ -1051,7 +1051,7 @@ async def create_student_remark(request: Request, data: StudentRemarkCreate):
 
 
 @router.get("/remarks/student/{student_id}", response_model=List[StudentRemarkResponse])
-async def get_student_remarks(
+def get_student_remarks(
     request: Request,
     student_id: UUID,
     session_id: Optional[UUID] = None,
@@ -1110,7 +1110,7 @@ async def get_student_remarks(
 
 
 @router.get("/remarks/class/{class_id}", response_model=List[StudentRemarkResponse])
-async def get_class_remarks(
+def get_class_remarks(
     request: Request,
     class_id: UUID,
     session_id: Optional[UUID] = None,
@@ -1166,7 +1166,7 @@ async def get_class_remarks(
 
 
 @router.put("/remarks/{remark_id}", response_model=StudentRemarkResponse)
-async def update_student_remark(request: Request, remark_id: UUID, data: StudentRemarkUpdate):
+def update_student_remark(request: Request, remark_id: UUID, data: StudentRemarkUpdate):
     """Update a student remark. Form teacher or admin only."""
     try:
         token = get_token_from_request(request)
@@ -1221,7 +1221,7 @@ async def update_student_remark(request: Request, remark_id: UUID, data: Student
 
 
 @router.delete("/remarks/{remark_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_student_remark(request: Request, remark_id: UUID):
+def delete_student_remark(request: Request, remark_id: UUID):
     """Delete a student remark. Form teacher or admin only."""
     try:
         token = get_token_from_request(request)
@@ -1267,7 +1267,7 @@ async def delete_student_remark(request: Request, remark_id: UUID):
 # ============================================
 
 @router.post("/reports", response_model=SchoolReportResponse, status_code=status.HTTP_201_CREATED)
-async def create_school_report(request: Request, data: SchoolReportCreate):
+def create_school_report(request: Request, data: SchoolReportCreate):
     """Create and send school report to parents. Form teacher or admin only."""
     try:
         token = get_token_from_request(request)
@@ -1380,7 +1380,7 @@ async def create_school_report(request: Request, data: SchoolReportCreate):
 
 
 @router.get("/reports", response_model=List[SchoolReportResponse])
-async def list_school_reports(
+def list_school_reports(
     request: Request,
     class_id: Optional[UUID] = None,
     session_id: Optional[UUID] = None,
@@ -1450,7 +1450,7 @@ async def list_school_reports(
 
 
 @router.get("/reports/{report_id}", response_model=SchoolReportResponse)
-async def get_school_report(request: Request, report_id: UUID):
+def get_school_report(request: Request, report_id: UUID):
     """Get a specific school report with recipients."""
     try:
         token = get_token_from_request(request)
@@ -1519,7 +1519,7 @@ async def get_school_report(request: Request, report_id: UUID):
 
 
 @router.post("/reports/bulk-send", response_model=SchoolReportResponse, status_code=status.HTTP_201_CREATED)
-async def bulk_send_reports(request: Request, data: BulkReportSend):
+def bulk_send_reports(request: Request, data: BulkReportSend):
     """Send reports to all parents of students in a class. Form teacher or admin only."""
     try:
         token = get_token_from_request(request)
@@ -1564,7 +1564,7 @@ async def bulk_send_reports(request: Request, data: BulkReportSend):
             parent_ids=[UUID(pid) for pid in parent_ids]
         )
         
-        return await create_school_report(request, report_data)
+        return create_school_report(request, report_data)
         
     except (AuthorizationError, ValidationError, DatabaseError):
         raise

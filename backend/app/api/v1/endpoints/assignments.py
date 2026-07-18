@@ -42,7 +42,7 @@ def require_admin(user: dict):
 # ============================================
 
 @router.post("/subject", response_model=SubjectAssignmentResponse, status_code=status.HTTP_201_CREATED)
-async def create_subject_assignment(request: Request, data: SubjectAssignmentCreate):
+def create_subject_assignment(request: Request, data: SubjectAssignmentCreate):
     """Assign a teacher to teach a subject to a class. Only admins can create assignments."""
     try:
         token = get_token_from_request(request)
@@ -154,7 +154,7 @@ async def create_subject_assignment(request: Request, data: SubjectAssignmentCre
 
 
 @router.delete("/subject/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_subject_assignment(request: Request, assignment_id: UUID):
+def delete_subject_assignment(request: Request, assignment_id: UUID):
     """Remove a subject assignment. Only admins can delete assignments."""
     try:
         token = get_token_from_request(request)
@@ -196,7 +196,7 @@ async def delete_subject_assignment(request: Request, assignment_id: UUID):
 # ============================================
 
 @router.post("/enrollment", response_model=ClassEnrollmentResponse, status_code=status.HTTP_201_CREATED)
-async def create_class_enrollment(request: Request, data: ClassEnrollmentCreate):
+def create_class_enrollment(request: Request, data: ClassEnrollmentCreate):
     """Enroll a student in a class. Only admins can create enrollments."""
     try:
         token = get_token_from_request(request)
@@ -292,7 +292,7 @@ async def create_class_enrollment(request: Request, data: ClassEnrollmentCreate)
 
 
 @router.put("/enrollment/{enrollment_id}", response_model=ClassEnrollmentResponse)
-async def update_class_enrollment(request: Request, enrollment_id: UUID, data: ClassEnrollmentUpdate):
+def update_class_enrollment(request: Request, enrollment_id: UUID, data: ClassEnrollmentUpdate):
     """Update class enrollment (e.g., change class or status). Only admins can update."""
     try:
         token = get_token_from_request(request)
@@ -356,7 +356,7 @@ async def update_class_enrollment(request: Request, enrollment_id: UUID, data: C
 
 
 @router.delete("/enrollment/{enrollment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_class_enrollment(request: Request, enrollment_id: UUID):
+def delete_class_enrollment(request: Request, enrollment_id: UUID):
     """Remove a class enrollment. Only admins can delete enrollments."""
     try:
         token = get_token_from_request(request)

@@ -17,7 +17,7 @@ class PermissionChecker:
     """Utility class for checking teacher permissions"""
     
     @staticmethod
-    async def is_form_teacher(teacher_id: str, class_id: str, supabase) -> bool:
+    def is_form_teacher(teacher_id: str, class_id: str, supabase) -> bool:
         """Check if teacher is the form teacher of a class."""
         try:
             response = supabase.table('teacher_class_assignments').select('id').eq(
@@ -30,7 +30,7 @@ class PermissionChecker:
             return False
     
     @staticmethod
-    async def is_subject_teacher(teacher_id: str, subject_id: str, class_id: str, supabase) -> bool:
+    def is_subject_teacher(teacher_id: str, subject_id: str, class_id: str, supabase) -> bool:
         """Check if teacher teaches a subject in a class."""
         try:
             response = supabase.table('teacher_class_assignments').select('id').eq(
@@ -43,7 +43,7 @@ class PermissionChecker:
             return False
     
     @staticmethod
-    async def get_teacher_classes(teacher_id: str, supabase) -> list[dict]:
+    def get_teacher_classes(teacher_id: str, supabase) -> list[dict]:
         """Get all classes where teacher is form teacher."""
         try:
             response = supabase.table('teacher_class_assignments').select(
@@ -56,7 +56,7 @@ class PermissionChecker:
             return []
     
     @staticmethod
-    async def get_teacher_subjects(teacher_id: str, class_id: Optional[str] = None, supabase = None) -> list[dict]:
+    def get_teacher_subjects(teacher_id: str, class_id: Optional[str] = None, supabase = None) -> list[dict]:
         """Get all subjects taught by teacher (optionally in specific class)."""
         try:
             query = supabase.table('teacher_class_assignments').select(
@@ -77,15 +77,15 @@ class PermissionChecker:
             return []
     
     @staticmethod
-    async def can_mark_attendance(teacher_id: str, class_id: str, supabase) -> bool:
+    def can_mark_attendance(teacher_id: str, class_id: str, supabase) -> bool:
         """Form teachers can mark attendance for their class."""
-        return await PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
+        return PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
     
     @staticmethod
-    async def can_add_remark(teacher_id: str, class_id: str, student_id: str, supabase) -> bool:
+    def can_add_remark(teacher_id: str, class_id: str, student_id: str, supabase) -> bool:
         """Form teacher can add remarks for students in their class."""
         # Check 1: Is form teacher
-        if not await PermissionChecker.is_form_teacher(teacher_id, class_id, supabase):
+        if not PermissionChecker.is_form_teacher(teacher_id, class_id, supabase):
             return False
         
         # Check 2: Student is in this class
@@ -100,65 +100,65 @@ class PermissionChecker:
             return False
     
     @staticmethod
-    async def can_view_class_grades(teacher_id: str, class_id: str, supabase) -> bool:
+    def can_view_class_grades(teacher_id: str, class_id: str, supabase) -> bool:
         """Form teacher can view grades for their class."""
-        return await PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
+        return PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
     
     @staticmethod
-    async def can_enter_grades(teacher_id: str, subject_id: str, class_id: str, supabase) -> bool:
+    def can_enter_grades(teacher_id: str, subject_id: str, class_id: str, supabase) -> bool:
         """Subject teacher can enter grades for their subject in assigned classes."""
-        return await PermissionChecker.is_subject_teacher(teacher_id, subject_id, class_id, supabase)
+        return PermissionChecker.is_subject_teacher(teacher_id, subject_id, class_id, supabase)
     
     @staticmethod
-    async def can_send_report(teacher_id: str, class_id: str, supabase) -> bool:
+    def can_send_report(teacher_id: str, class_id: str, supabase) -> bool:
         """Form teacher can send reports for their class."""
-        return await PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
+        return PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
     
     @staticmethod
-    async def can_view_students_in_class(teacher_id: str, class_id: str, supabase) -> bool:
+    def can_view_students_in_class(teacher_id: str, class_id: str, supabase) -> bool:
         """
         Form teacher can view students in their class.
         Subject teacher can view students they teach in assigned classes.
         """
         # Check if form teacher
-        is_form_teacher = await PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
+        is_form_teacher = PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
         if is_form_teacher:
             return True
         
         # Check if subject teacher in any subject
-        assignments = await PermissionChecker.get_teacher_subjects(teacher_id, class_id, supabase)
+        assignments = PermissionChecker.get_teacher_subjects(teacher_id, class_id, supabase)
         return len(assignments) > 0
     
     @staticmethod
-    async def verify_admin_only(user: dict):
+    def verify_admin_only(user: dict):
         """Verify user is school admin or system admin."""
         if user.get("role") not in ["admin", "system_admin"]:
             raise AuthorizationError("Only school administrators can perform this action")
     
     @staticmethod
-    async def verify_teacher_only(user: dict):
+    def verify_teacher_only(user: dict):
         """Verify user is a teacher."""
         if user.get("role") not in ["teacher", "admin", "system_admin"]:
             raise AuthorizationError("Only teachers can access this resource")
     
     @staticmethod
-    async def verify_form_teacher_permission(teacher_id: str, class_id: str, supabase) -> bool:
+    def verify_form_teacher_permission(teacher_id: str, class_id: str, supabase) -> bool:
         """Verify teacher is form teacher of class. Raises exception if not."""
-        is_form_teacher = await PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
+        is_form_teacher = PermissionChecker.is_form_teacher(teacher_id, class_id, supabase)
         if not is_form_teacher:
             raise AuthorizationError(f"You are not the form teacher of this class")
         return True
     
     @staticmethod
-    async def verify_subject_teacher_permission(teacher_id: str, subject_id: str, class_id: str, supabase) -> bool:
+    def verify_subject_teacher_permission(teacher_id: str, subject_id: str, class_id: str, supabase) -> bool:
         """Verify teacher teaches subject in class. Raises exception if not."""
-        is_subject_teacher = await PermissionChecker.is_subject_teacher(teacher_id, subject_id, class_id, supabase)
+        is_subject_teacher = PermissionChecker.is_subject_teacher(teacher_id, subject_id, class_id, supabase)
         if not is_subject_teacher:
             raise AuthorizationError(f"You do not teach {subject_id} in this class")
         return True
 
     @staticmethod
-    async def verify_can_view_student(
+    def verify_can_view_student(
         user: dict, student_id: str, supabase, extra_full_access_roles: tuple = ()
     ) -> None:
         """Verify the caller has a real relationship to this student before
@@ -184,7 +184,7 @@ class PermissionChecker:
             class_id = student.data[0].get("current_class_id") if student.data else None
             if not class_id:
                 raise AuthorizationError("Student not found or has no assigned class")
-            if not await PermissionChecker.is_form_teacher(user.get("teacher_id"), class_id, supabase):
+            if not PermissionChecker.is_form_teacher(user.get("teacher_id"), class_id, supabase):
                 raise AuthorizationError("You are not the form teacher of this student's class")
             return
 

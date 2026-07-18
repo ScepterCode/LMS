@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # DEPENDENCY: Require System Admin
 # ============================================
 
-async def require_system_admin(request: Request):
+def require_system_admin(request: Request):
     """Dependency to require system admin authentication."""
     token = get_token_from_request(request)
     if not token:
@@ -58,7 +58,7 @@ async def require_system_admin(request: Request):
 # ============================================
 
 @router.get("/organizations")
-async def list_organizations(
+def list_organizations(
     current_user = Depends(require_system_admin),
     skip: int = 0,
     limit: int = 100,
@@ -105,7 +105,7 @@ async def list_organizations(
 
 
 @router.get("/organizations/{org_id}")
-async def get_organization(
+def get_organization(
     org_id: str,
     current_user = Depends(require_system_admin),
 ):
@@ -165,7 +165,7 @@ async def get_organization(
 
 
 @router.patch("/organizations/{org_id}/status")
-async def update_organization_status(
+def update_organization_status(
     org_id: str,
     new_status: str,
     current_user = Depends(require_system_admin),
@@ -255,7 +255,7 @@ class SystemAdminOrganizationCreate(BaseModel):
 
 
 @router.post("/organizations", status_code=status.HTTP_201_CREATED)
-async def create_organization_by_system_admin(
+def create_organization_by_system_admin(
     data: SystemAdminOrganizationCreate,
     current_user = Depends(require_system_admin),
 ):
@@ -379,7 +379,7 @@ async def create_organization_by_system_admin(
 # ============================================
 
 @router.get("/analytics")
-async def get_platform_analytics(
+def get_platform_analytics(
     current_user = Depends(require_system_admin),
 ):
     """
@@ -490,7 +490,7 @@ class SubscriptionPlanUpdate(BaseModel):
 
 
 @router.get("/subscription-plans")
-async def list_subscription_plans(
+def list_subscription_plans(
     current_user = Depends(require_system_admin),
 ):
     """
@@ -516,7 +516,7 @@ async def list_subscription_plans(
 
 
 @router.post("/subscription-plans", status_code=status.HTTP_201_CREATED)
-async def create_subscription_plan(
+def create_subscription_plan(
     data: SubscriptionPlanCreate,
     current_user = Depends(require_system_admin),
 ):
@@ -556,7 +556,7 @@ async def create_subscription_plan(
 
 
 @router.put("/subscription-plans/{plan_id}")
-async def update_subscription_plan(
+def update_subscription_plan(
     plan_id: str,
     data: SubscriptionPlanUpdate,
     current_user = Depends(require_system_admin),
@@ -605,7 +605,7 @@ async def update_subscription_plan(
 # ============================================
 
 @router.get("/users")
-async def list_all_users(
+def list_all_users(
     current_user = Depends(require_system_admin),
     skip: int = 0,
     limit: int = 100,
@@ -664,7 +664,7 @@ async def list_all_users(
 # cookie (impersonator_token) rather than discarded, so exiting restores it.
 
 @router.post("/impersonate/exit")
-async def exit_impersonation(request: Request, response: Response):
+def exit_impersonation(request: Request, response: Response):
     """
     End impersonation and restore the system admin's own session.
     Deliberately not gated behind require_system_admin - while impersonating,
@@ -709,7 +709,7 @@ async def exit_impersonation(request: Request, response: Response):
 
 
 @router.post("/impersonate/{user_id}")
-async def start_impersonation(
+def start_impersonation(
     user_id: str,
     request: Request,
     response: Response,
@@ -769,7 +769,7 @@ async def start_impersonation(
 # ============================================
 
 @router.get("/audit-logs")
-async def get_audit_logs(
+def get_audit_logs(
     current_user = Depends(require_system_admin),
     skip: int = 0,
     limit: int = 100,

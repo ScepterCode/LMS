@@ -121,7 +121,7 @@ def _restrict_account_manager_target_role(user: dict, target_role: str):
 # ============================================
 
 @router.get("", response_model=List[UserResponse])
-async def list_users(
+def list_users(
     request: Request,
     skip: int = 0,
     limit: int = 100,
@@ -180,7 +180,7 @@ async def list_users(
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(
+def create_user(
     request: Request,
     data: UserCreate
 ):
@@ -251,7 +251,7 @@ async def create_user(
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-async def get_user(
+def get_user(
     request: Request,
     user_id: str
 ):
@@ -296,7 +296,7 @@ async def get_user(
 
 
 @router.put("/{user_id}", response_model=UserResponse)
-async def update_user(
+def update_user(
     request: Request,
     user_id: str,
     data: UserUpdate
@@ -374,7 +374,7 @@ async def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
+def delete_user(
     request: Request,
     user_id: str
 ):

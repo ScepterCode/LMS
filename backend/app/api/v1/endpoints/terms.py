@@ -40,7 +40,7 @@ def require_admin(user: dict):
 # ============================================
 
 @router.get("", response_model=List[TermResponse])
-async def list_terms(
+def list_terms(
     request: Request,
     session_id: Optional[UUID] = Query(None, description="Filter by session"),
     is_current: Optional[bool] = Query(None, description="Filter by current status")
@@ -95,7 +95,7 @@ async def list_terms(
 
 
 @router.post("", response_model=TermResponse, status_code=status.HTTP_201_CREATED)
-async def create_term(request: Request, data: TermCreate):
+def create_term(request: Request, data: TermCreate):
     """Create a new term. Only admins can create terms."""
     try:
         token = get_token_from_request(request)
@@ -163,7 +163,7 @@ async def create_term(request: Request, data: TermCreate):
 
 
 @router.get("/{term_id}", response_model=TermResponse)
-async def get_term(request: Request, term_id: UUID):
+def get_term(request: Request, term_id: UUID):
     """Get term by ID."""
     try:
         token = get_token_from_request(request)
@@ -202,7 +202,7 @@ async def get_term(request: Request, term_id: UUID):
 
 
 @router.put("/{term_id}", response_model=TermResponse)
-async def update_term(request: Request, term_id: UUID, data: TermUpdate):
+def update_term(request: Request, term_id: UUID, data: TermUpdate):
     """Update term details. Only admins can update."""
     try:
         token = get_token_from_request(request)
@@ -261,7 +261,7 @@ async def update_term(request: Request, term_id: UUID, data: TermUpdate):
 
 
 @router.delete("/{term_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_term(request: Request, term_id: UUID):
+def delete_term(request: Request, term_id: UUID):
     """Delete term. Only admins can delete terms."""
     try:
         token = get_token_from_request(request)
@@ -314,7 +314,7 @@ async def delete_term(request: Request, term_id: UUID):
 
 
 @router.post("/{term_id}/set-current", response_model=TermResponse)
-async def set_current_term(request: Request, term_id: UUID):
+def set_current_term(request: Request, term_id: UUID):
     """Set a term as the current term. Only admins can set current term."""
     try:
         token = get_token_from_request(request)

@@ -45,7 +45,7 @@ def require_school_admin(user: dict):
 # ============================================
 
 @router.get("", response_model=List[AcademicSessionResponse])
-async def list_sessions(
+def list_sessions(
     request: Request,
     skip: int = 0,
     limit: int = 100,
@@ -96,7 +96,7 @@ async def list_sessions(
 
 
 @router.post("", response_model=AcademicSessionResponse, status_code=status.HTTP_201_CREATED)
-async def create_session(
+def create_session(
     request: Request,
     data: AcademicSessionCreate
 ):
@@ -163,7 +163,7 @@ async def create_session(
 
 
 @router.get("/{session_id}", response_model=AcademicSessionResponse)
-async def get_session(
+def get_session(
     request: Request,
     session_id: UUID
 ):
@@ -206,7 +206,7 @@ async def get_session(
 
 
 @router.put("/{session_id}", response_model=AcademicSessionResponse)
-async def update_session(
+def update_session(
     request: Request,
     session_id: UUID,
     data: AcademicSessionUpdate
@@ -271,7 +271,7 @@ async def update_session(
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_session(
+def delete_session(
     request: Request,
     session_id: UUID
 ):
@@ -315,7 +315,7 @@ async def delete_session(
 
 
 @router.post("/{session_id}/set-current", response_model=AcademicSessionResponse)
-async def set_current_session(
+def set_current_session(
     request: Request,
     session_id: UUID
 ):
