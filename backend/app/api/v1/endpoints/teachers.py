@@ -48,6 +48,40 @@ def calculate_years_of_service(employment_date: date) -> int:
     return max(0, years)
 
 
+INACTIVE_STATUSES = ("terminated", "retired")
+
+
+def _apply_status_side_effects(supabase, teacher: dict, old_status: str, new_status: str) -> None:
+    """Termination/retirement should actually revoke access, not just relabel it.
+
+    Transitioning into terminated/retired: block login and free up the
+    teacher's current-session class/subject assignments so someone else can
+    be assigned right away. Past terms/sessions are left untouched so
+    existing grades and report cards still attribute correctly. Moving back
+    to active (e.g. a rehire) restores login access.
+    """
+    if old_status == new_status:
+        return
+
+    if new_status in INACTIVE_STATUSES and old_status not in INACTIVE_STATUSES:
+        supabase.table('users').update({'is_active': False}).eq('id', teacher['user_id']).execute()
+
+        current_session = supabase.table('academic_sessions').select('id').eq(
+            'organization_id', teacher['organization_id']
+        ).eq('is_current', True).execute()
+
+        if current_session.data:
+            supabase.table('teacher_class_assignments').delete().eq(
+                'teacher_id', teacher['id']
+            ).eq('session_id', current_session.data[0]['id']).execute()
+
+        logger.info(f"Teacher {teacher['id']} marked {new_status}: login deactivated, current-session assignments cleared")
+
+    elif new_status == "active" and old_status in INACTIVE_STATUSES:
+        supabase.table('users').update({'is_active': True}).eq('id', teacher['user_id']).execute()
+        logger.info(f"Teacher {teacher['id']} reactivated: login restored")
+
+
 # ============================================
 # TEACHER ENDPOINTS
 # ============================================
@@ -317,14 +351,19 @@ def update_teacher(request: Request, teacher_id: UUID, data: TeacherUpdate):
         update_data = {k: v for k, v in data.model_dump(mode="json", exclude_unset=True).items() if v is not None}
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
-            
+
             result = supabase.table('teachers').update(update_data).eq('id', str(teacher_id)).execute()
-            
+
             if not result.data:
                 raise DatabaseError("Failed to update teacher")
-            
+
             logger.info(f"Updated teacher: {teacher_id}")
-            
+
+            if 'status' in update_data:
+                _apply_status_side_effects(
+                    supabase, existing.data[0], existing.data[0]['status'], update_data['status']
+                )
+
             updated_teacher = result.data[0]
             updated_teacher['full_name'] = f"{updated_teacher['first_name']} {updated_teacher.get('middle_name') or ''} {updated_teacher['last_name']}".replace('  ', ' ')
             
