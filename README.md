@@ -1,4 +1,4 @@
-# 🎓 Nigerian LMS - Learning Management System
+# 🎓 Learnlyf - Learning Management System
 
 A modern, full-stack Learning Management System built specifically for Nigerian schools.
 
@@ -50,7 +50,7 @@ npm run dev
 
 ### System Administrator
 ```
-Email: admin@nigerianlms.com
+Email: admin@learnlyf.com
 Password: Admin123!@#
 ```
 
@@ -141,7 +141,7 @@ Password: Admin123!@#
 ## 📁 Project Structure
 
 ```
-nigerian-lms/
+learnlyf/
 │
 ├── backend/                    # FastAPI Backend
 │   ├── app/

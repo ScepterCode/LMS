@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 4: Complete Schema - Teacher Class Management
--- Nigerian School Management System
+-- Learnlyf
 -- 
 -- This schema includes:
 -- 1. Class-Subject Relationships (Curriculum)

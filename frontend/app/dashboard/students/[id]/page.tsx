@@ -166,7 +166,7 @@ export default function StudentDetailPage() {
         <nav className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
-              <h1 className="text-xl font-bold text-blue-600">Nigerian LMS</h1>
+              <h1 className="text-xl font-bold text-blue-600">Learnlyf</h1>
               <div className="flex items-center gap-6">
                 <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
                 <Link href="/dashboard/students" className="text-sm font-medium text-gray-900">Students</Link>

@@ -1,5 +1,5 @@
 """
-Organizations endpoints for Nigerian LMS.
+Organizations endpoints for Learnlyf.
 School-level administration and management.
 """
 

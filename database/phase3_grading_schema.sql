@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 3A: Grading & Assessment System Schema
--- Nigerian School Management System
+-- Learnlyf
 -- =====================================================
 
 -- Assessment Types (CA1, CA2, Midterm, Exam, etc.)

@@ -6,7 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Nigerian LMS - Learning Management System',
+  title: 'Learnlyf - Learning Management System',
   description: 'Modern learning management system for Nigerian schools',
 };
 

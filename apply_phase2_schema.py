@@ -23,7 +23,7 @@ def apply_phase2_schema():
         sys.exit(1)
     
     print("=" * 60)
-    print("NIGERIAN LMS - PHASE 2 SCHEMA APPLICATION")
+    print("LEARNLYF - PHASE 2 SCHEMA APPLICATION")
     print("=" * 60)
     print(f"Supabase URL: {supabase_url}")
     print()

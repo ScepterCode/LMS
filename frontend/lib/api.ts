@@ -1,5 +1,5 @@
 /**
- * API client for Nigerian LMS
+ * API client for Learnlyf
  */
 
 // Always same-origin: next.config.ts rewrites /api/v1/* to the backend so

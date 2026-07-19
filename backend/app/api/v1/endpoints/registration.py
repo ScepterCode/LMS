@@ -1,5 +1,5 @@
 """
-Integrated Registration endpoints for Nigerian LMS.
+Integrated Registration endpoints for Learnlyf.
 Combined user + profile creation in atomic transactions.
 """
 

@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 5: Report Card Enhancements
--- Nigerian School Management System
+-- Learnlyf
 --
 -- This schema adds school branding (logo/motto) to organizations,
 -- snapshots full attendance detail onto report cards, and adds an

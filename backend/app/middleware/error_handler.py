@@ -1,5 +1,5 @@
 """
-Error handling middleware for Nigerian LMS.
+Error handling middleware for Learnlyf.
 Provides consistent error responses across the application.
 """
 
@@ -11,7 +11,7 @@ import logging
 import traceback
 
 from app.core.config import settings
-from app.core.exceptions import NigerianLMSException, create_error_response
+from app.core.exceptions import LearnlyfException, create_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +21,11 @@ def setup_exception_handlers(app: FastAPI):
     Setup exception handlers for the FastAPI application.
     """
     
-    @app.exception_handler(NigerianLMSException)
-    async def nigerian_lms_exception_handler(request: Request, exc: NigerianLMSException):
-        """Handle custom Nigerian LMS exceptions."""
+    @app.exception_handler(LearnlyfException)
+    async def learnlyf_exception_handler(request: Request, exc: LearnlyfException):
+        """Handle custom Learnlyf exceptions."""
         logger.error(
-            f"NigerianLMSException: {exc.error_code} - {exc.detail}",
+            f"LearnlyfException: {exc.error_code} - {exc.detail}",
             extra={
                 "path": request.url.path,
                 "method": request.method,

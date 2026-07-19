@@ -1,5 +1,5 @@
 """
-Configuration settings for the Nigerian LMS backend.
+Configuration settings for the Learnlyf backend.
 Uses pydantic-settings for environment variable management.
 """
 
@@ -102,7 +102,7 @@ if settings.JWT_SECRET == "your-super-secret-jwt-key-change-in-production":
 def print_config_summary():
     """Print a summary of the current configuration."""
     print("\n" + "=" * 60)
-    print("NIGERIAN LMS - CONFIGURATION SUMMARY")
+    print("LEARNLYF - CONFIGURATION SUMMARY")
     print("=" * 60)
     print(f"Environment: {settings.ENVIRONMENT}")
     print(f"Debug Mode: {settings.DEBUG}")

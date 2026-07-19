@@ -7,7 +7,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-blue-600">Nigerian LMS</h1>
+              <h1 className="text-2xl font-bold text-blue-600">Learnlyf</h1>
             </div>
             <div className="flex gap-4">
               <Link
@@ -110,7 +110,7 @@ export default function HomePage() {
       <footer className="bg-white border-t mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <p className="text-center text-gray-600">
-            © 2026 Nigerian LMS. All rights reserved.
+            © 2026 Learnlyf. All rights reserved.
           </p>
         </div>
       </footer>

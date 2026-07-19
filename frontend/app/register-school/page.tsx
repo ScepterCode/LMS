@@ -74,7 +74,7 @@ export default function RegisterSchoolPage() {
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
           <Link href="/">
-            <h1 className="text-3xl font-bold text-blue-600 mb-2">Nigerian LMS</h1>
+            <h1 className="text-3xl font-bold text-blue-600 mb-2">Learnlyf</h1>
           </Link>
           <p className="text-gray-600">Register your school - Start 14-day free trial</p>
         </div>

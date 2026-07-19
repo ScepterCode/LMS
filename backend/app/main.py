@@ -1,5 +1,5 @@
 """
-Main FastAPI application for Nigerian LMS.
+Main FastAPI application for Learnlyf.
 This is the entry point for the backend API.
 """
 
@@ -38,7 +38,7 @@ async def lifespan(_: FastAPI):
     Lifespan context manager for startup and shutdown events.
     """
     # Startup
-    logger.info("Starting Nigerian LMS Backend...")
+    logger.info("Starting Learnlyf Backend...")
     print_config_summary()
     
     # Initialize database connections
@@ -56,15 +56,15 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         # Shutdown
-        logger.info("🛑 Shutting down Nigerian LMS Backend...")
+        logger.info("🛑 Shutting down Learnlyf Backend...")
         cleanup_database()
         logger.info("✅ Cleanup complete")
 
 
 # Create FastAPI application
 app = FastAPI(
-    title="Nigerian LMS API",
-    description="Backend API for Nigerian Learning Management System - Phase 1 MVP",
+    title="Learnlyf API",
+    description="Backend API for Learnlyf - Phase 1 MVP",
     version="1.0.0",
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
@@ -107,7 +107,7 @@ def root():
     Root endpoint - API information.
     """
     return {
-        "message": "Welcome to Nigerian LMS API",
+        "message": "Welcome to Learnlyf API",
         "version": "1.0.0",
         "status": "active",
         "phase": "MVP - Phase 1",
@@ -168,7 +168,7 @@ def system_info():
             "memory_available": psutil.virtual_memory().available,
         },
         "application": {
-            "name": "Nigerian LMS",
+            "name": "Learnlyf",
             "version": "1.0.0",
             "environment": settings.ENVIRONMENT,
             "debug": settings.DEBUG,

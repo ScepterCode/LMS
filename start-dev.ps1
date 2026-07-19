@@ -1,8 +1,8 @@
-# Nigerian LMS - Development Startup Script
+# Learnlyf - Development Startup Script
 # This script starts both backend and frontend servers
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "   Nigerian LMS - Phase 1 MVP" -ForegroundColor Cyan
+Write-Host "   Learnlyf - Phase 1 MVP" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -18,7 +18,7 @@ if (-not (Test-Path "frontend")) {
     exit 1
 }
 
-Write-Host "📋 Starting Nigerian LMS..." -ForegroundColor Green
+Write-Host "📋 Starting Learnlyf..." -ForegroundColor Green
 Write-Host ""
 
 # Function to start backend
@@ -48,7 +48,7 @@ Write-Host "📚 API Docs: http://127.0.0.1:8000/docs" -ForegroundColor Cyan
 Write-Host "📚 Health Check: http://127.0.0.1:8000/health" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "🔑 Demo Accounts:" -ForegroundColor Yellow
-Write-Host "   System Admin: admin@nigerianlms.com / Admin123!@#" -ForegroundColor White
+Write-Host "   System Admin: admin@learnlyf.com / Admin123!@#" -ForegroundColor White
 Write-Host "   School Admin: admin@demo-school.com / Admin123!@#" -ForegroundColor White
 Write-Host ""
 Write-Host "⏳ Waiting for servers to start..." -ForegroundColor Yellow

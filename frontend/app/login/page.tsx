@@ -44,7 +44,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <Link href="/">
-            <h1 className="text-3xl font-bold text-blue-600 mb-2">Nigerian LMS</h1>
+            <h1 className="text-3xl font-bold text-blue-600 mb-2">Learnlyf</h1>
           </Link>
           <p className="text-gray-600">Sign in to your account</p>
         </div>

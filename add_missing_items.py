@@ -70,7 +70,7 @@ ALTER TABLE campuses ENABLE ROW LEVEL SECURITY;
         print("\n📋 Step 2: Adding system admin account...")
         
         # Check if system admin exists
-        response = client.table('users').select('id').eq('email', 'admin@nigerianlms.com').execute()
+        response = client.table('users').select('id').eq('email', 'admin@learnlyf.com').execute()
         
         if response.data:
             print("   ℹ️  System admin already exists")
@@ -80,7 +80,7 @@ ALTER TABLE campuses ENABLE ROW LEVEL SECURITY;
             
             admin_data = {
                 'id': 'c520e1ba-8289-42b4-a242-85e501cfcc43',
-                'email': 'admin@nigerianlms.com',
+                'email': 'admin@learnlyf.com',
                 'password_hash': password_hash,
                 'full_name': 'System Administrator',
                 'role': 'system_admin',
@@ -91,7 +91,7 @@ ALTER TABLE campuses ENABLE ROW LEVEL SECURITY;
             try:
                 response = client.table('users').insert(admin_data).execute()
                 print("   ✅ System admin created!")
-                print(f"      Email: admin@nigerianlms.com")
+                print(f"      Email: admin@learnlyf.com")
                 print(f"      Password: Admin123!@#")
                 
                 # Add to system_admins table
@@ -231,7 +231,7 @@ ALTER TABLE campuses ENABLE ROW LEVEL SECURITY;
         print()
         print("📝 Default Accounts:")
         print("   System Admin:")
-        print("     Email: admin@nigerianlms.com")
+        print("     Email: admin@learnlyf.com")
         print("     Password: Admin123!@#")
         print()
         print("   Demo School Admin:")

@@ -2,7 +2,7 @@
 # This will open two new terminal windows for backend and frontend
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  STARTING NIGERIAN LMS SERVERS" -ForegroundColor Cyan
+Write-Host "  STARTING LEARNLYF SERVERS" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 $backendPath = "c:\Users\DELL\Downloads\LMS\backend"

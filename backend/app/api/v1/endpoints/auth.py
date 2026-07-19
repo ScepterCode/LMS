@@ -1,5 +1,5 @@
 """
-Authentication endpoints for Nigerian LMS.
+Authentication endpoints for Learnlyf.
 Handles login, logout, registration, and user profile.
 """
 

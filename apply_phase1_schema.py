@@ -118,7 +118,7 @@ def apply_schema():
         print("\n📝 Next steps:")
         print("  1. Start backend server: uvicorn app.main:app --reload --host 127.0.0.1 --port 8000")
         print("  2. Start frontend server: npm run dev")
-        print("  3. Test login with: admin@nigerianlms.com / Admin123!@#")
+        print("  3. Test login with: admin@learnlyf.com / Admin123!@#")
         
     except psycopg2.OperationalError as e:
         print(f"❌ Database connection failed: {e}")
@@ -134,7 +134,7 @@ def apply_schema():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("NIGERIAN LMS - PHASE 1 MVP DATABASE SETUP")
+    print("LEARNLYF - PHASE 1 MVP DATABASE SETUP")
     print("=" * 60)
     print()
     

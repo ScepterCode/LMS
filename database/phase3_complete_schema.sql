@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 3: Complete Schema - All High Priority Features
--- Nigerian School Management System
+-- Learnlyf
 -- 
 -- This schema includes:
 -- 1. Grading & Assessment System (8 tables)

@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 4: Teacher Class Management Features
--- Nigerian School Management System
+-- Learnlyf
 --
 -- This schema adds form teacher management, configurable grading schemes,
 -- class-subject relationships, and report capabilities.

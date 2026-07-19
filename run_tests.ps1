@@ -1,9 +1,9 @@
-# Quick Test Runner for Nigerian LMS
+# Quick Test Runner for Learnlyf
 # This script helps you test the system
 
 Write-Host "`n" -NoNewline
 Write-Host "=====================================================================" -ForegroundColor Blue
-Write-Host "           NIGERIAN LMS - TESTING HELPER SCRIPT" -ForegroundColor Blue
+Write-Host "           LEARNLYF - TESTING HELPER SCRIPT" -ForegroundColor Blue
 Write-Host "=====================================================================" -ForegroundColor Blue
 Write-Host "`n"
 

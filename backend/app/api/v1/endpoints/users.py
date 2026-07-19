@@ -1,5 +1,5 @@
 """
-User Management endpoints for Nigerian LMS.
+User Management endpoints for Learnlyf.
 Handles CRUD operations for user accounts.
 """
 

@@ -60,7 +60,7 @@ def main():
         # Try to get system admin
         print("\n🔍 Checking for system admin account:")
         try:
-            response = client.table('users').select('email, full_name, role').eq('email', 'admin@nigerianlms.com').execute()
+            response = client.table('users').select('email, full_name, role').eq('email', 'admin@learnlyf.com').execute()
             if response.data:
                 admin = response.data[0]
                 print(f"  ✅ Found: {admin['full_name']} ({admin['email']})")

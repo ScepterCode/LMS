@@ -261,7 +261,7 @@ def check_database_schema():
         
         # Check if default data exists
         try:
-            response = client.table('users').select('email').eq('email', 'admin@nigerianlms.com').execute()
+            response = client.table('users').select('email').eq('email', 'admin@learnlyf.com').execute()
             if response.data:
                 print_success("System admin account exists")
             else:
@@ -280,7 +280,7 @@ def check_database_schema():
 
 def main():
     """Run all checks."""
-    print_header("NIGERIAN LMS - BACKEND SETUP TEST")
+    print_header("LEARNLYF - BACKEND SETUP TEST")
     
     checks = [
         ("Python Version", check_python_version),

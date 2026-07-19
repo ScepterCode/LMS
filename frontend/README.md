@@ -1,6 +1,6 @@
-# Nigerian LMS - Frontend
+# Learnlyf - Frontend
 
-Next.js 15 frontend for the Nigerian Learning Management System.
+Next.js 15 frontend for Learnlyf.
 
 ## 🚀 Quick Start
 
@@ -31,7 +31,7 @@ The application will be available at: `http://localhost:3000`
 ## 🔑 Demo Accounts
 
 ### System Admin
-- **Email**: admin@nigerianlms.com
+- **Email**: admin@learnlyf.com
 - **Password**: Admin123!@#
 - **Access**: Platform administration dashboard
 
@@ -178,7 +178,7 @@ npm run lint
 
 ```env
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-NEXT_PUBLIC_APP_NAME=Nigerian LMS
+NEXT_PUBLIC_APP_NAME=Learnlyf
 NEXT_PUBLIC_APP_VERSION=1.0.0
 ```
 

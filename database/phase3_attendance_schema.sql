@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 3B: Attendance Management Schema
--- Nigerian School Management System
+-- Learnlyf
 -- =====================================================
 
 -- Daily Attendance Records

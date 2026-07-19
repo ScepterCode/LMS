@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 3C: Fee Management Schema
--- Nigerian School Management System
+-- Learnlyf
 -- =====================================================
 
 -- Fee Categories (Types of fees)

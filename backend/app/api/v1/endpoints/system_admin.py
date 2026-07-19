@@ -1,5 +1,5 @@
 """
-System Admin endpoints for Nigerian LMS.
+System Admin endpoints for Learnlyf.
 Platform-level administration and analytics.
 """
 

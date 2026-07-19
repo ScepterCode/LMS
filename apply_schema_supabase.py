@@ -107,7 +107,7 @@ def verify_schema(client):
         
         # Check system admin
         try:
-            response = client.table('users').select('email, full_name, role').eq('email', 'admin@nigerianlms.com').execute()
+            response = client.table('users').select('email, full_name, role').eq('email', 'admin@learnlyf.com').execute()
             if response.data:
                 print(f"  ✅ System admin: {response.data[0]['full_name']} ({response.data[0]['email']})")
             else:
@@ -138,7 +138,7 @@ def verify_schema(client):
         print("\n📝 Next steps:")
         print("  1. Start backend server: cd backend && uvicorn app.main:app --reload --host 127.0.0.1 --port 8000")
         print("  2. Open API docs: http://127.0.0.1:8000/docs")
-        print("  3. Test login with: admin@nigerianlms.com / Admin123!@#")
+        print("  3. Test login with: admin@learnlyf.com / Admin123!@#")
         
         return True
         
@@ -149,7 +149,7 @@ def verify_schema(client):
 def main():
     """Main function"""
     print("=" * 60)
-    print("NIGERIAN LMS - PHASE 1 MVP DATABASE SETUP")
+    print("LEARNLYF - PHASE 1 MVP DATABASE SETUP")
     print("(Supabase Client Version)")
     print("=" * 60)
     print()

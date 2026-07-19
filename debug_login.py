@@ -29,7 +29,7 @@ def main():
     print()
     
     # Query for user
-    email = 'admin@nigerianlms.com'
+    email = 'admin@learnlyf.com'
     print(f"Querying for user: {email}")
     
     try:

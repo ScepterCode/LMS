@@ -128,7 +128,7 @@ CREATE INDEX idx_campuses_organization ON campuses(organization_id);
 INSERT INTO users (id, email, password_hash, full_name, role, is_active, email_verified) VALUES
 (
     'c520e1ba-8289-42b4-a242-85e501cfcc43',
-    'admin@nigerianlms.com',
+    'admin@learnlyf.com',
     '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', -- Admin123!@#
     'System Administrator',
     'system_admin',

@@ -390,7 +390,7 @@ export default function Sidebar({ isOpen, onNavigate }: SidebarProps) {
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
           <Link href="/dashboard" className="flex items-center" onClick={onNavigate}>
-            <span className="text-xl font-bold text-brand-600">Nigerian LMS</span>
+            <span className="text-xl font-bold text-brand-600">Learnlyf</span>
           </Link>
           <button
             onClick={onNavigate}

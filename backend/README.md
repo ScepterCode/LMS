@@ -1,6 +1,6 @@
-# Nigerian LMS Backend - Phase 1 MVP
+# Learnlyf Backend - Phase 1 MVP
 
-FastAPI backend for the Nigerian Learning Management System.
+FastAPI backend for Learnlyf.
 
 ## 🚀 Quick Start
 
@@ -52,7 +52,7 @@ Once the server is running, visit:
 ## 🔑 Default Credentials
 
 ### System Admin
-- Email: `admin@nigerianlms.com`
+- Email: `admin@learnlyf.com`
 - Password: `Admin123!@#`
 
 ### Demo School Admin

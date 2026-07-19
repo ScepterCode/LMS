@@ -1,5 +1,5 @@
 -- ============================================
--- NIGERIAN LMS - PHASE 2 DATABASE SCHEMA
+-- LEARNLYF - PHASE 2 DATABASE SCHEMA
 -- Core School Management Tables
 -- ============================================
 

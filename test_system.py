@@ -1,5 +1,5 @@
 """
-Automated System Testing Script for Nigerian LMS
+Automated System Testing Script for Learnlyf
 Tests all major features and endpoints
 """
 
@@ -431,7 +431,7 @@ class LMSTester:
     def run_all_tests(self):
         """Run all test suites"""
         print(f"\n{Colors.BOLD}{Colors.BLUE}{'*' * 70}{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.BLUE}{'NIGERIAN LMS - AUTOMATED SYSTEM TEST'.center(70)}{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.BLUE}{'LEARNLYF - AUTOMATED SYSTEM TEST'.center(70)}{Colors.RESET}")
         start_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f"{Colors.BOLD}{Colors.BLUE}{f'Started: {start_time}'.center(70)}{Colors.RESET}")
         print(f"{Colors.BOLD}{Colors.BLUE}{'*' * 70}{Colors.RESET}")

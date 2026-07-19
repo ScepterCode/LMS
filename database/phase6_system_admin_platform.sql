@@ -1,6 +1,6 @@
 -- =====================================================
 -- Phase 6: System Admin Platform Dashboard
--- Nigerian School Management System
+-- Learnlyf
 --
 -- Adds platform-level audit logging so system-admin actions that cross
 -- organization boundaries (suspending a school, editing/deactivating a

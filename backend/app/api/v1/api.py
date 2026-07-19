@@ -1,5 +1,5 @@
 """
-API router for version 1 of the Nigerian LMS API.
+API router for version 1 of the Learnlyf API.
 This module combines all endpoint routers.
 """
 

@@ -1,5 +1,5 @@
 """
-Custom exceptions for the Nigerian LMS application.
+Custom exceptions for the Learnlyf application.
 Provides consistent error handling across the application.
 """
 
@@ -7,8 +7,8 @@ from fastapi import HTTPException, status
 from typing import Optional, Any, Dict
 
 
-class NigerianLMSException(HTTPException):
-    """Base exception for Nigerian LMS application."""
+class LearnlyfException(HTTPException):
+    """Base exception for Learnlyf application."""
     
     def __init__(
         self,
@@ -25,7 +25,7 @@ class NigerianLMSException(HTTPException):
 # AUTHENTICATION EXCEPTIONS
 # ============================================
 
-class AuthenticationError(NigerianLMSException):
+class AuthenticationError(LearnlyfException):
     """Authentication related errors."""
     
     def __init__(
@@ -40,7 +40,7 @@ class AuthenticationError(NigerianLMSException):
         )
 
 
-class AuthorizationError(NigerianLMSException):
+class AuthorizationError(LearnlyfException):
     """Authorization related errors (403 Forbidden)."""
     
     def __init__(
@@ -85,7 +85,7 @@ class InvalidTokenError(AuthenticationError):
         )
 
 
-class InsufficientPermissionsError(NigerianLMSException):
+class InsufficientPermissionsError(LearnlyfException):
     """User doesn't have required permissions."""
     
     def __init__(
@@ -104,7 +104,7 @@ class InsufficientPermissionsError(NigerianLMSException):
 # VALIDATION EXCEPTIONS
 # ============================================
 
-class ValidationError(NigerianLMSException):
+class ValidationError(LearnlyfException):
     """Data validation errors."""
     
     def __init__(
@@ -163,7 +163,7 @@ class InvalidRoleError(ValidationError):
 # DATABASE EXCEPTIONS
 # ============================================
 
-class DatabaseError(NigerianLMSException):
+class DatabaseError(LearnlyfException):
     """Database related errors."""
 
     def __init__(
@@ -190,7 +190,7 @@ class RecordNotFoundError(DatabaseError):
         )
 
 
-class NotFoundError(NigerianLMSException):
+class NotFoundError(LearnlyfException):
     """Resource not found (404)."""
     
     def __init__(self, resource_type: str, resource_id: Any):
@@ -226,7 +226,7 @@ class ConnectionError(DatabaseError):
 # BUSINESS LOGIC EXCEPTIONS
 # ============================================
 
-class BusinessLogicError(NigerianLMSException):
+class BusinessLogicError(LearnlyfException):
     """Business logic related errors."""
     
     def __init__(
@@ -286,7 +286,7 @@ class OrganizationSuspendedError(BusinessLogicError):
 # EXTERNAL SERVICE EXCEPTIONS
 # ============================================
 
-class ExternalServiceError(NigerianLMSException):
+class ExternalServiceError(LearnlyfException):
     """External service errors (email, SMS, payment, etc.)."""
     
     def __init__(
@@ -335,17 +335,17 @@ class PaymentServiceError(ExternalServiceError):
 # HELPER FUNCTIONS
 # ============================================
 
-def handle_exception(exception: Exception) -> NigerianLMSException:
+def handle_exception(exception: Exception) -> LearnlyfException:
     """
-    Convert generic exceptions to NigerianLMSException.
+    Convert generic exceptions to LearnlyfException.
     
     Args:
         exception: The original exception
         
     Returns:
-        NigerianLMSException: Appropriate application exception
+        LearnlyfException: Appropriate application exception
     """
-    if isinstance(exception, NigerianLMSException):
+    if isinstance(exception, LearnlyfException):
         return exception
     
     # Map common exceptions
@@ -359,14 +359,14 @@ def handle_exception(exception: Exception) -> NigerianLMSException:
         return ConnectionError()
     
     # Default to generic error
-    return NigerianLMSException(
+    return LearnlyfException(
         detail=str(exception) or "An unexpected error occurred",
         error_code="UNEXPECTED_ERROR",
     )
 
 
 def create_error_response(
-    exception: NigerianLMSException,
+    exception: LearnlyfException,
     include_traceback: bool = False,
 ) -> Dict[str, Any]:
     """

@@ -1,9 +1,9 @@
 @echo off
-REM Nigerian LMS - Development Startup Script (CMD Version)
+REM Learnlyf - Development Startup Script (CMD Version)
 REM This script starts both backend and frontend servers
 
 echo ========================================
-echo    Nigerian LMS - Phase 1 MVP
+echo    Learnlyf - Phase 1 MVP
 echo ========================================
 echo.
 
@@ -25,7 +25,7 @@ echo Frontend: http://localhost:3000
 echo API Docs: http://127.0.0.1:8000/docs
 echo.
 echo Demo Accounts:
-echo   System Admin: admin@nigerianlms.com / Admin123!@#
+echo   System Admin: admin@learnlyf.com / Admin123!@#
 echo   School Admin: admin@demo-school.com / Admin123!@#
 echo.
 echo Press any key to open the application in browser...

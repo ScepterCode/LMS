@@ -1,5 +1,5 @@
 /**
- * Utility functions for the Nigerian LMS frontend
+ * Utility functions for the Learnlyf frontend
  */
 
 /**
