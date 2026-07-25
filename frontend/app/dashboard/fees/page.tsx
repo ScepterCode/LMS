@@ -12,7 +12,9 @@ interface FeeCategory {
   id: string;
   name: string;
   code: string;
+  description?: string;
   is_mandatory: boolean;
+  is_active: boolean;
 }
 
 interface FeeStructure {
@@ -45,6 +47,13 @@ export default function FeeManagementPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<FeeCategory | null>(null);
+  const [editCategoryForm, setEditCategoryForm] = useState({
+    name: '',
+    description: '',
+    is_mandatory: true,
+    is_active: true,
+  });
   const [showStructureModal, setShowStructureModal] = useState(false);
 
   const [categoryForm, setCategoryForm] = useState({
@@ -123,6 +132,33 @@ export default function FeeManagementPage() {
     } catch (error: any) {
       console.error('Error creating category:', error);
       alert(error.response?.data?.detail || 'Failed to create category');
+    }
+  };
+
+  const openEditCategory = (category: FeeCategory) => {
+    setEditingCategory(category);
+    setEditCategoryForm({
+      name: category.name,
+      description: category.description || '',
+      is_mandatory: category.is_mandatory,
+      is_active: category.is_active,
+    });
+  };
+
+  const handleUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    try {
+      const response = await api.put(`/api/v1/fees/categories/${editingCategory.id}`, editCategoryForm);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setEditingCategory(null);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error updating category:', error);
+      alert(error.response?.data?.detail || 'Failed to update category');
     }
   };
 
@@ -213,12 +249,13 @@ export default function FeeManagementPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mandatory</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {categories.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                         No fee categories found. Create your first category to get started.
                       </td>
                     </tr>
@@ -239,7 +276,17 @@ export default function FeeManagementPage() {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge tone="success">Active</Badge>
+                          <Badge tone={category.is_active ? 'success' : 'neutral'}>
+                            {category.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => openEditCategory(category)}
+                            className="text-brand-600 hover:text-brand-800"
+                          >
+                            Edit
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -363,6 +410,66 @@ export default function FeeManagementPage() {
               <div className="flex gap-3 pt-4">
                 <Button type="submit" className="flex-1">Create Category</Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowCategoryModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Fee Category Modal */}
+      {editingCategory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-1 text-gray-900">Edit Fee Category</h2>
+            <p className="text-sm text-gray-500 mb-4">Code: {editingCategory.code} (can't be changed)</p>
+
+            <form onSubmit={handleUpdateCategory} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editCategoryForm.name}
+                  onChange={(e) => setEditCategoryForm({ ...editCategoryForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={editCategoryForm.description}
+                  onChange={(e) => setEditCategoryForm({ ...editCategoryForm, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={editCategoryForm.is_mandatory}
+                  onChange={(e) => setEditCategoryForm({ ...editCategoryForm, is_mandatory: e.target.checked })}
+                  className="w-4 h-4 text-brand-600 border-gray-300 rounded"
+                />
+                <label className="ml-2 text-sm text-gray-700">Mandatory fee</label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={editCategoryForm.is_active}
+                  onChange={(e) => setEditCategoryForm({ ...editCategoryForm, is_active: e.target.checked })}
+                  className="w-4 h-4 text-brand-600 border-gray-300 rounded"
+                />
+                <label className="ml-2 text-sm text-gray-700">Active (uncheck to hide from new fee structures)</label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button type="submit" className="flex-1">Save Changes</Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditingCategory(null)}>
                   Cancel
                 </Button>
               </div>

@@ -32,6 +32,13 @@ interface Payment {
   status: string;
 }
 
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  confirmed: 'bg-green-100 text-green-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  cancelled: 'bg-gray-200 text-gray-700',
+  refunded: 'bg-purple-100 text-purple-800',
+};
+
 export default function PaymentsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'record' | 'history'>('record');
@@ -51,6 +58,10 @@ export default function PaymentsPage() {
     notes: ''
   });
   const [selectedFees, setSelectedFees] = useState<Record<string, number>>({});
+  const [voidingPayment, setVoidingPayment] = useState<Payment | null>(null);
+  const [voidStatus, setVoidStatus] = useState<'cancelled' | 'refunded'>('cancelled');
+  const [voidReason, setVoidReason] = useState('');
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
 
   useEffect(() => {
     fetchStudents();
@@ -177,6 +188,32 @@ export default function PaymentsPage() {
     } catch (error: any) {
       console.error('Error recording payment:', error);
       alert('Failed to record payment');
+    }
+  };
+
+  const handleVoidPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!voidingPayment) return;
+
+    setVoidSubmitting(true);
+    try {
+      const response = await api.put(`/api/v1/fees/payments/${voidingPayment.id}`, {
+        status: voidStatus,
+        notes: voidReason ? `[${voidStatus.toUpperCase()}] ${voidReason}` : undefined,
+      });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setVoidingPayment(null);
+      setVoidReason('');
+      setVoidStatus('cancelled');
+      fetchPayments();
+    } catch (error) {
+      console.error('Error voiding payment:', error);
+      alert('Failed to update payment');
+    } finally {
+      setVoidSubmitting(false);
     }
   };
 
@@ -471,20 +508,30 @@ export default function PaymentsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          payment.status === 'confirmed'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                          STATUS_BADGE_STYLES[payment.status] || 'bg-yellow-100 text-yellow-800'
                         }`}>
                           {payment.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                         <button
                           onClick={() => alert(`View receipt: ${payment.receipt_number}`)}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           View Receipt
                         </button>
+                        {(payment.status === 'confirmed' || payment.status === 'pending') && (
+                          <button
+                            onClick={() => {
+                              setVoidingPayment(payment);
+                              setVoidStatus('cancelled');
+                              setVoidReason('');
+                            }}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Void / Refund
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -494,6 +541,70 @@ export default function PaymentsPage() {
           </div>
         )}
       </div>
+
+      {/* Void/Refund Payment Modal */}
+      {voidingPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-2 text-gray-900">Void or Refund Payment</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Receipt {voidingPayment.receipt_number} &middot; ₦{Number(voidingPayment.amount).toLocaleString()}
+              <br />
+              This reverses the amount from any fees it was applied to. This can't be undone -
+              record a new payment afterward if the money still needs to be applied somewhere.
+            </p>
+
+            <form onSubmit={handleVoidPayment} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
+                <div className="flex gap-4 mb-2">
+                  <label className="flex items-center gap-1 text-sm">
+                    <input
+                      type="radio"
+                      checked={voidStatus === 'cancelled'}
+                      onChange={() => setVoidStatus('cancelled')}
+                    />
+                    Cancelled (mistake / never valid)
+                  </label>
+                  <label className="flex items-center gap-1 text-sm">
+                    <input
+                      type="radio"
+                      checked={voidStatus === 'refunded'}
+                      onChange={() => setVoidStatus('refunded')}
+                    />
+                    Refunded (money returned)
+                  </label>
+                </div>
+                <textarea
+                  required
+                  value={voidReason}
+                  onChange={(e) => setVoidReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  rows={2}
+                  placeholder="e.g., recorded against the wrong student"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={voidSubmitting}
+                  className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 disabled:bg-gray-400"
+                >
+                  {voidSubmitting ? 'Saving...' : 'Confirm'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoidingPayment(null)}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

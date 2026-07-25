@@ -69,7 +69,43 @@ def create_fee_category(
     category_data["organization_id"] = current_user["school_id"]
     
     response = db.table("fee_categories").insert(category_data).execute()
-    
+
+    return response.data[0]
+
+
+@router.put("/categories/{category_id}", response_model=FeeCategory)
+def update_fee_category(
+    category_id: str,
+    data: FeeCategoryUpdate,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Update a fee category (admin/bursar only)"""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can update fee categories"
+        )
+
+    update_data = data.model_dump(mode="json", exclude_unset=True)
+    if not update_data:
+        existing = db.table("fee_categories").select("*").eq("id", category_id).eq(
+            "organization_id", current_user["school_id"]
+        ).execute()
+        if not existing.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee category not found")
+        return existing.data[0]
+
+    update_data["updated_at"] = datetime.utcnow().isoformat()
+
+    response = db.table("fee_categories").update(update_data).eq(
+        "id", category_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+
+    if not response.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee category not found")
+
     return response.data[0]
 
 
@@ -483,8 +519,79 @@ def record_payment(
         "generated_at": datetime.utcnow().isoformat()
     }
     db.table("receipts").insert(receipt_data).execute()
-    
+
     return payment_response.data[0]
+
+
+@router.put("/payments/{payment_id}", response_model=Payment)
+def update_payment(
+    payment_id: str,
+    data: PaymentUpdate,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Correct or void a payment (admin only).
+
+    There was previously no way to fix a mis-recorded payment at all -
+    the status column supported 'cancelled'/'refunded' but nothing ever
+    set them. Moving status to cancelled/refunded reverses this payment's
+    allocations against the student fees they were applied to (so the
+    balance/status those fees show is accurate again). A payment that's
+    already cancelled/refunded is terminal - record a new payment instead
+    of trying to change it further, so the reversal above can never be
+    applied twice.
+    """
+
+    if current_user["role"] != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can correct or void payments"
+        )
+
+    existing = db.table("payments").select("*").eq("id", payment_id).eq(
+        "organization_id", current_user["school_id"]
+    ).execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+
+    payment = existing.data[0]
+
+    if payment["status"] in ("cancelled", "refunded"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This payment has already been voided and can't be changed further. Record a new payment instead."
+        )
+
+    update_data = data.model_dump(mode="json", exclude_unset=True)
+    if not update_data:
+        return payment
+
+    voiding = update_data.get("status") in ("cancelled", "refunded")
+
+    if voiding:
+        allocations = db.table("payment_allocations").select("*").eq("payment_id", payment_id).execute()
+        for allocation in allocations.data:
+            fee = db.table("student_fees").select("*").eq("id", allocation["student_fee_id"]).execute()
+            if not fee.data:
+                continue
+            student_fee = fee.data[0]
+            new_paid = max(0.0, float(student_fee["amount_paid"]) - float(allocation["allocated_amount"]))
+            new_balance = float(student_fee["final_amount"]) - new_paid
+            new_status = "paid" if new_balance <= 0 else ("partial" if new_paid > 0 else "pending")
+
+            db.table("student_fees").update({
+                "amount_paid": new_paid,
+                "balance": new_balance,
+                "status": new_status,
+                "paid_date": student_fee.get("paid_date") if new_balance <= 0 else None,
+            }).eq("id", student_fee["id"]).execute()
+
+    update_data["updated_at"] = datetime.utcnow().isoformat()
+
+    response = db.table("payments").update(update_data).eq("id", payment_id).execute()
+
+    return response.data[0]
 
 
 # ============================================
