@@ -48,6 +48,27 @@ interface AttendanceRecord {
   status: string;
 }
 
+interface StudentFee {
+  id: string;
+  category_name?: string;
+  amount: string | number;
+  discount_amount: string | number;
+  final_amount: string | number;
+  amount_paid: string | number;
+  balance: string | number;
+  status: string;
+  due_date?: string;
+}
+
+interface PaymentRecord {
+  id: string;
+  receipt_number: string;
+  payment_date: string;
+  amount: string | number;
+  payment_method: string;
+  status: string;
+}
+
 export default function MyChildrenPage() {
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +78,8 @@ export default function MyChildrenPage() {
   const [reportCards, setReportCards] = useState<ReportCardSummary[]>([]);
   const [selectedReportCard, setSelectedReportCard] = useState<ReportCardDetail | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [studentFees, setStudentFees] = useState<StudentFee[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
@@ -83,13 +106,34 @@ export default function MyChildrenPage() {
   const loadChildDetail = async (studentId: string) => {
     setLoadingDetail(true);
     setSelectedReportCard(null);
-    const [reportCardsRes, attendanceRes] = await Promise.all([
+    const [reportCardsRes, attendanceRes, feesRes, paymentsRes] = await Promise.all([
       api.get(`/api/v1/grading/students/${studentId}/report-cards`),
       api.get(`/api/v1/attendance/student/${studentId}`),
+      api.get(`/api/v1/fees/student-fees?student_id=${studentId}`),
+      api.get(`/api/v1/fees/payments?student_id=${studentId}`),
     ]);
     setReportCards((reportCardsRes.data as ReportCardSummary[]) || []);
     setAttendance((attendanceRes.data as AttendanceRecord[]) || []);
+    setStudentFees((feesRes.data as StudentFee[]) || []);
+    setPayments((paymentsRes.data as PaymentRecord[]) || []);
     setLoadingDetail(false);
+  };
+
+  const money = (v: string | number) => `₦${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+  const feeStatusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      paid: 'bg-green-100 text-green-800',
+      partial: 'bg-yellow-100 text-yellow-800',
+      pending: 'bg-gray-100 text-gray-800',
+      overdue: 'bg-red-100 text-red-800',
+      waived: 'bg-blue-100 text-blue-800',
+    };
+    return (
+      <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+        {status}
+      </span>
+    );
   };
 
   const openReportCard = async (id: string) => {
@@ -231,6 +275,59 @@ export default function MyChildrenPage() {
                         <div key={r.id} className="px-6 py-2 flex items-center justify-between text-sm">
                           <span className="text-gray-600">{new Date(r.attendance_date).toLocaleDateString()}</span>
                           {statusBadge(r.status)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!loadingDetail && (
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="px-6 py-4 border-b">
+                    <h3 className="font-semibold text-gray-900">Fees</h3>
+                  </div>
+                  {studentFees.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-500 text-center">No fees assigned yet</p>
+                  ) : (
+                    <div className="divide-y">
+                      {studentFees.map((fee) => (
+                        <div key={fee.id} className="px-6 py-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{fee.category_name || 'Fee'}</p>
+                            <p className="text-xs text-gray-500">
+                              {money(fee.final_amount)} due
+                              {fee.due_date && ` by ${new Date(fee.due_date).toLocaleDateString()}`}
+                              {' • '}
+                              Balance: {money(fee.balance)}
+                            </p>
+                          </div>
+                          {feeStatusBadge(fee.status)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="px-6 py-4 border-b">
+                    <h3 className="font-semibold text-gray-900">Payment History</h3>
+                  </div>
+                  {payments.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-500 text-center">No payments recorded yet</p>
+                  ) : (
+                    <div className="divide-y max-h-96 overflow-y-auto">
+                      {payments.map((p) => (
+                        <div key={p.id} className="px-6 py-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{money(p.amount)}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(p.payment_date).toLocaleDateString()} • {p.receipt_number} • {p.payment_method.replace('_', ' ')}
+                            </p>
+                          </div>
+                          {feeStatusBadge(p.status)}
                         </div>
                       ))}
                     </div>
