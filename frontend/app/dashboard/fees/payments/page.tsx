@@ -90,9 +90,10 @@ export default function PaymentsPage() {
     try {
       setLoading(true);
       const response = await api.get(`/api/v1/fees/student-fees?student_id=${selectedStudent}`);
-      // Filter only unpaid or partially paid fees
-      const unpaidFees = (response.data || []).filter((fee: StudentFee) => 
-        fee.status === 'pending' || fee.status === 'partial'
+      // Filter only unpaid or partially paid fees (overdue is still unpaid,
+      // just past its due date - it must stay payable)
+      const unpaidFees = (response.data || []).filter((fee: StudentFee) =>
+        fee.status === 'pending' || fee.status === 'partial' || fee.status === 'overdue'
       );
       setStudentFees(unpaidFees);
       

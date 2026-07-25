@@ -50,7 +50,10 @@ class FeeCategory(FeeCategoryBase):
 class FeeStructureBase(BaseModel):
     fee_category_id: str
     session_id: str
-    class_level: Optional[str] = None  # 'Primary', 'Junior', 'Senior'
+    # 'Primary', 'Junior', 'Senior', or None. An informational tag on the
+    # structure itself; POST /student-fees/bulk-assign is what actually
+    # expands it to every class at that level.
+    class_level: Optional[str] = None
     class_id: Optional[str] = None
     amount: Decimal = Field(..., ge=0)
     currency: str = Field(default="NGN", max_length=3)

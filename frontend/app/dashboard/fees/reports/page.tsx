@@ -12,6 +12,7 @@ interface FinancialAnalytics {
   students_fully_paid: number;
   students_partial_payment: number;
   students_no_payment: number;
+  students_overdue: number;
   total_students: number;
 }
 
@@ -195,7 +196,7 @@ export default function FinancialReportsPage() {
             </div>
 
             {/* Payment Status Breakdown */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Fully Paid</h3>
                 <div className="text-3xl font-bold text-green-600">{analytics.students_fully_paid}</div>
@@ -217,6 +218,14 @@ export default function FinancialReportsPage() {
                 <div className="text-3xl font-bold text-red-600">{analytics.students_no_payment}</div>
                 <div className="text-sm text-gray-600 mt-1">
                   {((analytics.students_no_payment / analytics.total_students) * 100).toFixed(1)}% of students
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Overdue</h3>
+                <div className="text-3xl font-bold text-red-700">{analytics.students_overdue}</div>
+                <div className="text-sm text-gray-600 mt-1">
+                  {((analytics.students_overdue / analytics.total_students) * 100).toFixed(1)}% of students
                 </div>
               </div>
             </div>

@@ -21,6 +21,7 @@ interface FeeStructure {
   id: string;
   category_name: string;
   class_name?: string;
+  class_level?: string;
   amount: number;
   payment_frequency: string;
   due_date?: string;
@@ -67,6 +68,7 @@ export default function FeeManagementPage() {
     fee_category_id: '',
     session_id: '',
     class_id: '',
+    class_level: '',
     amount: '',
     payment_frequency: 'termly',
     due_date: '',
@@ -162,6 +164,36 @@ export default function FeeManagementPage() {
     }
   };
 
+  const handleDeleteCategory = async (category: FeeCategory) => {
+    if (!confirm(`Delete fee category "${category.name}"? This can't be undone.`)) return;
+    try {
+      const response = await api.delete(`/api/v1/fees/categories/${category.id}`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      fetchData();
+    } catch (error: any) {
+      console.error('Error deleting category:', error);
+      alert(error.response?.data?.detail || 'Failed to delete category');
+    }
+  };
+
+  const handleDeleteStructure = async (structure: FeeStructure) => {
+    if (!confirm(`Delete this fee structure (${structure.category_name})? This can't be undone.`)) return;
+    try {
+      const response = await api.delete(`/api/v1/fees/structures/${structure.id}`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      fetchData();
+    } catch (error: any) {
+      console.error('Error deleting fee structure:', error);
+      alert(error.response?.data?.detail || 'Failed to delete fee structure');
+    }
+  };
+
   const handleCreateStructure = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -169,6 +201,7 @@ export default function FeeManagementPage() {
         fee_category_id: structureForm.fee_category_id,
         session_id: structureForm.session_id,
         class_id: structureForm.class_id || null,
+        class_level: structureForm.class_level || null,
         amount: parseFloat(structureForm.amount),
         payment_frequency: structureForm.payment_frequency,
         due_date: structureForm.due_date || null,
@@ -183,6 +216,7 @@ export default function FeeManagementPage() {
         fee_category_id: '',
         session_id: structureForm.session_id,
         class_id: '',
+        class_level: '',
         amount: '',
         payment_frequency: 'termly',
         due_date: '',
@@ -280,12 +314,18 @@ export default function FeeManagementPage() {
                             {category.is_active ? 'Active' : 'Inactive'}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                           <button
                             onClick={() => openEditCategory(category)}
                             className="text-brand-600 hover:text-brand-800"
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(category)}
+                            className="text-danger-600 hover:text-danger-800"
+                          >
+                            Delete
                           </button>
                         </td>
                       </tr>
@@ -313,12 +353,13 @@ export default function FeeManagementPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {structures.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                         No fee structures found. Create fee structures to assign to students.
                       </td>
                     </tr>
@@ -329,7 +370,7 @@ export default function FeeManagementPage() {
                           {structure.category_name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {structure.class_name || 'All Classes'}
+                          {structure.class_name || (structure.class_level ? `All ${structure.class_level} Classes` : 'All Classes')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           ₦{Number(structure.amount).toLocaleString()}
@@ -344,6 +385,14 @@ export default function FeeManagementPage() {
                           <Badge tone={structure.is_active ? 'success' : 'neutral'}>
                             {structure.is_active ? 'Active' : 'Inactive'}
                           </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => handleDeleteStructure(structure)}
+                            className="text-danger-600 hover:text-danger-800"
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -519,13 +568,31 @@ export default function FeeManagementPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
                 <select
                   value={structureForm.class_id}
-                  onChange={(e) => setStructureForm({ ...structureForm, class_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  onChange={(e) => setStructureForm({ ...structureForm, class_id: e.target.value, class_level: e.target.value ? '' : structureForm.class_level })}
+                  disabled={!!structureForm.class_level}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-100 disabled:text-gray-400"
                 >
                   <option value="">All Classes</option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Or Class Level <span className="text-gray-400 font-normal">(applies to every class at this level instead of one)</span>
+                </label>
+                <select
+                  value={structureForm.class_level}
+                  onChange={(e) => setStructureForm({ ...structureForm, class_level: e.target.value, class_id: e.target.value ? '' : structureForm.class_id })}
+                  disabled={!!structureForm.class_id}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">None</option>
+                  <option value="Primary">Primary</option>
+                  <option value="Junior">Junior</option>
+                  <option value="Senior">Senior</option>
                 </select>
               </div>
 

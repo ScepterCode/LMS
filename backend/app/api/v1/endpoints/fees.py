@@ -26,6 +26,19 @@ from app.models.fees import (
 router = APIRouter()
 
 
+def _sweep_overdue_fees(db, organization_id: str) -> None:
+    """Flip pending/partial student_fees whose due_date has passed to
+    'overdue'. There's no background scheduler in this deployment, so this
+    runs as a scoped, idempotent sweep on every read instead - it only
+    touches rows in the caller's own organization that are already
+    unpaid and past due, matching the same transition record_payment
+    would eventually make anyway."""
+    today = date.today().isoformat()
+    db.table("student_fees").update({"status": "overdue"}).eq(
+        "organization_id", organization_id
+    ).lt("due_date", today).in_("status", ["pending", "partial"]).execute()
+
+
 # ============================================
 # FEE CATEGORIES
 # ============================================
@@ -107,6 +120,41 @@ def update_fee_category(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee category not found")
 
     return response.data[0]
+
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_fee_category(
+    category_id: str,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Delete a fee category (admin/bursar only). Blocked if any fee
+    structure still references it - deleting the category out from under
+    an in-use structure would silently orphan every student fee built on it."""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can delete fee categories"
+        )
+
+    existing = db.table("fee_categories").select("id").eq("id", category_id).eq(
+        "organization_id", current_user["school_id"]
+    ).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee category not found")
+
+    in_use = db.table("fee_structures").select("id").eq("fee_category_id", category_id).execute()
+    if in_use.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete: {len(in_use.data)} fee structure(s) still use this category. "
+                   "Deactivate it instead, or delete those structures first."
+        )
+
+    db.table("fee_categories").delete().eq("id", category_id).eq(
+        "organization_id", current_user["school_id"]
+    ).execute()
 
 
 # ============================================
@@ -209,8 +257,43 @@ def update_fee_structure(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Fee structure not found"
         )
-    
+
     return response.data[0]
+
+
+@router.delete("/structures/{structure_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_fee_structure(
+    structure_id: str,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Delete a fee structure (admin/bursar only). Blocked if any student
+    has already been assigned a fee from it - those student_fees rows
+    would otherwise point at a structure_id that no longer exists."""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can delete fee structures"
+        )
+
+    existing = db.table("fee_structures").select("id").eq("id", structure_id).eq(
+        "organization_id", current_user["school_id"]
+    ).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee structure not found")
+
+    in_use = db.table("student_fees").select("id").eq("fee_structure_id", structure_id).execute()
+    if in_use.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete: {len(in_use.data)} student(s) already have a fee assigned from this "
+                   "structure. Deactivate it instead."
+        )
+
+    db.table("fee_structures").delete().eq("id", structure_id).eq(
+        "organization_id", current_user["school_id"]
+    ).execute()
 
 
 # ============================================
@@ -236,6 +319,8 @@ def get_student_fees(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="student_id is required unless you are an admin or bursar"
         )
+
+    _sweep_overdue_fees(db, current_user["school_id"])
 
     query = db.table("student_fees").select(
         "*, students(admission_number, first_name, last_name), "
@@ -295,34 +380,62 @@ def assign_fee_to_student(
 @router.post("/student-fees/bulk-assign")
 def bulk_assign_fees(
     session_id: str,
-    class_id: str,
     fee_structure_ids: List[str],
+    class_id: Optional[str] = None,
+    class_level: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_supabase)
 ):
-    """Assign fees to all students in a class"""
-    
+    """Assign fees to all students in a class, or to every class at a
+    given level (class_level was previously an orphaned FeeStructure field
+    that nothing ever expanded - this is that expansion)."""
+
     if current_user["role"] not in ["admin", "bursar"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins and bursars can assign fees"
         )
-    
-    # Get students in class (current_class_id is the source of truth used
-    # everywhere else - "enrollments" is not a real table)
-    enrollments = db.table("students").select("id").eq(
-        "current_class_id", class_id
+
+    if not class_id and not class_level:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either class_id or class_level is required"
+        )
+
+    if class_id:
+        # Confirm the class belongs to the caller's org before trusting it -
+        # class_id is caller-supplied and students aren't otherwise org-scoped
+        # in this query.
+        class_check = db.table("classes").select("id").eq("id", class_id).eq(
+            "organization_id", current_user["school_id"]
+        ).execute()
+        if not class_check.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class not found")
+        target_class_ids = [class_id]
+    else:
+        level_classes = db.table("classes").select("id").eq(
+            "organization_id", current_user["school_id"]
+        ).eq("level", class_level).execute()
+        target_class_ids = [c["id"] for c in level_classes.data]
+        if not target_class_ids:
+            return {"message": f"No classes found at level {class_level}", "fees_assigned": 0}
+
+    # Get students in the target class(es) (current_class_id is the source
+    # of truth used everywhere else - "enrollments" is not a real table)
+    enrollments = db.table("students").select("id").in_(
+        "current_class_id", target_class_ids
     ).execute()
 
     if not enrollments.data:
         return {"message": "No students found in class", "fees_assigned": 0}
 
     student_ids = [e["id"] for e in enrollments.data]
-    
-    # Get fee structures
+
+    # Get fee structures (scoped to this org - fee_structure_ids are
+    # caller-supplied)
     structures = db.table("fee_structures").select("*").in_(
         "id", fee_structure_ids
-    ).execute()
+    ).eq("organization_id", current_user["school_id"]).execute()
     
     # Create student fees
     fees_to_insert = []
@@ -614,15 +727,17 @@ def get_financial_analytics(
             detail="Only admins and bursars can view school-wide financial analytics"
         )
 
+    _sweep_overdue_fees(db, current_user["school_id"])
+
     query = db.table("student_fees").select("*").eq(
         "organization_id", current_user["school_id"]
     ).eq("session_id", session_id)
-    
+
     if term_id:
         query = query.eq("term_id", term_id)
-    
+
     response = query.execute()
-    
+
     if not response.data:
         return {
             "total_expected": 0,
@@ -632,6 +747,7 @@ def get_financial_analytics(
             "students_fully_paid": 0,
             "students_partial_payment": 0,
             "students_no_payment": 0,
+            "students_overdue": 0,
             "total_students": 0
         }
     
@@ -652,7 +768,8 @@ def get_financial_analytics(
     students_fully_paid = sum(1 for s in student_fees.values() if s["paid"] >= s["expected"])
     students_partial_payment = sum(1 for s in student_fees.values() if 0 < s["paid"] < s["expected"])
     students_no_payment = sum(1 for s in student_fees.values() if s["paid"] == 0)
-    
+    overdue_student_ids = {f["student_id"] for f in response.data if f["status"] == "overdue"}
+
     return {
         "total_expected": total_expected,
         "total_collected": total_collected,
@@ -661,6 +778,7 @@ def get_financial_analytics(
         "students_fully_paid": students_fully_paid,
         "students_partial_payment": students_partial_payment,
         "students_no_payment": students_no_payment,
+        "students_overdue": len(overdue_student_ids),
         "total_students": len(student_fees)
     }
 
