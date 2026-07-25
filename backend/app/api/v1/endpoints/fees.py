@@ -86,30 +86,41 @@ def get_fee_structures(
     db = Depends(get_supabase)
 ):
     """Get fee structures"""
-    
-    query = db.table("fee_structures").select(
-        "*, fee_categories(name), classes(name)"
-    ).eq("organization_id", current_user["school_id"])
-    
+
+    query = db.table("fee_structures").select("*").eq("organization_id", current_user["school_id"])
+
     if session_id:
         query = query.eq("session_id", session_id)
     if class_id:
         query = query.eq("class_id", class_id)
     if is_active is not None:
         query = query.eq("is_active", is_active)
-    
+
     response = query.execute()
-    
-    # Enrich data
+
+    # Batch-fetch category/class names manually rather than via a PostgREST
+    # embed join - fee_structures.class_id/session_id aren't backed by a DB
+    # foreign key (even though the app-level checks on create enforce it),
+    # so an embed join 500s with PGRST200. This also degrades gracefully if
+    # a row ever points at a deleted class instead of failing the request.
+    category_ids = list({item["fee_category_id"] for item in response.data if item.get("fee_category_id")})
+    class_ids = list({item["class_id"] for item in response.data if item.get("class_id")})
+    category_names: dict = {}
+    class_names: dict = {}
+    if category_ids:
+        cats = db.table("fee_categories").select("id, name").in_("id", category_ids).execute()
+        category_names = {row["id"]: row["name"] for row in (cats.data or [])}
+    if class_ids:
+        clss = db.table("classes").select("id, name").in_("id", class_ids).execute()
+        class_names = {row["id"]: row["name"] for row in (clss.data or [])}
+
     enriched_data = []
     for item in response.data:
         enriched_item = {**item}
-        if "fee_categories" in item and item["fee_categories"]:
-            enriched_item["category_name"] = item["fee_categories"]["name"]
-        if "classes" in item and item["classes"]:
-            enriched_item["class_name"] = item["classes"]["name"]
+        enriched_item["category_name"] = category_names.get(item.get("fee_category_id"))
+        enriched_item["class_name"] = class_names.get(item.get("class_id"))
         enriched_data.append(enriched_item)
-    
+
     return enriched_data
 
 

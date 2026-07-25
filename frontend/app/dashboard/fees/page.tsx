@@ -25,15 +25,28 @@ interface FeeStructure {
   is_active: boolean;
 }
 
+interface Session {
+  id: string;
+  name: string;
+  is_current?: boolean;
+}
+
+interface Class {
+  id: string;
+  name: string;
+}
+
 export default function FeeManagementPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'categories' | 'structures'>('categories');
   const [categories, setCategories] = useState<FeeCategory[]>([]);
   const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showStructureModal, setShowStructureModal] = useState(false);
-  
+
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     code: '',
@@ -41,9 +54,41 @@ export default function FeeManagementPage() {
     is_mandatory: true
   });
 
+  const [structureForm, setStructureForm] = useState({
+    fee_category_id: '',
+    session_id: '',
+    class_id: '',
+    amount: '',
+    payment_frequency: 'termly',
+    due_date: '',
+  });
+
   useEffect(() => {
     fetchData();
   }, [activeTab]);
+
+  useEffect(() => {
+    // Dropdown data for the Create Fee Structure form - fetched once,
+    // independent of which tab is active.
+    const loadDropdownData = async () => {
+      const [categoriesRes, sessionsRes, classesRes] = await Promise.all([
+        api.get('/api/v1/fees/categories'),
+        api.get('/api/v1/sessions'),
+        api.get('/api/v1/classes'),
+      ]);
+      if (categoriesRes.data) setCategories(categoriesRes.data as FeeCategory[]);
+      if (sessionsRes.data) {
+        const sessionData = sessionsRes.data as Session[];
+        setSessions(sessionData);
+        const current = sessionData.find((s) => s.is_current);
+        if (current) {
+          setStructureForm((prev) => ({ ...prev, session_id: current.id }));
+        }
+      }
+      if (classesRes.data) setClasses(classesRes.data as Class[]);
+    };
+    loadDropdownData();
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -78,6 +123,38 @@ export default function FeeManagementPage() {
     } catch (error: any) {
       console.error('Error creating category:', error);
       alert(error.response?.data?.detail || 'Failed to create category');
+    }
+  };
+
+  const handleCreateStructure = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await api.post('/api/v1/fees/structures', {
+        fee_category_id: structureForm.fee_category_id,
+        session_id: structureForm.session_id,
+        class_id: structureForm.class_id || null,
+        amount: parseFloat(structureForm.amount),
+        payment_frequency: structureForm.payment_frequency,
+        due_date: structureForm.due_date || null,
+      });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      alert('Fee structure created successfully!');
+      setShowStructureModal(false);
+      setStructureForm({
+        fee_category_id: '',
+        session_id: structureForm.session_id,
+        class_id: '',
+        amount: '',
+        payment_frequency: 'termly',
+        due_date: '',
+      });
+      fetchData();
+    } catch (error: any) {
+      console.error('Error creating fee structure:', error);
+      alert(error.response?.data?.detail || 'Failed to create fee structure');
     }
   };
 
@@ -286,6 +363,107 @@ export default function FeeManagementPage() {
               <div className="flex gap-3 pt-4">
                 <Button type="submit" className="flex-1">Create Category</Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowCategoryModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Fee Structure Modal */}
+      {showStructureModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Create Fee Structure</h2>
+
+            <form onSubmit={handleCreateStructure} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fee Category *</label>
+                <select
+                  required
+                  value={structureForm.fee_category_id}
+                  onChange={(e) => setStructureForm({ ...structureForm, fee_category_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Academic Session *</label>
+                <select
+                  required
+                  value={structureForm.session_id}
+                  onChange={(e) => setStructureForm({ ...structureForm, session_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select session</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                <select
+                  value={structureForm.class_id}
+                  onChange={(e) => setStructureForm({ ...structureForm, class_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">All Classes</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₦) *</label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  value={structureForm.amount}
+                  onChange={(e) => setStructureForm({ ...structureForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  placeholder="e.g., 50000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Frequency *</label>
+                <select
+                  required
+                  value={structureForm.payment_frequency}
+                  onChange={(e) => setStructureForm({ ...structureForm, payment_frequency: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="termly">Termly</option>
+                  <option value="annually">Annually</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="one-time">One-time</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={structureForm.due_date}
+                  onChange={(e) => setStructureForm({ ...structureForm, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button type="submit" className="flex-1">Create Fee Structure</Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowStructureModal(false)}>
                   Cancel
                 </Button>
               </div>
