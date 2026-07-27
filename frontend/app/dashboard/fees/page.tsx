@@ -74,6 +74,24 @@ export default function FeeManagementPage() {
     due_date: '',
   });
 
+  const [showQuickSetupModal, setShowQuickSetupModal] = useState(false);
+  const [quickSetupSubmitting, setQuickSetupSubmitting] = useState(false);
+  const [quickSetupForm, setQuickSetupForm] = useState({
+    categoryMode: 'new' as 'new' | 'existing',
+    existingCategoryId: '',
+    name: '',
+    code: '',
+    description: '',
+    is_mandatory: true,
+    session_id: '',
+    class_id: '',
+    class_level: '',
+    amount: '',
+    payment_frequency: 'termly',
+    due_date: '',
+    assignNow: true,
+  });
+
   useEffect(() => {
     fetchData();
   }, [activeTab]);
@@ -94,6 +112,7 @@ export default function FeeManagementPage() {
         const current = sessionData.find((s) => s.is_current);
         if (current) {
           setStructureForm((prev) => ({ ...prev, session_id: current.id }));
+          setQuickSetupForm((prev) => ({ ...prev, session_id: current.id }));
         }
       }
       if (classesRes.data) setClasses(classesRes.data as Class[]);
@@ -228,13 +247,100 @@ export default function FeeManagementPage() {
     }
   };
 
+  const resetQuickSetupForm = () => {
+    setQuickSetupForm({
+      categoryMode: 'new',
+      existingCategoryId: '',
+      name: '',
+      code: '',
+      description: '',
+      is_mandatory: true,
+      session_id: quickSetupForm.session_id,
+      class_id: '',
+      class_level: '',
+      amount: '',
+      payment_frequency: 'termly',
+      due_date: '',
+      assignNow: true,
+    });
+  };
+
+  const handleQuickSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setQuickSetupSubmitting(true);
+    try {
+      let categoryId = quickSetupForm.existingCategoryId;
+
+      if (quickSetupForm.categoryMode === 'new') {
+        const categoryResponse = await api.post('/api/v1/fees/categories', {
+          name: quickSetupForm.name,
+          code: quickSetupForm.code,
+          description: quickSetupForm.description || undefined,
+          is_mandatory: quickSetupForm.is_mandatory,
+        });
+        if (categoryResponse.error) {
+          alert(categoryResponse.error);
+          return;
+        }
+        categoryId = (categoryResponse.data as FeeCategory).id;
+      }
+
+      const structureResponse = await api.post('/api/v1/fees/structures', {
+        fee_category_id: categoryId,
+        session_id: quickSetupForm.session_id,
+        class_id: quickSetupForm.class_id || null,
+        class_level: quickSetupForm.class_level || null,
+        amount: parseFloat(quickSetupForm.amount),
+        payment_frequency: quickSetupForm.payment_frequency,
+        due_date: quickSetupForm.due_date || null,
+      });
+      if (structureResponse.error) {
+        alert(structureResponse.error);
+        return;
+      }
+      const structureId = (structureResponse.data as { id: string }).id;
+
+      let assignedMessage = '';
+      if (quickSetupForm.assignNow && (quickSetupForm.class_id || quickSetupForm.class_level)) {
+        const params = new URLSearchParams({ session_id: quickSetupForm.session_id });
+        if (quickSetupForm.class_id) params.set('class_id', quickSetupForm.class_id);
+        if (quickSetupForm.class_level) params.set('class_level', quickSetupForm.class_level);
+        const assignResponse = await api.post(
+          `/api/v1/fees/student-fees/bulk-assign?${params.toString()}`,
+          [structureId]
+        );
+        if (assignResponse.error) {
+          alert(`Fee structure created, but bulk assignment failed: ${assignResponse.error}`);
+        } else {
+          const assigned = assignResponse.data as { fees_assigned?: number };
+          assignedMessage = ` and assigned to ${assigned.fees_assigned ?? 0} student(s)`;
+        }
+      }
+
+      alert(`Fee category and structure created successfully${assignedMessage}!`);
+      setShowQuickSetupModal(false);
+      resetQuickSetupForm();
+      fetchData();
+    } catch (error: any) {
+      console.error('Error in quick fee setup:', error);
+      alert(error.response?.data?.detail || 'Failed to complete quick fee setup');
+    } finally {
+      setQuickSetupSubmitting(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
           title="Fee Management"
           subtitle="Manage fee categories and structures"
-          actions={<Button onClick={() => router.push('/dashboard/fees/payments')}>Record Payment</Button>}
+          actions={
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setShowQuickSetupModal(true)}>Quick Fee Setup</Button>
+              <Button onClick={() => router.push('/dashboard/fees/payments')}>Record Payment</Button>
+            </div>
+          }
         />
 
         {/* Tabs */}
@@ -638,6 +744,210 @@ export default function FeeManagementPage() {
               <div className="flex gap-3 pt-4">
                 <Button type="submit" className="flex-1">Create Fee Structure</Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowStructureModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Fee Setup Wizard */}
+      {showQuickSetupModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-1 text-gray-900">Quick Fee Setup</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Create a fee category and structure together, and optionally assign it to students right away.
+            </p>
+
+            <form onSubmit={handleQuickSetup} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fee Category *</label>
+                <div className="flex gap-4 mb-2 text-sm">
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      checked={quickSetupForm.categoryMode === 'new'}
+                      onChange={() => setQuickSetupForm({ ...quickSetupForm, categoryMode: 'new' })}
+                    />
+                    New category
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      checked={quickSetupForm.categoryMode === 'existing'}
+                      onChange={() => setQuickSetupForm({ ...quickSetupForm, categoryMode: 'existing' })}
+                    />
+                    Use existing
+                  </label>
+                </div>
+
+                {quickSetupForm.categoryMode === 'existing' ? (
+                  <select
+                    required
+                    value={quickSetupForm.existingCategoryId}
+                    onChange={(e) => setQuickSetupForm({ ...quickSetupForm, existingCategoryId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  >
+                    <option value="">Select category</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Name (e.g., Tuition)"
+                        value={quickSetupForm.name}
+                        onChange={(e) => setQuickSetupForm({ ...quickSetupForm, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      />
+                      <input
+                        type="text"
+                        required
+                        placeholder="Code (e.g., TUITION)"
+                        value={quickSetupForm.code}
+                        onChange={(e) => setQuickSetupForm({ ...quickSetupForm, code: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Description (optional)"
+                      value={quickSetupForm.description}
+                      onChange={(e) => setQuickSetupForm({ ...quickSetupForm, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    />
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={quickSetupForm.is_mandatory}
+                        onChange={(e) => setQuickSetupForm({ ...quickSetupForm, is_mandatory: e.target.checked })}
+                      />
+                      Mandatory fee
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Academic Session *</label>
+                <select
+                  required
+                  value={quickSetupForm.session_id}
+                  onChange={(e) => setQuickSetupForm({ ...quickSetupForm, session_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select session</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                  <select
+                    value={quickSetupForm.class_id}
+                    onChange={(e) => setQuickSetupForm({ ...quickSetupForm, class_id: e.target.value, class_level: e.target.value ? '' : quickSetupForm.class_level })}
+                    disabled={!!quickSetupForm.class_level}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    <option value="">All Classes</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Or Class Level</label>
+                  <select
+                    value={quickSetupForm.class_level}
+                    onChange={(e) => setQuickSetupForm({ ...quickSetupForm, class_level: e.target.value, class_id: e.target.value ? '' : quickSetupForm.class_id })}
+                    disabled={!!quickSetupForm.class_id}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    <option value="">None</option>
+                    <option value="Primary">Primary</option>
+                    <option value="Junior">Junior</option>
+                    <option value="Senior">Senior</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₦) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={quickSetupForm.amount}
+                    onChange={(e) => setQuickSetupForm({ ...quickSetupForm, amount: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    placeholder="e.g., 50000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Frequency *</label>
+                  <select
+                    required
+                    value={quickSetupForm.payment_frequency}
+                    onChange={(e) => setQuickSetupForm({ ...quickSetupForm, payment_frequency: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  >
+                    <option value="termly">Termly</option>
+                    <option value="annually">Annually</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="one-time">One-time</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={quickSetupForm.due_date}
+                  onChange={(e) => setQuickSetupForm({ ...quickSetupForm, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+              </div>
+
+              <label className="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg p-3">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={quickSetupForm.assignNow}
+                  onChange={(e) => setQuickSetupForm({ ...quickSetupForm, assignNow: e.target.checked })}
+                  disabled={!quickSetupForm.class_id && !quickSetupForm.class_level}
+                />
+                <span>
+                  Assign this fee to students now
+                  <span className="block text-xs text-gray-500">
+                    {quickSetupForm.class_id || quickSetupForm.class_level
+                      ? 'Applies immediately to every student in the class or level chosen above.'
+                      : 'Pick a specific class or class level above to enable immediate assignment.'}
+                  </span>
+                </span>
+              </label>
+
+              <div className="flex gap-3 pt-2">
+                <Button type="submit" className="flex-1" disabled={quickSetupSubmitting}>
+                  {quickSetupSubmitting ? 'Setting up...' : 'Create & Continue'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => { setShowQuickSetupModal(false); resetQuickSetupForm(); }}
+                >
                   Cancel
                 </Button>
               </div>
