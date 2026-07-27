@@ -21,6 +21,16 @@ interface StudentFee {
   status: string;
 }
 
+interface FeeStructureOption {
+  id: string;
+  category_name: string;
+  class_name?: string;
+  class_level?: string;
+  amount: number;
+  session_id: string;
+  due_date?: string;
+}
+
 interface Payment {
   id: string;
   receipt_number: string;
@@ -62,9 +72,14 @@ export default function PaymentsPage() {
   const [voidStatus, setVoidStatus] = useState<'cancelled' | 'refunded'>('cancelled');
   const [voidReason, setVoidReason] = useState('');
   const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const [feeStructures, setFeeStructures] = useState<FeeStructureOption[]>([]);
+  const [showAssignFeeForm, setShowAssignFeeForm] = useState(false);
+  const [assignFeeForm, setAssignFeeForm] = useState({ structure_id: '', discount_amount: '', due_date: '' });
+  const [assignFeeSubmitting, setAssignFeeSubmitting] = useState(false);
 
   useEffect(() => {
     fetchStudents();
+    fetchFeeStructures();
     if (activeTab === 'history') {
       fetchPayments();
     }
@@ -74,6 +89,8 @@ export default function PaymentsPage() {
     if (selectedStudent) {
       fetchStudentFees();
     }
+    setShowAssignFeeForm(false);
+    setAssignFeeForm({ structure_id: '', discount_amount: '', due_date: '' });
   }, [selectedStudent]);
 
   const fetchStudents = async () => {
@@ -83,6 +100,49 @@ export default function PaymentsPage() {
     } catch (error) {
       console.error('Error fetching students:', error);
       setStudents([]); // Ensure students is always an array
+    }
+  };
+
+  const fetchFeeStructures = async () => {
+    try {
+      const response = await api.get('/api/v1/fees/structures?is_active=true');
+      setFeeStructures((response.data as FeeStructureOption[]) || []);
+    } catch (error) {
+      console.error('Error fetching fee structures:', error);
+      setFeeStructures([]);
+    }
+  };
+
+  const handleAssignFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const structure = feeStructures.find((s) => s.id === assignFeeForm.structure_id);
+    if (!structure || !selectedStudent) return;
+
+    setAssignFeeSubmitting(true);
+    try {
+      const discount = parseFloat(assignFeeForm.discount_amount) || 0;
+      const finalAmount = Number(structure.amount) - discount;
+      const response = await api.post('/api/v1/fees/student-fees', {
+        student_id: selectedStudent,
+        fee_structure_id: structure.id,
+        session_id: structure.session_id,
+        amount: structure.amount,
+        discount_amount: discount,
+        final_amount: finalAmount,
+        due_date: assignFeeForm.due_date || structure.due_date || undefined,
+      });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setShowAssignFeeForm(false);
+      setAssignFeeForm({ structure_id: '', discount_amount: '', due_date: '' });
+      fetchStudentFees();
+    } catch (error: any) {
+      console.error('Error assigning fee:', error);
+      alert(error.response?.data?.detail || 'Failed to assign fee to student');
+    } finally {
+      setAssignFeeSubmitting(false);
     }
   };
 
@@ -309,36 +369,106 @@ export default function PaymentsPage() {
             </div>
 
             {/* Outstanding Fees */}
-            {selectedStudent && studentFees.length > 0 && (
+            {selectedStudent && (
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Outstanding Fees</h3>
-                <div className="space-y-3">
-                  {studentFees.map((fee) => (
-                    <div key={fee.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{fee.category_name}</div>
-                        <div className="text-sm text-gray-500">
-                          Balance: ₦{Number(fee.balance).toLocaleString()} (of ₦{Number(fee.final_amount).toLocaleString()})
-                        </div>
-                      </div>
-                      <div className="ml-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Outstanding Fees</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowAssignFeeForm(!showAssignFeeForm)}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    {showAssignFeeForm ? 'Cancel' : '+ Assign a Fee'}
+                  </button>
+                </div>
+
+                {studentFees.length === 0 && !showAssignFeeForm && (
+                  <p className="text-sm text-gray-500 mb-2">
+                    This student has no fees assigned yet. Click "+ Assign a Fee" to give them one to pay against.
+                  </p>
+                )}
+
+                {showAssignFeeForm && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fee Structure *</label>
+                      <select
+                        value={assignFeeForm.structure_id}
+                        onChange={(e) => setAssignFeeForm({ ...assignFeeForm, structure_id: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select a fee structure...</option>
+                        {feeStructures.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.category_name} - ₦{Number(s.amount).toLocaleString()}
+                            {s.class_name ? ` (${s.class_name})` : s.class_level ? ` (${s.class_level})` : ' (All Classes)'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Discount</label>
                         <input
                           type="number"
                           min="0"
-                          max={Number(fee.balance)}
                           step="0.01"
-                          value={selectedFees[fee.id] || 0}
-                          onChange={(e) => handleFeeAllocation(fee.id, parseFloat(e.target.value) || 0)}
-                          className="w-32 px-3 py-2 border border-gray-300 rounded-lg"
-                          placeholder="Amount"
+                          value={assignFeeForm.discount_amount}
+                          onChange={(e) => setAssignFeeForm({ ...assignFeeForm, discount_amount: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                        <input
+                          type="date"
+                          value={assignFeeForm.due_date}
+                          onChange={(e) => setAssignFeeForm({ ...assignFeeForm, due_date: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                         />
                       </div>
                     </div>
-                  ))}
-                  <div className="pt-3 border-t border-gray-200">
-                    <div className="text-sm text-gray-600">Total Outstanding: <span className="font-bold text-red-600">₦{totalBalance.toLocaleString()}</span></div>
+                    <button
+                      type="button"
+                      onClick={handleAssignFee}
+                      disabled={!assignFeeForm.structure_id || assignFeeSubmitting}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+                    >
+                      {assignFeeSubmitting ? 'Assigning...' : 'Assign Fee to Student'}
+                    </button>
                   </div>
-                </div>
+                )}
+
+                {studentFees.length > 0 && (
+                  <div className="space-y-3">
+                    {studentFees.map((fee) => (
+                      <div key={fee.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{fee.category_name}</div>
+                          <div className="text-sm text-gray-500">
+                            Balance: ₦{Number(fee.balance).toLocaleString()} (of ₦{Number(fee.final_amount).toLocaleString()})
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <input
+                            type="number"
+                            min="0"
+                            max={Number(fee.balance)}
+                            step="0.01"
+                            value={selectedFees[fee.id] || 0}
+                            onChange={(e) => handleFeeAllocation(fee.id, parseFloat(e.target.value) || 0)}
+                            className="w-32 px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="Amount"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="pt-3 border-t border-gray-200">
+                      <div className="text-sm text-gray-600">Total Outstanding: <span className="font-bold text-red-600">₦{totalBalance.toLocaleString()}</span></div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
