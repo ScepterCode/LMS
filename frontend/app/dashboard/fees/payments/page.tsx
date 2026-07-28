@@ -76,6 +76,7 @@ export default function PaymentsPage() {
   const [showAssignFeeForm, setShowAssignFeeForm] = useState(false);
   const [assignFeeForm, setAssignFeeForm] = useState({ structure_id: '', discount_amount: '', due_date: '' });
   const [assignFeeSubmitting, setAssignFeeSubmitting] = useState(false);
+  const [manuallyAllocated, setManuallyAllocated] = useState(false);
 
   useEffect(() => {
     fetchStudents();
@@ -91,7 +92,27 @@ export default function PaymentsPage() {
     }
     setShowAssignFeeForm(false);
     setAssignFeeForm({ structure_id: '', discount_amount: '', due_date: '' });
+    setManuallyAllocated(false);
   }, [selectedStudent]);
+
+  // Auto-allocate the entered payment amount across outstanding fees (in
+  // order, each capped at its own balance) so recording a payment doesn't
+  // require a separate manual "type the amount again" step for the common
+  // case. Only kicks in until the admin edits an allocation box directly -
+  // from then on their split is left alone.
+  useEffect(() => {
+    if (manuallyAllocated || studentFees.length === 0) return;
+    let remaining = parseFloat(formData.amount) || 0;
+    const next: Record<string, number> = {};
+    for (const fee of studentFees) {
+      const balance = Number(fee.balance);
+      const allocation = Math.min(balance, remaining);
+      next[fee.id] = allocation > 0 ? allocation : 0;
+      remaining -= allocation;
+    }
+    setSelectedFees(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.amount, studentFees, manuallyAllocated]);
 
   const fetchStudents = async () => {
     try {
@@ -243,6 +264,7 @@ export default function PaymentsPage() {
       setSelectedStudent('');
       setStudentFees([]);
       setSelectedFees({});
+      setManuallyAllocated(false);
 
       // Refresh payments list
       setActiveTab('history');
@@ -285,6 +307,7 @@ export default function PaymentsPage() {
       return;
     }
 
+    setManuallyAllocated(true);
     setSelectedFees({
       ...selectedFees,
       [feeId]: amount
