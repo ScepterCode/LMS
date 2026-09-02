@@ -606,10 +606,12 @@ def bulk_grade_entry(
             detail="Only admins and teachers can enter grades"
         )
     
-    # Get assessment details for max score, subject_id, class_id, and grade calculation
+    # Get assessment details for max score, subject_id, class_id, and grade
+    # calculation - scoped to the caller's org so a foreign assessment_id can't
+    # be graded against.
     assessment = db.table("assessments").select("max_score, subject_id, class_id").eq(
         "id", data.assessment_id
-    ).execute()
+    ).eq("organization_id", current_user["school_id"]).execute()
     
     if not assessment.data:
         raise HTTPException(
@@ -813,10 +815,11 @@ def generate_report_card(
             detail="Only admins and teachers can generate report cards"
         )
     
-    # Get student details to find class_id
+    # Get student details to find class_id (scoped to the caller's org so a
+    # foreign student_id can't have a report card generated against it).
     student = db.table("students").select("current_class_id").eq(
         "id", data.student_id
-    ).execute()
+    ).eq("organization_id", current_user["school_id"]).execute()
 
     if not student.data:
         raise HTTPException(
@@ -1244,6 +1247,14 @@ def get_class_performance(
             detail="Only a teacher of this class/subject or an admin can view this analytics"
         )
 
+    # Verify the class belongs to the caller's org before returning its grade
+    # distribution (admins skip the teacher check above).
+    class_check = db.table("classes").select("id").eq(
+        "id", class_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+    if not class_check.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class not found")
+
     # Get all subject grades for this class/subject/term
     grades = db.table("subject_grades").select(
         "total_score, grade_letter"
@@ -1307,10 +1318,11 @@ def get_student_performance(
 
     PermissionChecker.verify_can_view_student(current_user, student_id, db)
 
-    # Get student details
+    # Get student details (scoped to the caller's org; verify_can_view_student
+    # no-ops for admins, so this is what stops a foreign student_id here).
     student = db.table("students").select(
         "first_name, last_name"
-    ).eq("id", student_id).execute()
+    ).eq("id", student_id).eq("organization_id", current_user["school_id"]).execute()
     
     if not student.data:
         raise HTTPException(

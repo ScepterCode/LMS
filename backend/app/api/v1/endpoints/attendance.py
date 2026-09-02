@@ -224,8 +224,8 @@ def get_student_attendance_summary(
     response = db.table("attendance_summaries").select(
         "*, students(admission_number, first_name, last_name)"
     ).eq("student_id", student_id).eq(
-        "session_id", session_id
-    ).eq("term_id", term_id).execute()
+        "organization_id", current_user["school_id"]
+    ).eq("session_id", session_id).eq("term_id", term_id).execute()
     
     if not response.data:
         # Return empty summary
@@ -276,6 +276,14 @@ def get_class_attendance_summaries(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the form teacher or an admin can view a class's attendance summary"
         )
+
+    # Verify the class belongs to the caller's org before exposing its roster's
+    # attendance (admins/deans skip the form-teacher check above).
+    class_check = db.table("classes").select("id").eq(
+        "id", class_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+    if not class_check.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class not found")
 
     # Get students in class (current_class_id is the source of truth used
     # everywhere else - "enrollments" is not a real table)

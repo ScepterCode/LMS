@@ -585,11 +585,29 @@ def record_payment(
     payment_data["status"] = "confirmed"
     payment_data["recorded_by"] = current_user["id"]
     payment_data["recorded_at"] = datetime.utcnow().isoformat()
-    
+
+    # Validate every fee being paid belongs to THIS organization BEFORE we
+    # write anything. A payment must never read or modify another school's
+    # student_fees; without this, an allocation referencing a foreign
+    # student_fee_id silently overwrites that fee's balance/status.
+    fees_by_id = {}
+    if data.fee_allocations:
+        requested_ids = list({a["student_fee_id"] for a in data.fee_allocations})
+        owned = db.table("student_fees").select("*").in_(
+            "id", requested_ids
+        ).eq("organization_id", current_user["school_id"]).execute()
+        fees_by_id = {f["id"]: f for f in (owned.data or [])}
+        missing = [fid for fid in requested_ids if fid not in fees_by_id]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or more fees could not be found for this organization"
+            )
+
     # Insert payment
     payment_response = db.table("payments").insert(payment_data).execute()
     payment_id = payment_response.data[0]["id"]
-    
+
     # Handle fee allocations
     if data.fee_allocations:
         allocations = []
@@ -599,29 +617,23 @@ def record_payment(
                 "student_fee_id": allocation["student_fee_id"],
                 "allocated_amount": allocation["allocated_amount"]
             })
-        
+
         db.table("payment_allocations").insert(allocations).execute()
-        
-        # Update student fees
+
+        # Update student fees (all validated as org-owned above)
         for allocation in data.fee_allocations:
-            student_fee = db.table("student_fees").select("*").eq(
-                "id", allocation["student_fee_id"]
+            fee = fees_by_id[allocation["student_fee_id"]]
+            new_paid = float(fee["amount_paid"]) + float(allocation["allocated_amount"])
+            new_balance = float(fee["final_amount"]) - new_paid
+            new_status = "paid" if new_balance <= 0 else "partial"
+            db.table("student_fees").update({
+                "amount_paid": new_paid,
+                "balance": new_balance,
+                "status": new_status,
+                "paid_date": data.payment_date.isoformat() if new_balance <= 0 else None
+            }).eq("id", allocation["student_fee_id"]).eq(
+                "organization_id", current_user["school_id"]
             ).execute()
-            
-            if student_fee.data:
-                fee = student_fee.data[0]
-                new_paid = float(fee["amount_paid"]) + float(allocation["allocated_amount"])
-                new_balance = float(fee["final_amount"]) - new_paid
-                
-                # Determine status
-                new_status = "paid" if new_balance <= 0 else "partial"
-                
-                db.table("student_fees").update({
-                    "amount_paid": new_paid,
-                    "balance": new_balance,
-                    "status": new_status,
-                    "paid_date": data.payment_date.isoformat() if new_balance <= 0 else None
-                }).eq("id", allocation["student_fee_id"]).execute()
     
     # Generate receipt
     receipt_data = {

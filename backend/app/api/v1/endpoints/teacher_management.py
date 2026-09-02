@@ -501,6 +501,14 @@ def remove_subject_from_class(
         if not supabase:
             raise DatabaseError("Database connection not available")
         
+        # Verify the class belongs to the caller's school before touching its
+        # curriculum (class_subjects has no organization_id column of its own).
+        class_check = supabase.table('classes').select('id').eq(
+            'id', str(class_id)
+        ).eq('organization_id', user["school_id"]).execute()
+        if not class_check.data:
+            raise NotFoundError("Class", str(class_id))
+
         # Find and delete
         existing = supabase.table('class_subjects').select('id').eq(
             'class_id', str(class_id)
@@ -645,10 +653,13 @@ def list_teacher_assignments(
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        # Build query with joins (note: supabase doesn't support complex joins easily)
-        # We'll fetch and enrich manually
-        query = supabase.table('teacher_class_assignments').select('*')
-        
+        # Scope to this school by inner-joining teachers (teacher_class_assignments
+        # has no organization_id column of its own); filter on the joined org so
+        # rows belonging to other schools are never returned.
+        query = supabase.table('teacher_class_assignments').select(
+            '*, teachers!inner(organization_id)'
+        ).eq('teachers.organization_id', user["school_id"])
+
         if teacher_id:
             query = query.eq('teacher_id', str(teacher_id))
         
@@ -668,6 +679,8 @@ def list_teacher_assignments(
         
         # Enrich with names
         for assignment in assignments:
+            # Drop the join artifact used only for org scoping above.
+            assignment.pop('teachers', None)
             # Get teacher name
             teacher = supabase.table('teachers').select('first_name, last_name').eq(
                 'id', assignment['teacher_id']
@@ -708,15 +721,22 @@ def get_teacher_assignment(request: Request, assignment_id: UUID):
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        response = supabase.table('teacher_class_assignments').select('*').eq(
-            'id', str(assignment_id)
-        ).execute()
-        
+        response = supabase.table('teacher_class_assignments').select(
+            '*, teachers!inner(organization_id)'
+        ).eq('id', str(assignment_id)).execute()
+
         if not response.data:
             raise NotFoundError("Teacher assignment", str(assignment_id))
-        
+
         assignment = response.data[0]
-        
+
+        # Verify this assignment belongs to the caller's school before returning
+        # it (404 rather than 403 so a foreign id is indistinguishable from a
+        # non-existent one).
+        if assignment['teachers']['organization_id'] != str(user["school_id"]):
+            raise NotFoundError("Teacher assignment", str(assignment_id))
+        assignment.pop('teachers', None)
+
         # Enrich with names
         teacher = supabase.table('teachers').select('first_name, last_name').eq(
             'id', assignment['teacher_id']
@@ -756,16 +776,21 @@ def update_teacher_assignment(request: Request, assignment_id: UUID, data: Teach
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        # Verify assignment exists
-        existing = supabase.table('teacher_class_assignments').select('*').eq(
-            'id', str(assignment_id)
-        ).execute()
-        
+        # Verify assignment exists AND belongs to the caller's school
+        # (teacher_class_assignments has no organization_id column, so scope
+        # through the joined teacher's org).
+        existing = supabase.table('teacher_class_assignments').select(
+            '*, teachers!inner(organization_id)'
+        ).eq('id', str(assignment_id)).execute()
+
         if not existing.data:
             raise NotFoundError("Teacher assignment", str(assignment_id))
-        
+
         assignment = existing.data[0]
-        
+        if assignment['teachers']['organization_id'] != str(user["school_id"]):
+            raise NotFoundError("Teacher assignment", str(assignment_id))
+        assignment.pop('teachers', None)
+
         # If changing to form teacher, check if class already has one
         if data.is_form_teacher and not assignment['is_form_teacher']:
             existing_form_teacher = supabase.table('teacher_class_assignments').select('id').eq(
@@ -832,14 +857,18 @@ def delete_teacher_assignment(request: Request, assignment_id: UUID):
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        # Verify assignment exists
-        existing = supabase.table('teacher_class_assignments').select('id').eq(
-            'id', str(assignment_id)
-        ).execute()
-        
+        # Verify assignment exists AND belongs to the caller's school before
+        # deleting (scope through the joined teacher's org).
+        existing = supabase.table('teacher_class_assignments').select(
+            'id, teachers!inner(organization_id)'
+        ).eq('id', str(assignment_id)).execute()
+
         if not existing.data:
             raise NotFoundError("Teacher assignment", str(assignment_id))
-        
+
+        if existing.data[0]['teachers']['organization_id'] != str(user["school_id"]):
+            raise NotFoundError("Teacher assignment", str(assignment_id))
+
         supabase.table('teacher_class_assignments').delete().eq('id', str(assignment_id)).execute()
         
         logger.info(f"Deleted teacher assignment {assignment_id}")
@@ -866,15 +895,23 @@ def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Optional
         if not supabase:
             raise DatabaseError("Database connection not available")
         
+        # Verify the teacher belongs to the caller's school before exposing
+        # their class list (teacher_id comes straight from the URL path).
+        teacher_check = supabase.table('teachers').select('id').eq(
+            'id', str(teacher_id)
+        ).eq('organization_id', user["school_id"]).execute()
+        if not teacher_check.data:
+            raise NotFoundError("Teacher", str(teacher_id))
+
         query = supabase.table('teacher_class_assignments').select('*').eq(
             'teacher_id', str(teacher_id)
         )
-        
+
         if session_id:
             query = query.eq('session_id', str(session_id))
-        
+
         response = query.execute()
-        
+
         # Group by class
         classes_dict = {}
         for assignment in response.data or []:
@@ -896,7 +933,7 @@ def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Optional
         
         return list(classes_dict.values())
         
-    except (AuthorizationError, DatabaseError):
+    except (AuthorizationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:
         logger.error(f"Error getting teacher classes: {e}")
@@ -1129,8 +1166,16 @@ def get_class_remarks(
         if not supabase:
             raise DatabaseError("Database connection not available")
         
+        # Verify the class belongs to the caller's org before returning its
+        # remarks (require_form_teacher_or_admin no-ops the org check for admins).
+        class_check = supabase.table('classes').select('id').eq(
+            'id', str(class_id)
+        ).eq('organization_id', user["school_id"]).execute()
+        if not class_check.data:
+            raise NotFoundError("Class", str(class_id))
+
         query = supabase.table('student_remarks').select('*').eq('class_id', str(class_id))
-        
+
         if session_id:
             query = query.eq('session_id', str(session_id))
         
@@ -1158,7 +1203,7 @@ def get_class_remarks(
         
         return remarks
         
-    except (AuthorizationError, DatabaseError):
+    except (AuthorizationError, NotFoundError, DatabaseError):
         raise
     except Exception as e:
         logger.error(f"Error getting class remarks: {e}")
@@ -1179,13 +1224,19 @@ def update_student_remark(request: Request, remark_id: UUID, data: StudentRemark
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        # Verify remark exists
-        existing = supabase.table('student_remarks').select('*').eq('id', str(remark_id)).execute()
-        
+        # Verify remark exists AND belongs to the caller's school (student_remarks
+        # has no organization_id column, so scope through the student's org).
+        existing = supabase.table('student_remarks').select(
+            '*, students!inner(organization_id)'
+        ).eq('id', str(remark_id)).execute()
+
         if not existing.data:
             raise NotFoundError("Student remark", str(remark_id))
-        
+
         remark = existing.data[0]
+        if remark['students']['organization_id'] != str(user["school_id"]):
+            raise NotFoundError("Student remark", str(remark_id))
+        remark.pop('students', None)
 
         # Check authorization - only the form teacher who wrote the remark,
         # or an admin, may edit it. Any other role (bursar/parent/student)
@@ -1234,14 +1285,18 @@ def delete_student_remark(request: Request, remark_id: UUID):
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        # Verify remark exists
-        existing = supabase.table('student_remarks').select('form_teacher_id').eq(
-            'id', str(remark_id)
-        ).execute()
-        
+        # Verify remark exists AND belongs to the caller's school before
+        # deleting (scope through the student's org).
+        existing = supabase.table('student_remarks').select(
+            'form_teacher_id, students!inner(organization_id)'
+        ).eq('id', str(remark_id)).execute()
+
         if not existing.data:
             raise NotFoundError("Student remark", str(remark_id))
-        
+
+        if existing.data[0]['students']['organization_id'] != str(user["school_id"]):
+            raise NotFoundError("Student remark", str(remark_id))
+
         # Check authorization - same rule as update: form teacher (own
         # remarks only) or admin; everyone else is rejected explicitly.
         if user.get("role") == "teacher":
