@@ -56,6 +56,12 @@ export default function FeeManagementPage() {
     is_active: true,
   });
   const [showStructureModal, setShowStructureModal] = useState(false);
+  const [editingStructure, setEditingStructure] = useState<FeeStructure | null>(null);
+  const [editStructureForm, setEditStructureForm] = useState({
+    amount: '',
+    due_date: '',
+    is_active: true,
+  });
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -195,6 +201,36 @@ export default function FeeManagementPage() {
     } catch (error: any) {
       console.error('Error deleting category:', error);
       alert(error.response?.data?.detail || 'Failed to delete category');
+    }
+  };
+
+  const openEditStructure = (structure: FeeStructure) => {
+    setEditingStructure(structure);
+    setEditStructureForm({
+      amount: String(structure.amount ?? ''),
+      due_date: structure.due_date || '',
+      is_active: structure.is_active,
+    });
+  };
+
+  const handleUpdateStructure = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStructure) return;
+    try {
+      const response = await api.put(`/api/v1/fees/structures/${editingStructure.id}`, {
+        amount: parseFloat(editStructureForm.amount),
+        due_date: editStructureForm.due_date || null,
+        is_active: editStructureForm.is_active,
+      });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setEditingStructure(null);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error updating fee structure:', error);
+      alert(error.response?.data?.detail || 'Failed to update fee structure');
     }
   };
 
@@ -492,7 +528,13 @@ export default function FeeManagementPage() {
                             {structure.is_active ? 'Active' : 'Inactive'}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                          <button
+                            onClick={() => openEditStructure(structure)}
+                            className="text-brand-600 hover:text-brand-800"
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => handleDeleteStructure(structure)}
                             className="text-danger-600 hover:text-danger-800"
@@ -744,6 +786,67 @@ export default function FeeManagementPage() {
               <div className="flex gap-3 pt-4">
                 <Button type="submit" className="flex-1">Create Fee Structure</Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowStructureModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Fee Structure Modal */}
+      {editingStructure && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-1 text-gray-900">Edit Fee Structure</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {editingStructure.category_name}
+              {' – '}
+              {editingStructure.class_name
+                || (editingStructure.class_level ? `All ${editingStructure.class_level} Classes` : 'All Classes')}
+            </p>
+
+            <form onSubmit={handleUpdateStructure} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₦) *</label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  value={editStructureForm.amount}
+                  onChange={(e) => setEditStructureForm({ ...editStructureForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={editStructureForm.due_date}
+                  onChange={(e) => setEditStructureForm({ ...editStructureForm, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={editStructureForm.is_active}
+                  onChange={(e) => setEditStructureForm({ ...editStructureForm, is_active: e.target.checked })}
+                  className="w-4 h-4 text-brand-600 border-gray-300 rounded"
+                />
+                <label className="ml-2 text-sm text-gray-700">Active</label>
+              </div>
+
+              <p className="text-xs text-gray-400">
+                To change the category, session, class or payment frequency, delete this structure and create a new one.
+              </p>
+
+              <div className="flex gap-3 pt-4">
+                <Button type="submit" className="flex-1">Save Changes</Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditingStructure(null)}>
                   Cancel
                 </Button>
               </div>
