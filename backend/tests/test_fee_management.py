@@ -241,3 +241,47 @@ class TestCopyFeeStructuresToSession:
             "target_session_id": academic_session["id"],
         })
         assert res.status_code == 400, res.text
+
+
+class TestDuplicateFeeStructure:
+    def test_duplicate_into_another_session_with_amount_override(
+        self, school, academic_session, klass
+    ):
+        category = _category(school)
+        structure = _structure(school, category, academic_session, klass, amount=50000)
+        target = _session(school)
+
+        res = school["client"].post(
+            f"/api/v1/fees/structures/{structure['id']}/duplicate",
+            json={"target_session_id": target["id"], "amount": 75000},
+        )
+        assert res.status_code == 201, res.text
+        assert float(res.json()["amount"]) == 75000
+        assert res.json()["session_id"] == target["id"]
+        assert res.json()["fee_category_id"] == category["id"]
+
+    def test_duplicate_into_same_session_rejected(self, school, academic_session, klass):
+        category = _category(school)
+        structure = _structure(school, category, academic_session, klass)
+        res = school["client"].post(
+            f"/api/v1/fees/structures/{structure['id']}/duplicate",
+            json={"target_session_id": academic_session["id"]},
+        )
+        assert res.status_code == 400, res.text
+
+    def test_duplicate_rejected_when_target_already_has_one(
+        self, school, academic_session, klass
+    ):
+        category = _category(school)
+        structure = _structure(school, category, academic_session, klass)
+        target = _session(school)
+        first = school["client"].post(
+            f"/api/v1/fees/structures/{structure['id']}/duplicate",
+            json={"target_session_id": target["id"]},
+        )
+        assert first.status_code == 201, first.text
+        second = school["client"].post(
+            f"/api/v1/fees/structures/{structure['id']}/duplicate",
+            json={"target_session_id": target["id"]},
+        )
+        assert second.status_code == 400, second.text

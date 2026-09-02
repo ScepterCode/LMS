@@ -119,6 +119,13 @@ class CopyFeeStructuresRequest(BaseModel):
     class_ids: Optional[List[str]] = None  # None/empty = all classes
 
 
+class DuplicateFeeStructureRequest(BaseModel):
+    """Copy one structure into another session (same category / class /
+    frequency), optionally overriding the amount."""
+    target_session_id: str
+    amount: Optional[Decimal] = Field(None, ge=0, le=Decimal("1000000000"))
+
+
 # ============================================
 # STUDENT FEES
 # ============================================

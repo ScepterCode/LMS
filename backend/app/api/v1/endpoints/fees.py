@@ -14,7 +14,7 @@ from app.core.permissions import PermissionChecker
 from app.models.fees import (
     FeeCategory, FeeCategoryCreate, FeeCategoryUpdate,
     FeeStructure, FeeStructureCreate, FeeStructureUpdate,
-    BulkFeeStructureCreate, CopyFeeStructuresRequest,
+    BulkFeeStructureCreate, CopyFeeStructuresRequest, DuplicateFeeStructureRequest,
     StudentFee, StudentFeeCreate, StudentFeeUpdate, StudentFeeWaiver,
     Payment, PaymentCreate, PaymentUpdate,
     PaymentAllocation, PaymentAllocationCreate,
@@ -579,6 +579,73 @@ def copy_fee_structures_to_session(
         created = db.table("fee_structures").insert(new_rows).execute().data or []
 
     return {"created": len(created), "skipped": skipped, "structures": created}
+
+
+@router.post("/structures/{structure_id}/duplicate", status_code=status.HTTP_201_CREATED)
+def duplicate_fee_structure(
+    structure_id: str,
+    data: DuplicateFeeStructureRequest,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Copy one structure into another session. INSERT-only; refuses if the
+    target session already has a structure for the same category+scope."""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can create fee structures"
+        )
+
+    org_id = current_user["school_id"]
+
+    src = db.table("fee_structures").select("*").eq("id", structure_id).eq(
+        "organization_id", org_id
+    ).execute()
+    if not src.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee structure not found")
+    src = src.data[0]
+
+    if data.target_session_id == src["session_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target session must differ from the structure's own session"
+        )
+
+    sess = db.table("academic_sessions").select("id").eq("id", data.target_session_id).eq(
+        "organization_id", org_id
+    ).execute()
+    if not sess.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Academic session not found")
+
+    dup_q = db.table("fee_structures").select("id").eq("organization_id", org_id).eq(
+        "fee_category_id", src["fee_category_id"]
+    ).eq("session_id", data.target_session_id)
+    if src.get("class_id"):
+        dup_q = dup_q.eq("class_id", src["class_id"])
+    elif src.get("class_level"):
+        dup_q = dup_q.is_("class_id", "null").eq("class_level", src["class_level"])
+    else:
+        dup_q = dup_q.is_("class_id", "null").is_("class_level", "null")
+    if dup_q.execute().data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The target session already has a structure for this category and class"
+        )
+
+    new_row = {
+        "organization_id": org_id,
+        "fee_category_id": src["fee_category_id"],
+        "session_id": data.target_session_id,
+        "class_id": src.get("class_id"),
+        "class_level": src.get("class_level"),
+        "amount": float(data.amount) if data.amount is not None else float(src["amount"]),
+        "currency": src.get("currency", "NGN"),
+        "payment_frequency": src.get("payment_frequency", "termly"),
+        "due_date": None,
+    }
+    created = db.table("fee_structures").insert(new_row).execute()
+    return created.data[0]
 
 
 # ============================================

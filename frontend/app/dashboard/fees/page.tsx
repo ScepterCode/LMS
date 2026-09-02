@@ -89,6 +89,11 @@ export default function FeeManagementPage() {
   });
   const [viewingStructureDetail, setViewingStructureDetail] = useState<StructureDetail | null>(null);
   const [structureDetailLoading, setStructureDetailLoading] = useState(false);
+  const [selectedStructureIds, setSelectedStructureIds] = useState<string[]>([]);
+  const [bulkActionRunning, setBulkActionRunning] = useState(false);
+  const [duplicatingStructure, setDuplicatingStructure] = useState<FeeStructure | null>(null);
+  const [duplicateForm, setDuplicateForm] = useState({ target_session_id: '', amount: '' });
+  const [duplicateSubmitting, setDuplicateSubmitting] = useState(false);
   const [structureFilters, setStructureFilters] = useState({
     session_id: '',
     class_id: '',
@@ -321,6 +326,64 @@ export default function FeeManagementPage() {
     }
   };
 
+  const toggleStructureSelected = (id: string) =>
+    setSelectedStructureIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+
+  const runBulkStructureAction = async (action: 'activate' | 'deactivate' | 'delete') => {
+    const targets = structures.filter((s) => selectedStructureIds.includes(s.id));
+    if (targets.length === 0) return;
+    const verb = action === 'delete' ? 'Delete' : action === 'activate' ? 'Activate' : 'Deactivate';
+    if (!confirm(`${verb} ${targets.length} fee structure(s)?${action === 'delete' ? " Structures assigned to students won't be deleted." : ''}`)) return;
+
+    setBulkActionRunning(true);
+    let ok = 0;
+    const failures: string[] = [];
+    for (const s of targets) {
+      try {
+        const response = action === 'delete'
+          ? await api.delete(`/api/v1/fees/structures/${s.id}`)
+          : await api.put(`/api/v1/fees/structures/${s.id}`, { is_active: action === 'activate' });
+        if (response.error) failures.push(`${s.category_name}: ${response.error}`);
+        else ok += 1;
+      } catch (error: any) {
+        failures.push(`${s.category_name}: ${error.response?.data?.detail || 'failed'}`);
+      }
+    }
+    setBulkActionRunning(false);
+    setSelectedStructureIds([]);
+    fetchData();
+    alert(`${verb}d ${ok} of ${targets.length}.${failures.length ? `\n\nSkipped:\n${failures.join('\n')}` : ''}`);
+  };
+
+  const openDuplicateStructure = (structure: FeeStructure) => {
+    setDuplicatingStructure(structure);
+    setDuplicateForm({ target_session_id: '', amount: String(structure.amount ?? '') });
+  };
+
+  const handleDuplicateStructure = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!duplicatingStructure) return;
+    setDuplicateSubmitting(true);
+    try {
+      const response = await api.post(`/api/v1/fees/structures/${duplicatingStructure.id}/duplicate`, {
+        target_session_id: duplicateForm.target_session_id,
+        amount: duplicateForm.amount ? parseFloat(duplicateForm.amount) : null,
+      });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setDuplicatingStructure(null);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error duplicating fee structure:', error);
+      alert(error.response?.data?.detail || 'Failed to duplicate fee structure');
+    } finally {
+      setDuplicateSubmitting(false);
+    }
+  };
+
   const handleCreateStructure = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -547,32 +610,64 @@ export default function FeeManagementPage() {
       sort: 'default',
     });
 
-  const exportStructuresCsv = () => {
+  const EXPORT_HEADER = ['Category', 'Class', 'Session', 'Amount', 'Frequency', 'Due Date', 'Status'];
+
+  const exportRows = () => {
     const sessionName = (id?: string) => sessions.find((s) => s.id === id)?.name ?? '';
-    const csvCell = (v: string | number) => {
-      const str = String(v ?? '');
-      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-    };
-    const header = ['Category', 'Class', 'Session', 'Amount', 'Frequency', 'Due Date', 'Status'];
-    const rows = filteredStructures.map((s) => [
-      s.category_name ?? '',
-      s.class_name || (s.class_level ? `All ${s.class_level} Classes` : 'All Classes'),
-      sessionName(s.session_id),
-      Number(s.amount),
-      s.payment_frequency,
-      s.due_date || '',
-      s.is_active ? 'Active' : 'Inactive',
-    ]);
-    const csv = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    return filteredStructures.map((s) => ({
+      cells: [
+        s.category_name ?? '',
+        s.class_name || (s.class_level ? `All ${s.class_level} Classes` : 'All Classes'),
+        sessionName(s.session_id),
+        Number(s.amount),
+        s.payment_frequency,
+        s.due_date || '',
+        s.is_active ? 'Active' : 'Inactive',
+      ] as (string | number)[],
+    }));
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `fee-structures-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const exportStructuresCsv = () => {
+    const csvCell = (v: string | number) => {
+      const str = String(v ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const body = exportRows().map((r) => r.cells);
+    const csv = [EXPORT_HEADER, ...body].map((r) => r.map(csvCell).join(',')).join('\r\n');
+    downloadBlob(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }),
+      `fee-structures-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const exportStructuresExcel = () => {
+    // SpreadsheetML 2003 - a single-file XML workbook Excel opens natively,
+    // no library needed. Amounts land as real numbers, everything else as text.
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const cell = (v: string | number) =>
+      typeof v === 'number' && Number.isFinite(v)
+        ? `<Cell><Data ss:Type="Number">${v}</Data></Cell>`
+        : `<Cell><Data ss:Type="String">${esc(String(v ?? ''))}</Data></Cell>`;
+    const row = (cells: (string | number)[]) => `<Row>${cells.map(cell).join('')}</Row>`;
+    const xml =
+      `<?xml version="1.0"?>` +
+      `<?mso-application progid="Excel.Sheet"?>` +
+      `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
+      `<Worksheet ss:Name="Fee Structures"><Table>` +
+      row(EXPORT_HEADER) +
+      exportRows().map((r) => row(r.cells)).join('') +
+      `</Table></Worksheet></Workbook>`;
+    downloadBlob(new Blob([xml], { type: 'application/vnd.ms-excel' }),
+      `fee-structures-${new Date().toISOString().slice(0, 10)}.xls`);
   };
 
   const filteredStructures = useMemo(() => {
@@ -724,6 +819,13 @@ export default function FeeManagementPage() {
               >
                 Export CSV
               </Button>
+              <Button
+                variant="secondary"
+                onClick={exportStructuresExcel}
+                disabled={filteredStructures.length === 0}
+              >
+                Export Excel
+              </Button>
               <Button variant="secondary" onClick={() => setShowCopyModal(true)}>Copy from Session</Button>
               <Button variant="secondary" onClick={openBulkModal}>Bulk Add</Button>
               <Button onClick={() => setShowStructureModal(true)}>Add Fee Structure</Button>
@@ -802,11 +904,55 @@ export default function FeeManagementPage() {
               </div>
             </div>
 
+            {selectedStructureIds.length > 0 && (
+              <div className="bg-brand-50 border border-brand-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
+                <span className="font-medium text-brand-800">{selectedStructureIds.length} selected</span>
+                <button
+                  onClick={() => runBulkStructureAction('activate')}
+                  disabled={bulkActionRunning}
+                  className="text-brand-700 hover:text-brand-900 disabled:opacity-50"
+                >
+                  Activate
+                </button>
+                <button
+                  onClick={() => runBulkStructureAction('deactivate')}
+                  disabled={bulkActionRunning}
+                  className="text-brand-700 hover:text-brand-900 disabled:opacity-50"
+                >
+                  Deactivate
+                </button>
+                <button
+                  onClick={() => runBulkStructureAction('delete')}
+                  disabled={bulkActionRunning}
+                  className="text-danger-600 hover:text-danger-800 disabled:opacity-50"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setSelectedStructureIds([])}
+                  className="ml-auto text-gray-500 hover:text-gray-700"
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
+
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all"
+                        checked={filteredStructures.length > 0 && filteredStructures.every((s) => selectedStructureIds.includes(s.id))}
+                        onChange={(e) => setSelectedStructureIds(
+                          e.target.checked ? filteredStructures.map((s) => s.id) : []
+                        )}
+                        className="w-4 h-4 text-brand-600 border-gray-300 rounded"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
@@ -819,19 +965,28 @@ export default function FeeManagementPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {structures.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                         No fee structures found. Create fee structures to assign to students.
                       </td>
                     </tr>
                   ) : filteredStructures.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                         No fee structures match the current filters.
                       </td>
                     </tr>
                   ) : (
                     filteredStructures.map((structure) => (
                       <tr key={structure.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${structure.category_name}`}
+                            checked={selectedStructureIds.includes(structure.id)}
+                            onChange={() => toggleStructureSelected(structure.id)}
+                            className="w-4 h-4 text-brand-600 border-gray-300 rounded"
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {structure.category_name}
                         </td>
@@ -865,6 +1020,12 @@ export default function FeeManagementPage() {
                             className="text-brand-600 hover:text-brand-800"
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={() => openDuplicateStructure(structure)}
+                            className="text-brand-600 hover:text-brand-800"
+                          >
+                            Duplicate
                           </button>
                           <button
                             onClick={() => handleDeleteStructure(structure)}
@@ -1123,6 +1284,60 @@ export default function FeeManagementPage() {
               <div className="flex gap-3 pt-4">
                 <Button type="submit" className="flex-1" disabled={structureFormDuplicate}>Create Fee Structure</Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowStructureModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Fee Structure Modal */}
+      {duplicatingStructure && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-1 text-gray-900">Duplicate to Another Session</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {duplicatingStructure.category_name}
+              {' – '}
+              {duplicatingStructure.class_name
+                || (duplicatingStructure.class_level ? `All ${duplicatingStructure.class_level} Classes` : 'All Classes')}
+            </p>
+
+            <form onSubmit={handleDuplicateStructure} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Target Session *</label>
+                <select
+                  required
+                  value={duplicateForm.target_session_id}
+                  onChange={(e) => setDuplicateForm({ ...duplicateForm, target_session_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select session</option>
+                  {sessions
+                    .filter((s) => s.id !== duplicatingStructure.session_id)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₦)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={duplicateForm.amount}
+                  onChange={(e) => setDuplicateForm({ ...duplicateForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button type="submit" className="flex-1" disabled={duplicateSubmitting}>
+                  {duplicateSubmitting ? 'Duplicating…' : 'Duplicate'}
+                </Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setDuplicatingStructure(null)}>
                   Cancel
                 </Button>
               </div>
