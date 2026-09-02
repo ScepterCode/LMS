@@ -59,6 +59,24 @@ def require_admin(user: dict):
         raise AuthorizationError("Only administrators can perform this action")
 
 
+def require_teacher_data_access(user: dict, teacher_id: str = None):
+    """Intra-org gate for reading teacher-assignment data.
+
+    Admins / system admins / deans may read any teacher's assignments; a
+    teacher may read only their own; everyone else (bursar, registrar,
+    parent, student) is rejected. This is the companion to the
+    cross-tenant org scoping already on these reads - without it any
+    authenticated user in the school could enumerate staff assignments.
+    """
+    if user.get("role") in ["admin", "system_admin", "dean"]:
+        return True
+    if user.get("role") == "teacher" and user.get("teacher_id"):
+        if teacher_id is None or str(teacher_id) == str(user["teacher_id"]):
+            return True
+        raise AuthorizationError("Teachers can only view their own assignments")
+    raise AuthorizationError("Not authorized to view teacher assignments")
+
+
 def require_form_teacher_or_admin(user: dict, class_id: str = None):
     """Ensure user is form teacher of the class or admin."""
     if user.get("role") in ["admin", "system_admin"]:
@@ -648,11 +666,17 @@ def list_teacher_assignments(
         
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
+        # Intra-org gate: admins/deans see all; a teacher is silently
+        # constrained to their own assignments; anyone else is rejected.
+        require_teacher_data_access(user, str(teacher_id) if teacher_id else None)
+        if user.get("role") == "teacher" and not teacher_id:
+            teacher_id = UUID(user["teacher_id"])
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # Scope to this school by inner-joining teachers (teacher_class_assignments
         # has no organization_id column of its own); filter on the joined org so
         # rows belonging to other schools are never returned.
@@ -736,6 +760,10 @@ def get_teacher_assignment(request: Request, assignment_id: UUID):
         if assignment['teachers']['organization_id'] != str(user["school_id"]):
             raise NotFoundError("Teacher assignment", str(assignment_id))
         assignment.pop('teachers', None)
+
+        # Intra-org gate: admins/deans, or the teacher this assignment
+        # belongs to. Everyone else in the school is rejected.
+        require_teacher_data_access(user, assignment['teacher_id'])
 
         # Enrich with names
         teacher = supabase.table('teachers').select('first_name, last_name').eq(
@@ -890,11 +918,15 @@ def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Optional
         
         if not user.get("school_id"):
             raise AuthorizationError("User must belong to a school")
-        
+
+        # Intra-org gate: admins/deans for any teacher, or the teacher
+        # themselves. Bursar/registrar/parent/student are rejected.
+        require_teacher_data_access(user, str(teacher_id))
+
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # Verify the teacher belongs to the caller's school before exposing
         # their class list (teacher_id comes straight from the URL path).
         teacher_check = supabase.table('teachers').select('id').eq(

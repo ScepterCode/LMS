@@ -423,3 +423,119 @@ class TestStudentParentsEndpoint:
 
         res = parent["client"].get(f"/api/v1/students/{unlinked.json()['id']}/parents")
         assert res.status_code == 403, res.text
+
+
+# ============================================
+# TEACHER-ASSIGNMENT READ SCOPING (intra-org)
+# ============================================
+# GET /teacher-management/teacher-assignments, /{id} and
+# /teacher/{teacher_id}/classes were cross-tenant-scoped but had no role
+# check - any authenticated user in the school could enumerate every
+# teacher's class/subject assignments. Now: admin/system_admin/dean see
+# all; a teacher sees only their own; everyone else is rejected.
+
+TA = "/api/v1/teacher-management/teacher-assignments"
+
+
+class TestTeacherAssignmentReadScoping:
+    def _assign(self, school, teacher, klass, subject, academic_session, is_form=False):
+        res = school["client"].post(TA, json={
+            "teacher_id": teacher["teacher"]["id"], "class_id": klass["id"],
+            "subject_id": subject["id"], "session_id": academic_session["id"],
+            "is_form_teacher": is_form,
+        })
+        assert res.status_code == 201, res.text
+        return res.json()
+
+    def test_admin_can_list_all_teacher_assignments(
+        self, school, teacher, klass, subject, academic_session
+    ):
+        self._assign(school, teacher, klass, subject, academic_session)
+        res = school["client"].get(TA)
+        assert res.status_code == 200, res.text
+        assert len(res.json()) >= 1
+
+    def test_dean_can_list_teacher_assignments(
+        self, school, dean, teacher, klass, subject, academic_session
+    ):
+        self._assign(school, teacher, klass, subject, academic_session)
+        res = dean["client"].get(TA)
+        assert res.status_code == 200, res.text
+
+    def test_registrar_cannot_list_teacher_assignments(
+        self, school, registrar, teacher, klass, subject, academic_session
+    ):
+        self._assign(school, teacher, klass, subject, academic_session)
+        res = registrar["client"].get(TA)
+        assert res.status_code == 403, res.text
+
+    def test_parent_cannot_list_teacher_assignments(self, school, student):
+        parent = _make_parent(school, student["id"])
+        res = parent["client"].get(TA)
+        assert res.status_code == 403, res.text
+
+    def test_teacher_list_returns_only_own_assignments(
+        self, school, teacher, klass, subject, academic_session
+    ):
+        other_teacher = make_teacher(school)
+        other_class = _make_second_class(school)
+        mine = self._assign(school, teacher, klass, subject, academic_session)
+        theirs = self._assign(school, other_teacher, other_class, subject, academic_session)
+
+        res = teacher["client"].get(TA)
+        assert res.status_code == 200, res.text
+        returned = {a["id"] for a in res.json()}
+        assert mine["id"] in returned
+        assert theirs["id"] not in returned
+
+    def test_teacher_cannot_get_another_teachers_assignment_by_id(
+        self, school, teacher, klass, subject, academic_session
+    ):
+        other_teacher = make_teacher(school)
+        other_class = _make_second_class(school)
+        theirs = self._assign(school, other_teacher, other_class, subject, academic_session)
+
+        res = teacher["client"].get(f"{TA}/{theirs['id']}")
+        assert res.status_code == 403, res.text
+
+    def test_teacher_can_get_own_assignment_by_id(
+        self, school, teacher, klass, subject, academic_session
+    ):
+        mine = self._assign(school, teacher, klass, subject, academic_session)
+        res = teacher["client"].get(f"{TA}/{mine['id']}")
+        assert res.status_code == 200, res.text
+
+    def test_teacher_can_get_own_classes(
+        self, school, teacher, klass, subject, academic_session
+    ):
+        self._assign(school, teacher, klass, subject, academic_session, is_form=True)
+        res = teacher["client"].get(f"{TA}/teacher/{teacher['teacher']['id']}/classes")
+        assert res.status_code == 200, res.text
+        assert any(c["id"] == klass["id"] for c in res.json())
+
+    def test_teacher_cannot_get_another_teachers_classes(
+        self, school, teacher, klass, subject, academic_session
+    ):
+        other_teacher = make_teacher(school)
+        res = teacher["client"].get(
+            f"{TA}/teacher/{other_teacher['teacher']['id']}/classes"
+        )
+        assert res.status_code == 403, res.text
+
+    def test_admin_can_get_any_teachers_classes(
+        self, school, teacher, klass, subject, academic_session
+    ):
+        self._assign(school, teacher, klass, subject, academic_session, is_form=True)
+        res = school["client"].get(
+            f"{TA}/teacher/{teacher['teacher']['id']}/classes"
+        )
+        assert res.status_code == 200, res.text
+
+    def test_registrar_cannot_get_teacher_classes(
+        self, school, registrar, teacher, klass, subject, academic_session
+    ):
+        self._assign(school, teacher, klass, subject, academic_session)
+        res = registrar["client"].get(
+            f"{TA}/teacher/{teacher['teacher']['id']}/classes"
+        )
+        assert res.status_code == 403, res.text
