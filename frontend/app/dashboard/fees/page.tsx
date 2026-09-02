@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
@@ -19,6 +19,9 @@ interface FeeCategory {
 
 interface FeeStructure {
   id: string;
+  fee_category_id?: string;
+  session_id?: string;
+  class_id?: string;
   category_name: string;
   class_name?: string;
   class_level?: string;
@@ -61,6 +64,14 @@ export default function FeeManagementPage() {
     amount: '',
     due_date: '',
     is_active: true,
+  });
+  const [structureFilters, setStructureFilters] = useState({
+    session_id: '',
+    class_id: '',
+    fee_category_id: '',
+    status: 'all' as 'all' | 'active' | 'inactive',
+    search: '',
+    sort: 'default' as 'default' | 'amount_desc' | 'amount_asc' | 'category',
   });
 
   const [categoryForm, setCategoryForm] = useState({
@@ -365,6 +376,49 @@ export default function FeeManagementPage() {
     }
   };
 
+  const activeStructureFilterCount =
+    (structureFilters.session_id ? 1 : 0) +
+    (structureFilters.class_id ? 1 : 0) +
+    (structureFilters.fee_category_id ? 1 : 0) +
+    (structureFilters.status !== 'all' ? 1 : 0) +
+    (structureFilters.search.trim() ? 1 : 0);
+
+  const clearStructureFilters = () =>
+    setStructureFilters({
+      session_id: '',
+      class_id: '',
+      fee_category_id: '',
+      status: 'all',
+      search: '',
+      sort: 'default',
+    });
+
+  const filteredStructures = useMemo(() => {
+    const term = structureFilters.search.trim().toLowerCase();
+    const result = structures.filter((s) => {
+      if (structureFilters.session_id && s.session_id !== structureFilters.session_id) return false;
+      if (structureFilters.class_id && s.class_id !== structureFilters.class_id) return false;
+      if (structureFilters.fee_category_id && s.fee_category_id !== structureFilters.fee_category_id) return false;
+      if (structureFilters.status === 'active' && !s.is_active) return false;
+      if (structureFilters.status === 'inactive' && s.is_active) return false;
+      if (term) {
+        const haystack = `${s.category_name ?? ''} ${s.class_name ?? ''} ${s.class_level ?? ''}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+    switch (structureFilters.sort) {
+      case 'amount_desc':
+        return [...result].sort((a, b) => Number(b.amount) - Number(a.amount));
+      case 'amount_asc':
+        return [...result].sort((a, b) => Number(a.amount) - Number(b.amount));
+      case 'category':
+        return [...result].sort((a, b) => (a.category_name ?? '').localeCompare(b.category_name ?? ''));
+      default:
+        return result;
+    }
+  }, [structures, structureFilters]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -484,6 +538,79 @@ export default function FeeManagementPage() {
               <Button onClick={() => setShowStructureModal(true)}>Add Fee Structure</Button>
             </div>
 
+            {/* Filters */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <input
+                  type="text"
+                  value={structureFilters.search}
+                  onChange={(e) => setStructureFilters({ ...structureFilters, search: e.target.value })}
+                  placeholder="Search category or class"
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+                <select
+                  value={structureFilters.session_id}
+                  onChange={(e) => setStructureFilters({ ...structureFilters, session_id: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">All sessions</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                  ))}
+                </select>
+                <select
+                  value={structureFilters.class_id}
+                  onChange={(e) => setStructureFilters({ ...structureFilters, class_id: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">All classes</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={structureFilters.fee_category_id}
+                  onChange={(e) => setStructureFilters({ ...structureFilters, fee_category_id: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">All categories</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={structureFilters.status}
+                  onChange={(e) => setStructureFilters({ ...structureFilters, status: e.target.value as 'all' | 'active' | 'inactive' })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="active">Active only</option>
+                  <option value="inactive">Inactive only</option>
+                </select>
+                <select
+                  value={structureFilters.sort}
+                  onChange={(e) => setStructureFilters({ ...structureFilters, sort: e.target.value as typeof structureFilters.sort })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="default">Default order</option>
+                  <option value="amount_desc">Amount (high to low)</option>
+                  <option value="amount_asc">Amount (low to high)</option>
+                  <option value="category">Category (A–Z)</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
+                <span>
+                  Showing {filteredStructures.length} of {structures.length}
+                  {activeStructureFilterCount > 0 && ` · ${activeStructureFilterCount} filter${activeStructureFilterCount > 1 ? 's' : ''} active`}
+                </span>
+                {activeStructureFilterCount > 0 && (
+                  <button onClick={clearStructureFilters} className="text-brand-600 hover:text-brand-800">
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -505,8 +632,14 @@ export default function FeeManagementPage() {
                         No fee structures found. Create fee structures to assign to students.
                       </td>
                     </tr>
+                  ) : filteredStructures.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                        No fee structures match the current filters.
+                      </td>
+                    </tr>
                   ) : (
-                    structures.map((structure) => (
+                    filteredStructures.map((structure) => (
                       <tr key={structure.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {structure.category_name}
