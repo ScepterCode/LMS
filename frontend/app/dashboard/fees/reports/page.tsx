@@ -48,10 +48,12 @@ export default function FinancialReportsPage() {
   const [selectedStudent, setSelectedStudent] = useState('');
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeView, setActiveView] = useState<'overview' | 'structures' | 'student'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'structures' | 'compare' | 'student'>('overview');
   const [currentSessionId, setCurrentSessionId] = useState('');
   const [sessions, setSessions] = useState<any[]>([]);
   const [structures, setStructures] = useState<StructureRow[]>([]);
+  const [compareA, setCompareA] = useState('');
+  const [compareB, setCompareB] = useState('');
 
   useEffect(() => {
     fetchStudents();
@@ -79,7 +81,18 @@ export default function FinancialReportsPage() {
   const fetchSessions = async () => {
     try {
       const res = await api.getSessions();
-      setSessions((res.data as any[]) || []);
+      const list = (res.data as any[]) || [];
+      setSessions(list);
+      // Default the comparison to (previous vs current) when possible.
+      const currentIdx = list.findIndex((s) => s.is_current);
+      if (currentIdx !== -1) {
+        setCompareB(list[currentIdx].id);
+        const prev = list[currentIdx + 1] || list[currentIdx - 1];
+        if (prev) setCompareA(prev.id);
+      } else if (list.length >= 2) {
+        setCompareA(list[1].id);
+        setCompareB(list[0].id);
+      }
     } catch (error) {
       console.error('Error fetching sessions:', error);
       setSessions([]);
@@ -185,6 +198,30 @@ export default function FinancialReportsPage() {
     };
   }, [structures, currentSessionId]);
 
+  const comparison = useMemo(() => {
+    if (!compareA || !compareB || compareA === compareB) return [];
+    const scopeLabel = (s: StructureRow) =>
+      s.class_name || (s.class_level ? `All ${s.class_level} Classes` : 'All Classes');
+    const rowsByKey = new Map<string, { category: string; scope: string; a?: number; b?: number }>();
+    for (const s of structures) {
+      if (s.session_id !== compareA && s.session_id !== compareB) continue;
+      const category = s.category_name || 'Uncategorised';
+      const scope = scopeLabel(s);
+      const key = `${category}|||${scope}`;
+      const entry = rowsByKey.get(key) || { category, scope };
+      if (s.session_id === compareA) entry.a = (entry.a || 0) + (Number(s.amount) || 0);
+      if (s.session_id === compareB) entry.b = (entry.b || 0) + (Number(s.amount) || 0);
+      rowsByKey.set(key, entry);
+    }
+    return [...rowsByKey.values()]
+      .map((r) => {
+        const delta = (r.b ?? 0) - (r.a ?? 0);
+        const pct = r.a ? (delta / r.a) * 100 : null;
+        return { ...r, delta, pct };
+      })
+      .sort((x, y) => x.category.localeCompare(y.category) || x.scope.localeCompare(y.scope));
+  }, [structures, compareA, compareB]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -234,6 +271,16 @@ export default function FinancialReportsPage() {
             }`}
           >
             Structure Breakdown
+          </button>
+          <button
+            onClick={() => setActiveView('compare')}
+            className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+              activeView === 'compare'
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Session Comparison
           </button>
           <button
             onClick={() => setActiveView('student')}
@@ -443,6 +490,80 @@ export default function FinancialReportsPage() {
                           <td className="px-6 py-3 text-sm text-gray-900">{row.name}</td>
                           <td className="px-6 py-3 text-sm text-gray-500 text-right">{row.count}</td>
                           <td className="px-6 py-3 text-sm text-gray-900 text-right">{formatCurrency(row.total)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Session Comparison */}
+        {activeView === 'compare' && (
+          <>
+            <div className="bg-white rounded-lg shadow p-6 flex flex-wrap items-end gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+                <select
+                  value={compareA}
+                  onChange={(e) => setCompareA(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">Select session</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <span className="pb-2 text-gray-400">→</span>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+                <select
+                  value={compareB}
+                  onChange={(e) => setCompareB(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">Select session</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">From</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">To</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {(!compareA || !compareB || compareA === compareB) ? (
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Pick two different sessions to compare.</td></tr>
+                    ) : comparison.length === 0 ? (
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No fee structures in either session.</td></tr>
+                    ) : (
+                      comparison.map((r) => (
+                        <tr key={`${r.category}-${r.scope}`}>
+                          <td className="px-6 py-3 text-sm font-medium text-gray-900">{r.category}</td>
+                          <td className="px-6 py-3 text-sm text-gray-500">{r.scope}</td>
+                          <td className="px-6 py-3 text-sm text-gray-900 text-right">{r.a != null ? formatCurrency(r.a) : '—'}</td>
+                          <td className="px-6 py-3 text-sm text-gray-900 text-right">{r.b != null ? formatCurrency(r.b) : '—'}</td>
+                          <td className={`px-6 py-3 text-sm text-right font-medium ${
+                            r.delta > 0 ? 'text-red-600' : r.delta < 0 ? 'text-green-600' : 'text-gray-400'
+                          }`}>
+                            {r.a == null ? 'New' : r.b == null ? 'Removed'
+                              : r.delta === 0 ? 'No change'
+                              : `${r.delta > 0 ? '+' : ''}${formatCurrency(r.delta)}${r.pct != null ? ` (${r.delta > 0 ? '+' : ''}${r.pct.toFixed(1)}%)` : ''}`}
+                          </td>
                         </tr>
                       ))
                     )}
