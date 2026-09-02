@@ -42,6 +42,27 @@ interface Payment {
   status: string;
 }
 
+interface ReceiptDetail {
+  receipt_number: string;
+  receipt_date: string;
+  payments: {
+    amount: number;
+    currency: string;
+    payment_date: string;
+    payment_method: string;
+    reference_number?: string;
+    payer_name?: string;
+    payer_phone?: string;
+    notes?: string;
+    status: string;
+    students?: {
+      first_name: string;
+      last_name: string;
+      admission_number: string;
+    };
+  };
+}
+
 const STATUS_BADGE_STYLES: Record<string, string> = {
   confirmed: 'bg-green-100 text-green-800',
   pending: 'bg-yellow-100 text-yellow-800',
@@ -77,6 +98,8 @@ export default function PaymentsPage() {
   const [assignFeeForm, setAssignFeeForm] = useState({ structure_id: '', discount_amount: '', due_date: '' });
   const [assignFeeSubmitting, setAssignFeeSubmitting] = useState(false);
   const [manuallyAllocated, setManuallyAllocated] = useState(false);
+  const [viewingReceipt, setViewingReceipt] = useState<ReceiptDetail | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   useEffect(() => {
     fetchStudents();
@@ -271,6 +294,23 @@ export default function PaymentsPage() {
     } catch (error: any) {
       console.error('Error recording payment:', error);
       alert('Failed to record payment');
+    }
+  };
+
+  const handleViewReceipt = async (receiptNumber: string) => {
+    setReceiptLoading(true);
+    try {
+      const response = await api.get(`/api/v1/fees/receipts/${receiptNumber}`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setViewingReceipt(response.data as ReceiptDetail);
+    } catch (error) {
+      console.error('Error fetching receipt:', error);
+      alert('Failed to load receipt');
+    } finally {
+      setReceiptLoading(false);
     }
   };
 
@@ -629,6 +669,7 @@ export default function PaymentsPage() {
             ) : payments.length === 0 ? (
               <div className="p-12 text-center text-gray-500">No payments recorded yet</div>
             ) : (
+              <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -669,8 +710,9 @@ export default function PaymentsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                         <button
-                          onClick={() => alert(`View receipt: ${payment.receipt_number}`)}
-                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => handleViewReceipt(payment.receipt_number)}
+                          disabled={receiptLoading}
+                          className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
                         >
                           View Receipt
                         </button>
@@ -691,6 +733,7 @@ export default function PaymentsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}
@@ -756,6 +799,90 @@ export default function PaymentsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Receipt Modal */}
+      {viewingReceipt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4 print:shadow-none">
+            <div className="text-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Payment Receipt</h2>
+              <p className="text-sm text-gray-500">{viewingReceipt.receipt_number}</p>
+            </div>
+
+            <div className="space-y-2 text-sm border-t border-b border-gray-200 py-4">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Student</span>
+                <span className="font-medium text-gray-900">
+                  {viewingReceipt.payments.students
+                    ? `${viewingReceipt.payments.students.first_name} ${viewingReceipt.payments.students.last_name} (${viewingReceipt.payments.students.admission_number})`
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Date</span>
+                <span className="font-medium text-gray-900">
+                  {new Date(viewingReceipt.payments.payment_date).toLocaleDateString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Amount</span>
+                <span className="font-bold text-gray-900">
+                  ₦{Number(viewingReceipt.payments.amount).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Method</span>
+                <span className="font-medium text-gray-900 capitalize">
+                  {viewingReceipt.payments.payment_method.replace('_', ' ')}
+                </span>
+              </div>
+              {viewingReceipt.payments.reference_number && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Reference</span>
+                  <span className="font-medium text-gray-900">{viewingReceipt.payments.reference_number}</span>
+                </div>
+              )}
+              {viewingReceipt.payments.payer_name && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Paid By</span>
+                  <span className="font-medium text-gray-900">{viewingReceipt.payments.payer_name}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-500">Status</span>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                  STATUS_BADGE_STYLES[viewingReceipt.payments.status] || 'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {viewingReceipt.payments.status}
+                </span>
+              </div>
+              {viewingReceipt.payments.notes && (
+                <div className="pt-2">
+                  <span className="text-gray-500 block">Notes</span>
+                  <span className="text-gray-900">{viewingReceipt.payments.notes}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-4 print:hidden">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+              >
+                Print
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingReceipt(null)}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
