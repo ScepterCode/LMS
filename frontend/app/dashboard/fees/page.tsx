@@ -517,6 +517,19 @@ export default function FeeManagementPage() {
     }
   };
 
+  const structureFormDuplicate = useMemo(() => {
+    if (!structureForm.fee_category_id || !structureForm.session_id) return false;
+    return structures.some((s) =>
+      s.fee_category_id === structureForm.fee_category_id &&
+      s.session_id === structureForm.session_id &&
+      (structureForm.class_id
+        ? s.class_id === structureForm.class_id
+        : structureForm.class_level
+          ? (!s.class_id && s.class_level === structureForm.class_level)
+          : (!s.class_id && !s.class_level)),
+    );
+  }, [structures, structureForm.fee_category_id, structureForm.session_id, structureForm.class_id, structureForm.class_level]);
+
   const activeStructureFilterCount =
     (structureFilters.session_id ? 1 : 0) +
     (structureFilters.class_id ? 1 : 0) +
@@ -1101,8 +1114,14 @@ export default function FeeManagementPage() {
                 />
               </div>
 
+              {structureFormDuplicate && (
+                <p className="text-sm text-danger-600 bg-danger-50 rounded-lg px-3 py-2">
+                  A structure for this category, session and class already exists. Edit that one instead.
+                </p>
+              )}
+
               <div className="flex gap-3 pt-4">
-                <Button type="submit" className="flex-1">Create Fee Structure</Button>
+                <Button type="submit" className="flex-1" disabled={structureFormDuplicate}>Create Fee Structure</Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowStructureModal(false)}>
                   Cancel
                 </Button>

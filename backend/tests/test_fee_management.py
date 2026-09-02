@@ -102,6 +102,33 @@ class TestFeeStructureDetail:
         assert res.status_code == 403, res.text
 
 
+class TestFeeStructureValidation:
+    def test_duplicate_structure_rejected(self, school, academic_session, klass):
+        category = _category(school)
+        _structure(school, category, academic_session, klass)
+
+        res = school["client"].post("/api/v1/fees/structures", json={
+            "fee_category_id": category["id"], "session_id": academic_session["id"],
+            "class_id": klass["id"], "amount": 99999, "payment_frequency": "termly",
+        })
+        assert res.status_code == 400, res.text
+
+    def test_foreign_category_rejected(self, school, academic_session, klass):
+        res = school["client"].post("/api/v1/fees/structures", json={
+            "fee_category_id": "00000000-0000-0000-0000-000000000000",
+            "session_id": academic_session["id"], "class_id": klass["id"], "amount": 50000,
+        })
+        assert res.status_code == 404, res.text
+
+    def test_absurd_amount_rejected(self, school, academic_session, klass):
+        category = _category(school)
+        res = school["client"].post("/api/v1/fees/structures", json={
+            "fee_category_id": category["id"], "session_id": academic_session["id"],
+            "class_id": klass["id"], "amount": 5_000_000_000,
+        })
+        assert res.status_code == 422, res.text
+
+
 class TestBulkCreateFeeStructures:
     def test_creates_one_structure_per_class(self, school, academic_session):
         category = _category(school)

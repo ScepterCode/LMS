@@ -55,7 +55,9 @@ class FeeStructureBase(BaseModel):
     # expands it to every class at that level.
     class_level: Optional[str] = None
     class_id: Optional[str] = None
-    amount: Decimal = Field(..., ge=0)
+    # Upper bound is a fat-finger guard (an extra zero or two), not a real
+    # policy limit - ₦1e9 is far above any plausible single fee.
+    amount: Decimal = Field(..., ge=0, le=Decimal("1000000000"))
     currency: str = Field(default="NGN", max_length=3)
     payment_frequency: str = Field(default="termly", pattern="^(termly|annually|monthly|one-time)$")
     due_date: Optional[date] = None
@@ -94,7 +96,7 @@ class FeeStructure(FeeStructureBase):
 
 class BulkFeeStructureItem(BaseModel):
     class_id: str
-    amount: Decimal = Field(..., ge=0)
+    amount: Decimal = Field(..., ge=0, le=Decimal("1000000000"))
 
 
 class BulkFeeStructureCreate(BaseModel):

@@ -222,12 +222,53 @@ def create_fee_structure(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins and bursars can create fee structures"
         )
-    
+
+    org_id = current_user["school_id"]
+
+    # Every referenced id must belong to this org - otherwise a structure
+    # can be created pointing at another school's category/session/class.
+    cat = db.table("fee_categories").select("id").eq("id", data.fee_category_id).eq(
+        "organization_id", org_id
+    ).execute()
+    if not cat.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee category not found")
+
+    sess = db.table("academic_sessions").select("id").eq("id", data.session_id).eq(
+        "organization_id", org_id
+    ).execute()
+    if not sess.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Academic session not found")
+
+    if data.class_id:
+        cls = db.table("classes").select("id").eq("id", data.class_id).eq(
+            "organization_id", org_id
+        ).execute()
+        if not cls.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class not found")
+
+    # Reject a duplicate: same category + session + scope (specific class,
+    # or class_level, or school-wide) already has a structure.
+    dup_q = db.table("fee_structures").select("id").eq("organization_id", org_id).eq(
+        "fee_category_id", data.fee_category_id
+    ).eq("session_id", data.session_id)
+    if data.class_id:
+        dup_q = dup_q.eq("class_id", data.class_id)
+    elif data.class_level:
+        dup_q = dup_q.is_("class_id", "null").eq("class_level", data.class_level)
+    else:
+        dup_q = dup_q.is_("class_id", "null").is_("class_level", "null")
+    if dup_q.execute().data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A fee structure for this category, session and class already exists. "
+                   "Edit that one instead."
+        )
+
     structure_data = data.model_dump(mode="json")
-    structure_data["organization_id"] = current_user["school_id"]
-    
+    structure_data["organization_id"] = org_id
+
     response = db.table("fee_structures").insert(structure_data).execute()
-    
+
     return response.data[0]
 
 
