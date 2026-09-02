@@ -37,6 +37,28 @@ interface Session {
   is_current?: boolean;
 }
 
+interface StructureDetail {
+  structure: FeeStructure & { currency?: string };
+  stats: {
+    student_count: number;
+    total_expected: number;
+    total_collected: number;
+    total_outstanding: number;
+    collection_rate: number;
+    by_status: Record<string, number>;
+  };
+  students: {
+    student_fee_id: string;
+    student_id: string;
+    student_name?: string | null;
+    admission_number?: string | null;
+    final_amount: number;
+    amount_paid: number;
+    balance: number;
+    status: string;
+  }[];
+}
+
 interface Class {
   id: string;
   name: string;
@@ -65,6 +87,8 @@ export default function FeeManagementPage() {
     due_date: '',
     is_active: true,
   });
+  const [viewingStructureDetail, setViewingStructureDetail] = useState<StructureDetail | null>(null);
+  const [structureDetailLoading, setStructureDetailLoading] = useState(false);
   const [structureFilters, setStructureFilters] = useState({
     session_id: '',
     class_id: '',
@@ -212,6 +236,23 @@ export default function FeeManagementPage() {
     } catch (error: any) {
       console.error('Error deleting category:', error);
       alert(error.response?.data?.detail || 'Failed to delete category');
+    }
+  };
+
+  const handleViewStructureDetail = async (structure: FeeStructure) => {
+    setStructureDetailLoading(true);
+    try {
+      const response = await api.get(`/api/v1/fees/structures/${structure.id}/detail`);
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      setViewingStructureDetail(response.data as StructureDetail);
+    } catch (error) {
+      console.error('Error fetching fee structure detail:', error);
+      alert('Failed to load fee structure details');
+    } finally {
+      setStructureDetailLoading(false);
     }
   };
 
@@ -663,6 +704,13 @@ export default function FeeManagementPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                           <button
+                            onClick={() => handleViewStructureDetail(structure)}
+                            disabled={structureDetailLoading}
+                            className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                          >
+                            Details
+                          </button>
+                          <button
                             onClick={() => openEditStructure(structure)}
                             className="text-brand-600 hover:text-brand-800"
                           >
@@ -923,6 +971,106 @@ export default function FeeManagementPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fee Structure Detail Modal */}
+      {viewingStructureDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {viewingStructureDetail.structure.category_name || 'Fee Structure'}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {viewingStructureDetail.structure.class_name
+                    || (viewingStructureDetail.structure.class_level
+                      ? `All ${viewingStructureDetail.structure.class_level} Classes`
+                      : 'All Classes')}
+                  {' · '}
+                  ₦{Number(viewingStructureDetail.structure.amount).toLocaleString()}
+                  {' · '}
+                  {viewingStructureDetail.structure.payment_frequency}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingStructureDetail(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Students</p>
+                <p className="text-lg font-semibold text-gray-900">{viewingStructureDetail.stats.student_count}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Expected</p>
+                <p className="text-lg font-semibold text-gray-900">₦{viewingStructureDetail.stats.total_expected.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Collected</p>
+                <p className="text-lg font-semibold text-success-600">₦{viewingStructureDetail.stats.total_collected.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">Outstanding</p>
+                <p className="text-lg font-semibold text-danger-600">₦{viewingStructureDetail.stats.total_outstanding.toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="mb-4 text-sm text-gray-600">
+              Collection rate: <span className="font-semibold text-gray-900">{viewingStructureDetail.stats.collection_rate.toFixed(1)}%</span>
+              {Object.keys(viewingStructureDetail.stats.by_status).length > 0 && (
+                <span className="ml-3">
+                  {Object.entries(viewingStructureDetail.stats.by_status).map(([st, n]) => (
+                    <span key={st} className="mr-2 capitalize">{st}: {n}</span>
+                  ))}
+                </span>
+              )}
+            </div>
+
+            {viewingStructureDetail.students.length === 0 ? (
+              <p className="text-sm text-gray-500 py-6 text-center border-t border-gray-200">
+                No students have been assigned this fee yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto border-t border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead>
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {viewingStructureDetail.students.map((s) => (
+                      <tr key={s.student_fee_id}>
+                        <td className="px-3 py-2 text-gray-900">
+                          {s.student_name || 'Unknown'}
+                          {s.admission_number ? <span className="text-gray-400"> ({s.admission_number})</span> : null}
+                        </td>
+                        <td className="px-3 py-2 text-right text-gray-900">₦{s.final_amount.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-gray-900">₦{s.amount_paid.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-gray-900">₦{s.balance.toLocaleString()}</td>
+                        <td className="px-3 py-2 capitalize text-gray-500">{s.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4">
+              <Button type="button" variant="secondary" onClick={() => setViewingStructureDetail(null)}>Close</Button>
+            </div>
           </div>
         </div>
       )}

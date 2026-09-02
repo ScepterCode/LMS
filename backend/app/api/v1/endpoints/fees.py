@@ -296,6 +296,88 @@ def delete_fee_structure(
     ).execute()
 
 
+@router.get("/structures/{structure_id}/detail")
+def get_fee_structure_detail(
+    structure_id: str,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """One fee structure plus the students it's assigned to and collection
+    totals. Read-only; admin/bursar only (same as the school-wide
+    financial analytics)."""
+
+    if current_user["role"] not in ["admin", "system_admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can view fee structure details"
+        )
+
+    structure_resp = db.table("fee_structures").select("*").eq(
+        "id", structure_id
+    ).eq("organization_id", current_user["school_id"]).execute()
+    if not structure_resp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee structure not found")
+    structure = structure_resp.data[0]
+
+    # Enrich category / class names (same manual-lookup approach as the list).
+    if structure.get("fee_category_id"):
+        cat = db.table("fee_categories").select("name").eq(
+            "id", structure["fee_category_id"]
+        ).eq("organization_id", current_user["school_id"]).execute()
+        structure["category_name"] = cat.data[0]["name"] if cat.data else None
+    if structure.get("class_id"):
+        cls = db.table("classes").select("name").eq(
+            "id", structure["class_id"]
+        ).eq("organization_id", current_user["school_id"]).execute()
+        structure["class_name"] = cls.data[0]["name"] if cls.data else None
+
+    _sweep_overdue_fees(db, current_user["school_id"])
+
+    fees_resp = db.table("student_fees").select(
+        "id, student_id, final_amount, amount_paid, balance, status, is_waived, "
+        "students(admission_number, first_name, last_name)"
+    ).eq("organization_id", current_user["school_id"]).eq(
+        "fee_structure_id", structure_id
+    ).execute()
+    rows = fees_resp.data or []
+
+    students = []
+    by_status: dict = {}
+    total_expected = total_collected = total_outstanding = 0.0
+    for r in rows:
+        by_status[r["status"]] = by_status.get(r["status"], 0) + 1
+        total_expected += float(r["final_amount"] or 0)
+        total_collected += float(r["amount_paid"] or 0)
+        if not r.get("is_waived"):
+            total_outstanding += float(r["balance"] or 0)
+        s = r.get("students") or {}
+        students.append({
+            "student_fee_id": r["id"],
+            "student_id": r["student_id"],
+            "student_name": f"{s.get('first_name', '')} {s.get('last_name', '')}".strip() or None,
+            "admission_number": s.get("admission_number"),
+            "final_amount": float(r["final_amount"] or 0),
+            "amount_paid": float(r["amount_paid"] or 0),
+            "balance": float(r["balance"] or 0),
+            "status": r["status"],
+        })
+
+    students.sort(key=lambda x: (x["student_name"] or "").lower())
+
+    return {
+        "structure": structure,
+        "stats": {
+            "student_count": len(rows),
+            "total_expected": total_expected,
+            "total_collected": total_collected,
+            "total_outstanding": total_outstanding,
+            "collection_rate": (total_collected / total_expected * 100) if total_expected > 0 else 0,
+            "by_status": by_status,
+        },
+        "students": students,
+    }
+
+
 # ============================================
 # STUDENT FEES
 # ============================================
