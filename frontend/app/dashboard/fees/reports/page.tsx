@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
 
@@ -31,18 +31,33 @@ interface StudentFeesSummary {
   }>;
 }
 
+interface StructureRow {
+  id: string;
+  category_name?: string;
+  class_name?: string;
+  class_level?: string;
+  session_id?: string;
+  amount: number;
+  payment_frequency: string;
+  is_active: boolean;
+}
+
 export default function FinancialReportsPage() {
   const [analytics, setAnalytics] = useState<FinancialAnalytics | null>(null);
   const [studentSummary, setStudentSummary] = useState<StudentFeesSummary | null>(null);
   const [selectedStudent, setSelectedStudent] = useState('');
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeView, setActiveView] = useState<'overview' | 'student'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'structures' | 'student'>('overview');
   const [currentSessionId, setCurrentSessionId] = useState('');
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [structures, setStructures] = useState<StructureRow[]>([]);
 
   useEffect(() => {
     fetchStudents();
     fetchCurrentSessionAndAnalytics();
+    fetchSessions();
+    fetchStructures();
   }, []);
 
   useEffect(() => {
@@ -58,6 +73,26 @@ export default function FinancialReportsPage() {
     } catch (error) {
       console.error('Error fetching students:', error);
       setStudents([]); // Ensure students is always an array
+    }
+  };
+
+  const fetchSessions = async () => {
+    try {
+      const res = await api.getSessions();
+      setSessions((res.data as any[]) || []);
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      setSessions([]);
+    }
+  };
+
+  const fetchStructures = async () => {
+    try {
+      const res = await api.get('/api/v1/fees/structures');
+      setStructures((res.data as StructureRow[]) || []);
+    } catch (error) {
+      console.error('Error fetching fee structures:', error);
+      setStructures([]);
     }
   };
 
@@ -103,17 +138,83 @@ export default function FinancialReportsPage() {
     return `₦${Number(amount).toLocaleString()}`;
   };
 
+  const structureStats = useMemo(() => {
+    const scoped = currentSessionId
+      ? structures.filter((s) => !s.session_id || s.session_id === currentSessionId)
+      : structures;
+    const active = scoped.filter((s) => s.is_active);
+    const amounts = scoped.map((s) => Number(s.amount) || 0);
+    const highest = scoped.reduce<StructureRow | null>(
+      (max, s) => (!max || Number(s.amount) > Number(max.amount) ? s : max),
+      null,
+    );
+
+    const byCategory = new Map<string, { count: number; total: number }>();
+    for (const s of scoped) {
+      const key = s.category_name || 'Uncategorised';
+      const entry = byCategory.get(key) || { count: 0, total: 0 };
+      entry.count += 1;
+      entry.total += Number(s.amount) || 0;
+      byCategory.set(key, entry);
+    }
+    const categoryRows = [...byCategory.entries()]
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.total - a.total);
+    const categoryMax = categoryRows.reduce((m, r) => Math.max(m, r.total), 0);
+
+    const byClass = new Map<string, { count: number; total: number }>();
+    for (const s of scoped) {
+      const key = s.class_name || (s.class_level ? `All ${s.class_level} Classes` : 'All Classes');
+      const entry = byClass.get(key) || { count: 0, total: 0 };
+      entry.count += 1;
+      entry.total += Number(s.amount) || 0;
+      byClass.set(key, entry);
+    }
+    const classRows = [...byClass.entries()]
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      total: scoped.length,
+      activeCount: active.length,
+      average: amounts.length ? amounts.reduce((a, b) => a + b, 0) / amounts.length : 0,
+      highest,
+      categoryRows,
+      categoryMax,
+      classRows,
+    };
+  }, [structures, currentSessionId]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Financial Reports</h1>
-          <p className="text-gray-600 mt-1">View fee collection and payment analytics</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Financial Reports</h1>
+            <p className="text-gray-600 mt-1">View fee collection and payment analytics</p>
+          </div>
+          {sessions.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Academic Session</label>
+              <select
+                value={currentSessionId}
+                onChange={(e) => {
+                  setCurrentSessionId(e.target.value);
+                  if (e.target.value) fetchFinancialAnalytics(e.target.value);
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                {sessions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* View Toggle */}
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <button
             onClick={() => setActiveView('overview')}
             className={`px-4 py-2 rounded-lg border-2 transition-colors ${
@@ -123,6 +224,16 @@ export default function FinancialReportsPage() {
             }`}
           >
             Financial Overview
+          </button>
+          <button
+            onClick={() => setActiveView('structures')}
+            className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+              activeView === 'structures'
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Structure Breakdown
           </button>
           <button
             onClick={() => setActiveView('student')}
@@ -248,6 +359,95 @@ export default function FinancialReportsPage() {
                   <span>₦0</span>
                   <span>{formatCurrency(analytics.total_expected)}</span>
                 </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Structure Breakdown */}
+        {activeView === 'structures' && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-sm text-gray-600">Fee Structures</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{structureStats.total}</p>
+                <p className="text-sm text-gray-500 mt-1">{structureStats.activeCount} active</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-sm text-gray-600">Average Fee</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(structureStats.average)}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-sm text-gray-600">Highest Fee</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {structureStats.highest ? formatCurrency(Number(structureStats.highest.amount)) : '—'}
+                </p>
+                {structureStats.highest && (
+                  <p className="text-sm text-gray-500 mt-1 truncate">
+                    {structureStats.highest.category_name}
+                    {' · '}
+                    {structureStats.highest.class_name
+                      || (structureStats.highest.class_level ? `All ${structureStats.highest.class_level} Classes` : 'All Classes')}
+                  </p>
+                )}
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-sm text-gray-600">Categories in use</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{structureStats.categoryRows.length}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Total fee value by category</h3>
+              {structureStats.categoryRows.length === 0 ? (
+                <p className="text-sm text-gray-500">No fee structures for this session.</p>
+              ) : (
+                <div className="space-y-3">
+                  {structureStats.categoryRows.map((row) => (
+                    <div key={row.name}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-700">{row.name} <span className="text-gray-400">({row.count})</span></span>
+                        <span className="font-medium text-gray-900">{formatCurrency(row.total)}</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full"
+                          style={{ width: `${structureStats.categoryMax ? (row.total / structureStats.categoryMax) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">By class</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Structures</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total fee value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {structureStats.classRows.length === 0 ? (
+                      <tr><td colSpan={3} className="px-6 py-8 text-center text-gray-500">No fee structures for this session.</td></tr>
+                    ) : (
+                      structureStats.classRows.map((row) => (
+                        <tr key={row.name}>
+                          <td className="px-6 py-3 text-sm text-gray-900">{row.name}</td>
+                          <td className="px-6 py-3 text-sm text-gray-500 text-right">{row.count}</td>
+                          <td className="px-6 py-3 text-sm text-gray-900 text-right">{formatCurrency(row.total)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </>
