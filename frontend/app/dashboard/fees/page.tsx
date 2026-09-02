@@ -115,6 +115,26 @@ export default function FeeManagementPage() {
     due_date: '',
   });
 
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkForm, setBulkForm] = useState({
+    fee_category_id: '',
+    session_id: '',
+    payment_frequency: 'termly',
+    due_date: '',
+    applyToAll: '',
+  });
+  const [bulkRows, setBulkRows] = useState<Record<string, { selected: boolean; amount: string }>>({});
+
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copySubmitting, setCopySubmitting] = useState(false);
+  const [copyForm, setCopyForm] = useState({
+    source_session_id: '',
+    target_session_id: '',
+    adjustment_type: 'none' as 'none' | 'percentage' | 'fixed',
+    adjustment_value: '',
+  });
+
   const [showQuickSetupModal, setShowQuickSetupModal] = useState(false);
   const [quickSetupSubmitting, setQuickSetupSubmitting] = useState(false);
   const [quickSetupForm, setQuickSetupForm] = useState({
@@ -332,6 +352,86 @@ export default function FeeManagementPage() {
     } catch (error: any) {
       console.error('Error creating fee structure:', error);
       alert(error.response?.data?.detail || 'Failed to create fee structure');
+    }
+  };
+
+  const openBulkModal = () => {
+    const current = sessions.find((s) => s.is_current);
+    setBulkForm({
+      fee_category_id: '',
+      session_id: current?.id || '',
+      payment_frequency: 'termly',
+      due_date: '',
+      applyToAll: '',
+    });
+    setBulkRows(Object.fromEntries(classes.map((c) => [c.id, { selected: false, amount: '' }])));
+    setShowBulkModal(true);
+  };
+
+  const handleBulkCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const items = classes
+      .filter((c) => bulkRows[c.id]?.selected)
+      .map((c) => ({ class_id: c.id, amount: parseFloat(bulkRows[c.id].amount) }));
+    if (items.length === 0) {
+      alert('Select at least one class.');
+      return;
+    }
+    if (items.some((i) => !Number.isFinite(i.amount) || i.amount < 0)) {
+      alert('Enter a valid amount for every selected class.');
+      return;
+    }
+    setBulkSubmitting(true);
+    try {
+      const response = await api.post('/api/v1/fees/structures/bulk-create', {
+        fee_category_id: bulkForm.fee_category_id,
+        session_id: bulkForm.session_id,
+        payment_frequency: bulkForm.payment_frequency,
+        due_date: bulkForm.due_date || null,
+        items,
+      });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      alert(`Created ${(response.data as any).created} fee structure(s).`);
+      setShowBulkModal(false);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error bulk-creating fee structures:', error);
+      alert(error.response?.data?.detail || 'Failed to create fee structures');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
+  const handleCopySession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (copyForm.source_session_id === copyForm.target_session_id) {
+      alert('Source and target sessions must be different.');
+      return;
+    }
+    setCopySubmitting(true);
+    try {
+      const response = await api.post('/api/v1/fees/structures/copy-session', {
+        source_session_id: copyForm.source_session_id,
+        target_session_id: copyForm.target_session_id,
+        adjustment_type: copyForm.adjustment_type,
+        adjustment_value: copyForm.adjustment_type === 'none' ? 0 : parseFloat(copyForm.adjustment_value || '0'),
+      });
+      if (response.error) {
+        alert(response.error);
+        return;
+      }
+      const data = response.data as any;
+      alert(`Copied ${data.created} structure(s)${data.skipped ? `, skipped ${data.skipped} already in the target session` : ''}.`);
+      setShowCopyModal(false);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error copying fee structures:', error);
+      alert(error.response?.data?.detail || 'Failed to copy fee structures');
+    } finally {
+      setCopySubmitting(false);
     }
   };
 
@@ -603,7 +703,7 @@ export default function FeeManagementPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-wrap justify-end gap-3">
               <Button
                 variant="secondary"
                 onClick={exportStructuresCsv}
@@ -611,6 +711,8 @@ export default function FeeManagementPage() {
               >
                 Export CSV
               </Button>
+              <Button variant="secondary" onClick={() => setShowCopyModal(true)}>Copy from Session</Button>
+              <Button variant="secondary" onClick={openBulkModal}>Bulk Add</Button>
               <Button onClick={() => setShowStructureModal(true)}>Add Fee Structure</Button>
             </div>
 
@@ -1002,6 +1104,225 @@ export default function FeeManagementPage() {
               <div className="flex gap-3 pt-4">
                 <Button type="submit" className="flex-1">Create Fee Structure</Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowStructureModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Add Fee Structures Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-1 text-gray-900">Bulk Add Fee Structures</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              One structure per selected class, all sharing the category, session and frequency below.
+            </p>
+
+            <form onSubmit={handleBulkCreate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fee Category *</label>
+                <select
+                  required
+                  value={bulkForm.fee_category_id}
+                  onChange={(e) => setBulkForm({ ...bulkForm, fee_category_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Session *</label>
+                  <select
+                    required
+                    value={bulkForm.session_id}
+                    onChange={(e) => setBulkForm({ ...bulkForm, session_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  >
+                    <option value="">Select session</option>
+                    {sessions.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Frequency *</label>
+                  <select
+                    required
+                    value={bulkForm.payment_frequency}
+                    onChange={(e) => setBulkForm({ ...bulkForm, payment_frequency: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  >
+                    <option value="termly">Termly</option>
+                    <option value="annually">Annually</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="one-time">One-time</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={bulkForm.due_date}
+                  onChange={(e) => setBulkForm({ ...bulkForm, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+              </div>
+
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Apply amount to all selected</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={bulkForm.applyToAll}
+                    onChange={(e) => setBulkForm({ ...bulkForm, applyToAll: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    placeholder="e.g., 50000"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBulkRows((prev) => {
+                    const next = { ...prev };
+                    for (const c of classes) {
+                      if (next[c.id]?.selected) next[c.id] = { ...next[c.id], amount: bulkForm.applyToAll };
+                    }
+                    return next;
+                  })}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Fill
+                </button>
+              </div>
+
+              <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                {classes.length === 0 ? (
+                  <p className="p-3 text-sm text-gray-500">No classes found.</p>
+                ) : (
+                  classes.map((c) => (
+                    <div key={c.id} className="flex items-center gap-3 p-2">
+                      <input
+                        type="checkbox"
+                        checked={bulkRows[c.id]?.selected || false}
+                        onChange={(e) => setBulkRows((prev) => ({
+                          ...prev,
+                          [c.id]: { selected: e.target.checked, amount: prev[c.id]?.amount || '' },
+                        }))}
+                        className="w-4 h-4 text-brand-600 border-gray-300 rounded"
+                      />
+                      <span className="flex-1 text-sm text-gray-700">{c.name}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={bulkRows[c.id]?.amount || ''}
+                        onChange={(e) => setBulkRows((prev) => ({
+                          ...prev,
+                          [c.id]: { selected: prev[c.id]?.selected || false, amount: e.target.value },
+                        }))}
+                        disabled={!bulkRows[c.id]?.selected}
+                        className="w-32 px-2 py-1 border border-gray-300 rounded text-sm disabled:bg-gray-100"
+                        placeholder="Amount"
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button type="submit" className="flex-1" disabled={bulkSubmitting}>
+                  {bulkSubmitting ? 'Creating…' : 'Create Structures'}
+                </Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowBulkModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Copy From Session Modal */}
+      {showCopyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-1 text-gray-900">Copy Fees from Another Session</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Copies every active structure from the source session. Any category/class already
+              present in the target session is skipped.
+            </p>
+
+            <form onSubmit={handleCopySession} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Copy from *</label>
+                <select
+                  required
+                  value={copyForm.source_session_id}
+                  onChange={(e) => setCopyForm({ ...copyForm, source_session_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select source session</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Copy to *</label>
+                <select
+                  required
+                  value={copyForm.target_session_id}
+                  onChange={(e) => setCopyForm({ ...copyForm, target_session_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select target session</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_current ? ' (Current)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment</label>
+                  <select
+                    value={copyForm.adjustment_type}
+                    onChange={(e) => setCopyForm({ ...copyForm, adjustment_type: e.target.value as 'none' | 'percentage' | 'fixed' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  >
+                    <option value="none">No change</option>
+                    <option value="percentage">Increase by %</option>
+                    <option value="fixed">Increase by ₦</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                  <input
+                    type="number"
+                    value={copyForm.adjustment_value}
+                    onChange={(e) => setCopyForm({ ...copyForm, adjustment_value: e.target.value })}
+                    disabled={copyForm.adjustment_type === 'none'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-100"
+                    placeholder={copyForm.adjustment_type === 'percentage' ? '10' : '5000'}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button type="submit" className="flex-1" disabled={copySubmitting}>
+                  {copySubmitting ? 'Copying…' : 'Copy Fees'}
+                </Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowCopyModal(false)}>
                   Cancel
                 </Button>
               </div>

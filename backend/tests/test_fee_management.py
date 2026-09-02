@@ -35,6 +35,22 @@ def _assign(school, student, structure, academic_session, amount=50000):
     return res.json()
 
 
+def _class(school, name_prefix="CLS"):
+    res = school["client"].post("/api/v1/classes", json={
+        "name": unique(name_prefix), "level": "Junior", "section": "A", "capacity": 40,
+    })
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
+def _session(school):
+    res = school["client"].post("/api/v1/sessions", json={
+        "name": unique("2098/2099"), "start_date": "2098-09-01", "end_date": "2099-07-31",
+    })
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
 class TestFeeStructureDetail:
     def test_detail_reports_assigned_students_and_totals(
         self, school, academic_session, klass, student
@@ -84,3 +100,117 @@ class TestFeeStructureDetail:
         registrar = make_registrar(school)
         res = registrar["client"].get(f"/api/v1/fees/structures/{structure['id']}/detail")
         assert res.status_code == 403, res.text
+
+
+class TestBulkCreateFeeStructures:
+    def test_creates_one_structure_per_class(self, school, academic_session):
+        category = _category(school)
+        c1, c2, c3 = _class(school), _class(school), _class(school)
+
+        res = school["client"].post("/api/v1/fees/structures/bulk-create", json={
+            "fee_category_id": category["id"], "session_id": academic_session["id"],
+            "payment_frequency": "termly",
+            "items": [
+                {"class_id": c1["id"], "amount": 50000},
+                {"class_id": c2["id"], "amount": 55000},
+                {"class_id": c3["id"], "amount": 60000},
+            ],
+        })
+        assert res.status_code == 201, res.text
+        assert res.json()["created"] == 3
+
+        listed = school["client"].get(
+            f"/api/v1/fees/structures?session_id={academic_session['id']}"
+        ).json()
+        amounts = sorted(float(s["amount"]) for s in listed if s["fee_category_id"] == category["id"])
+        assert amounts == [50000, 55000, 60000]
+
+    def test_rejects_batch_if_a_class_already_has_a_structure(self, school, academic_session, klass):
+        category = _category(school)
+        _structure(school, category, academic_session, klass, amount=1000)
+        other = _class(school)
+
+        res = school["client"].post("/api/v1/fees/structures/bulk-create", json={
+            "fee_category_id": category["id"], "session_id": academic_session["id"],
+            "items": [
+                {"class_id": klass["id"], "amount": 50000},
+                {"class_id": other["id"], "amount": 50000},
+            ],
+        })
+        assert res.status_code == 400, res.text
+        # nothing from the batch should have been created
+        listed = school["client"].get(
+            f"/api/v1/fees/structures?session_id={academic_session['id']}"
+        ).json()
+        assert not any(s["class_id"] == other["id"] for s in listed)
+
+    def test_foreign_class_rejected(self, school, academic_session):
+        category = _category(school)
+        res = school["client"].post("/api/v1/fees/structures/bulk-create", json={
+            "fee_category_id": category["id"], "session_id": academic_session["id"],
+            "items": [{"class_id": "00000000-0000-0000-0000-000000000000", "amount": 50000}],
+        })
+        assert res.status_code == 404, res.text
+
+    def test_non_finance_role_rejected(self, school, academic_session):
+        category = _category(school)
+        c1 = _class(school)
+        registrar = make_registrar(school)
+        res = registrar["client"].post("/api/v1/fees/structures/bulk-create", json={
+            "fee_category_id": category["id"], "session_id": academic_session["id"],
+            "items": [{"class_id": c1["id"], "amount": 50000}],
+        })
+        assert res.status_code == 403, res.text
+
+
+class TestCopyFeeStructuresToSession:
+    def test_copies_active_structures_with_percentage_adjustment(self, school, academic_session):
+        category = _category(school)
+        c1, c2 = _class(school), _class(school)
+        school["client"].post("/api/v1/fees/structures/bulk-create", json={
+            "fee_category_id": category["id"], "session_id": academic_session["id"],
+            "items": [
+                {"class_id": c1["id"], "amount": 100000},
+                {"class_id": c2["id"], "amount": 200000},
+            ],
+        })
+        target = _session(school)
+
+        res = school["client"].post("/api/v1/fees/structures/copy-session", json={
+            "source_session_id": academic_session["id"],
+            "target_session_id": target["id"],
+            "adjustment_type": "percentage", "adjustment_value": 10,
+        })
+        assert res.status_code == 201, res.text
+        assert res.json()["created"] == 2
+
+        listed = school["client"].get(
+            f"/api/v1/fees/structures?session_id={target['id']}"
+        ).json()
+        amounts = sorted(round(float(s["amount"])) for s in listed if s["fee_category_id"] == category["id"])
+        assert amounts == [110000, 220000]
+
+    def test_second_run_is_idempotent(self, school, academic_session):
+        category = _category(school)
+        c1 = _class(school)
+        _structure(school, category, academic_session, c1, amount=50000)
+        target = _session(school)
+
+        first = school["client"].post("/api/v1/fees/structures/copy-session", json={
+            "source_session_id": academic_session["id"], "target_session_id": target["id"],
+        })
+        assert first.json()["created"] == 1
+
+        second = school["client"].post("/api/v1/fees/structures/copy-session", json={
+            "source_session_id": academic_session["id"], "target_session_id": target["id"],
+        })
+        assert second.status_code == 201, second.text
+        assert second.json()["created"] == 0
+        assert second.json()["skipped"] == 1
+
+    def test_same_source_and_target_rejected(self, school, academic_session):
+        res = school["client"].post("/api/v1/fees/structures/copy-session", json={
+            "source_session_id": academic_session["id"],
+            "target_session_id": academic_session["id"],
+        })
+        assert res.status_code == 400, res.text

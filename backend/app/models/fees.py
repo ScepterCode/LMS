@@ -92,6 +92,31 @@ class FeeStructure(FeeStructureBase):
         from_attributes = True
 
 
+class BulkFeeStructureItem(BaseModel):
+    class_id: str
+    amount: Decimal = Field(..., ge=0)
+
+
+class BulkFeeStructureCreate(BaseModel):
+    """Create one fee structure per class in `items`, all sharing the same
+    category / session / frequency / due date."""
+    fee_category_id: str
+    session_id: str
+    payment_frequency: str = Field(default="termly", pattern="^(termly|annually|monthly|one-time)$")
+    due_date: Optional[date] = None
+    items: List[BulkFeeStructureItem] = Field(..., min_items=1, max_items=100)
+
+
+class CopyFeeStructuresRequest(BaseModel):
+    """Clone every active fee structure from `source_session_id` into
+    `target_session_id`, optionally adjusting the amounts."""
+    source_session_id: str
+    target_session_id: str
+    adjustment_type: str = Field(default="none", pattern="^(none|percentage|fixed)$")
+    adjustment_value: Decimal = Field(default=Decimal("0"))
+    class_ids: Optional[List[str]] = None  # None/empty = all classes
+
+
 # ============================================
 # STUDENT FEES
 # ============================================

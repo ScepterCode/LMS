@@ -14,6 +14,7 @@ from app.core.permissions import PermissionChecker
 from app.models.fees import (
     FeeCategory, FeeCategoryCreate, FeeCategoryUpdate,
     FeeStructure, FeeStructureCreate, FeeStructureUpdate,
+    BulkFeeStructureCreate, CopyFeeStructuresRequest,
     StudentFee, StudentFeeCreate, StudentFeeUpdate, StudentFeeWaiver,
     Payment, PaymentCreate, PaymentUpdate,
     PaymentAllocation, PaymentAllocationCreate,
@@ -376,6 +377,167 @@ def get_fee_structure_detail(
         },
         "students": students,
     }
+
+
+@router.post("/structures/bulk-create", status_code=status.HTTP_201_CREATED)
+def bulk_create_fee_structures(
+    data: BulkFeeStructureCreate,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Create one fee structure per class in `items`, all sharing the same
+    category / session / frequency / due date. INSERT-only: it never
+    touches existing structures, and it refuses the whole batch if any
+    target class already has a structure for this category+session (so a
+    retry can't silently double a class's fee)."""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can create fee structures"
+        )
+
+    org_id = current_user["school_id"]
+
+    cat = db.table("fee_categories").select("id").eq("id", data.fee_category_id).eq(
+        "organization_id", org_id
+    ).execute()
+    if not cat.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fee category not found")
+
+    sess = db.table("academic_sessions").select("id").eq("id", data.session_id).eq(
+        "organization_id", org_id
+    ).execute()
+    if not sess.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Academic session not found")
+
+    requested_class_ids = [item.class_id for item in data.items]
+    if len(requested_class_ids) != len(set(requested_class_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The same class appears more than once in the request"
+        )
+
+    owned_classes = db.table("classes").select("id").in_("id", requested_class_ids).eq(
+        "organization_id", org_id
+    ).execute()
+    owned_ids = {c["id"] for c in (owned_classes.data or [])}
+    missing = [cid for cid in requested_class_ids if cid not in owned_ids]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{len(missing)} class(es) not found for this organization"
+        )
+
+    existing = db.table("fee_structures").select("class_id").eq(
+        "organization_id", org_id
+    ).eq("fee_category_id", data.fee_category_id).eq(
+        "session_id", data.session_id
+    ).in_("class_id", requested_class_ids).execute()
+    clashing = {r["class_id"] for r in (existing.data or [])}
+    if clashing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{len(clashing)} of these classes already have a structure for this "
+                   "category and session. Remove them from the request or edit the "
+                   "existing structures instead."
+        )
+
+    rows = [{
+        "organization_id": org_id,
+        "fee_category_id": data.fee_category_id,
+        "session_id": data.session_id,
+        "class_id": item.class_id,
+        "amount": float(item.amount),
+        "payment_frequency": data.payment_frequency,
+        "due_date": data.due_date.isoformat() if data.due_date else None,
+    } for item in data.items]
+
+    response = db.table("fee_structures").insert(rows).execute()
+    return {"created": len(response.data or []), "structures": response.data or []}
+
+
+@router.post("/structures/copy-session", status_code=status.HTTP_201_CREATED)
+def copy_fee_structures_to_session(
+    data: CopyFeeStructuresRequest,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_supabase)
+):
+    """Clone every active fee structure from one session into another,
+    optionally adjusting the amounts. INSERT-only: any (category, class,
+    class_level) that already exists in the target session is skipped, so
+    running it twice is safe."""
+
+    if current_user["role"] not in ["admin", "bursar"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and bursars can create fee structures"
+        )
+
+    if data.source_session_id == data.target_session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Source and target sessions must be different"
+        )
+
+    org_id = current_user["school_id"]
+
+    sessions = db.table("academic_sessions").select("id").in_(
+        "id", [data.source_session_id, data.target_session_id]
+    ).eq("organization_id", org_id).execute()
+    if len({s["id"] for s in (sessions.data or [])}) != 2:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    source_q = db.table("fee_structures").select("*").eq(
+        "organization_id", org_id
+    ).eq("session_id", data.source_session_id).eq("is_active", True)
+    if data.class_ids:
+        source_q = source_q.in_("class_id", data.class_ids)
+    source_rows = source_q.execute().data or []
+
+    if not source_rows:
+        return {"created": 0, "skipped": 0, "structures": []}
+
+    target_existing = db.table("fee_structures").select(
+        "fee_category_id, class_id, class_level"
+    ).eq("organization_id", org_id).eq("session_id", data.target_session_id).execute()
+    target_keys = {
+        (r["fee_category_id"], r.get("class_id"), r.get("class_level"))
+        for r in (target_existing.data or [])
+    }
+
+    def adjusted(amount) -> float:
+        base = float(amount or 0)
+        if data.adjustment_type == "percentage":
+            base = base * (1 + float(data.adjustment_value) / 100)
+        elif data.adjustment_type == "fixed":
+            base = base + float(data.adjustment_value)
+        return max(base, 0.0)
+
+    new_rows = []
+    skipped = 0
+    for r in source_rows:
+        key = (r["fee_category_id"], r.get("class_id"), r.get("class_level"))
+        if key in target_keys:
+            skipped += 1
+            continue
+        new_rows.append({
+            "organization_id": org_id,
+            "fee_category_id": r["fee_category_id"],
+            "session_id": data.target_session_id,
+            "class_id": r.get("class_id"),
+            "class_level": r.get("class_level"),
+            "amount": adjusted(r["amount"]),
+            "currency": r.get("currency", "NGN"),
+            "payment_frequency": r.get("payment_frequency", "termly"),
+            "due_date": None,
+        })
+
+    created = []
+    if new_rows:
+        created = db.table("fee_structures").insert(new_rows).execute().data or []
+
+    return {"created": len(created), "skipped": skipped, "structures": created}
 
 
 # ============================================
