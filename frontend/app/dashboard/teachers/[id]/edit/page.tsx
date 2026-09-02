@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import DashboardLayout from '@/components/DashboardLayout';
 
 interface Teacher {
   id: string;
@@ -97,17 +98,20 @@ export default function EditTeacherPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading teacher data...</p>
+      <DashboardLayout>
+        <div className="flex justify-center items-center py-24">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading teacher data...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <DashboardLayout>
+    <div className="max-w-4xl mx-auto">
       <div className="mb-6">
         <button
           onClick={() => router.push(`/dashboard/teachers/${params.id}`)}
@@ -395,7 +399,11 @@ export default function EditTeacherPage() {
               <option value="active">Active</option>
               <option value="on-leave">On Leave</option>
               <option value="terminated">Terminated</option>
+              <option value="retired">Retired</option>
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Terminating or retiring a teacher disables their login and clears their current-session class assignments.
+            </p>
           </div>
         </div>
 
@@ -418,5 +426,6 @@ export default function EditTeacherPage() {
         </div>
       </form>
     </div>
+    </DashboardLayout>
   );
 }

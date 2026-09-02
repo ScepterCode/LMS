@@ -30,6 +30,22 @@ export default function TeachersPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [statusSavingId, setStatusSavingId] = useState<string | null>(null);
+
+  const canManage = ['admin', 'system_admin', 'dean'].includes(user?.role ?? '');
+
+  const changeTeacherStatus = async (teacher: Teacher, newStatus: string) => {
+    if (newStatus === teacher.status) return;
+    const inactive = newStatus === 'terminated' || newStatus === 'retired';
+    if (inactive && !confirm(
+      `Set ${teacher.full_name} to "${newStatus}"? This disables their login and clears their current-session class assignments.`
+    )) return;
+    setStatusSavingId(teacher.id);
+    const res = await api.updateTeacher(teacher.id, { status: newStatus });
+    setStatusSavingId(null);
+    if (res.error) { alert(res.error); return; }
+    loadTeachers();
+  };
 
   useEffect(() => {
     loadTeachers();
@@ -166,6 +182,7 @@ export default function TeachersPage() {
 
           {/* Teachers Table */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -217,23 +234,40 @@ export default function TeachersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/dashboard/teachers/${teacher.id}`}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={`/dashboard/teachers/${teacher.id}/edit`}
-                        className="text-gray-600 hover:text-gray-900"
-                      >
-                        Edit
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        {canManage && (
+                          <select
+                            aria-label={`Change status for ${teacher.full_name}`}
+                            value={teacher.status}
+                            disabled={statusSavingId === teacher.id}
+                            onChange={(e) => changeTeacherStatus(teacher, e.target.value)}
+                            className="text-xs border border-gray-300 rounded px-1.5 py-1 text-gray-700 disabled:opacity-50"
+                          >
+                            <option value="active">Active</option>
+                            <option value="on-leave">On Leave</option>
+                            <option value="terminated">Terminated</option>
+                            <option value="retired">Retired</option>
+                          </select>
+                        )}
+                        <Link
+                          href={`/dashboard/teachers/${teacher.id}`}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          View
+                        </Link>
+                        <Link
+                          href={`/dashboard/teachers/${teacher.id}/edit`}
+                          className="text-gray-600 hover:text-gray-900"
+                        >
+                          Edit
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       )}

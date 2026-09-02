@@ -4,6 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import DashboardLayout from '@/components/DashboardLayout';
+
+const TEACHER_STATUSES = [
+  { value: 'active', label: 'Active' },
+  { value: 'on-leave', label: 'On Leave' },
+  { value: 'terminated', label: 'Terminated' },
+  { value: 'retired', label: 'Retired' },
+];
 
 interface Teacher {
   id: string;
@@ -49,11 +57,42 @@ export default function TeacherDetailPage() {
   const [assignments, setAssignments] = useState<SubjectAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusValue, setStatusValue] = useState('');
+  const [statusSaving, setStatusSaving] = useState(false);
 
   useEffect(() => {
     fetchTeacherDetails();
     fetchAssignments();
   }, [params.id]);
+
+  const openStatusModal = () => {
+    if (teacher) setStatusValue(teacher.status);
+    setShowStatusModal(true);
+  };
+
+  const handleStatusChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teacher || statusValue === teacher.status) {
+      setShowStatusModal(false);
+      return;
+    }
+    const inactive = statusValue === 'terminated' || statusValue === 'retired';
+    if (inactive && !confirm(
+      `Set ${teacher.first_name} ${teacher.last_name} to "${statusValue}"? This disables their login and clears their current-session class assignments.`
+    )) return;
+
+    setStatusSaving(true);
+    const response = await api.updateTeacher(teacher.id, { status: statusValue });
+    setStatusSaving(false);
+    if (response.error) {
+      alert(response.error);
+      return;
+    }
+    setShowStatusModal(false);
+    fetchTeacherDetails();
+    fetchAssignments();
+  };
 
   const fetchTeacherDetails = async () => {
     const response = await api.getTeacher(params.id as string);
@@ -76,18 +115,20 @@ export default function TeacherDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading teacher details...</p>
+      <DashboardLayout>
+        <div className="flex justify-center items-center py-24">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading teacher details...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (error || !teacher) {
     return (
-      <div className="p-6">
+      <DashboardLayout>
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error || 'Teacher not found'}
         </div>
@@ -97,7 +138,7 @@ export default function TeacherDetailPage() {
         >
           ← Back to Teachers
         </button>
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -105,7 +146,8 @@ export default function TeacherDetailPage() {
     const colors: any = {
       active: 'bg-green-100 text-green-800',
       'on-leave': 'bg-yellow-100 text-yellow-800',
-      terminated: 'bg-red-100 text-red-800'
+      terminated: 'bg-red-100 text-red-800',
+      retired: 'bg-gray-100 text-gray-800'
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -120,7 +162,8 @@ export default function TeacherDetailPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <DashboardLayout>
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <button
@@ -129,21 +172,29 @@ export default function TeacherDetailPage() {
         >
           ← Back to Teachers
         </button>
-        
-        <div className="flex justify-between items-start">
+
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               {teacher.first_name} {teacher.middle_name} {teacher.last_name}
             </h1>
             <p className="text-gray-600 mt-1">Staff Number: {teacher.staff_number}</p>
           </div>
-          
-          <Link
-            href={`/dashboard/teachers/${teacher.id}/edit`}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Edit Teacher
-          </Link>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={openStatusModal}
+              className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+            >
+              Change Status
+            </button>
+            <Link
+              href={`/dashboard/teachers/${teacher.id}/edit`}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Edit Teacher
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -153,7 +204,7 @@ export default function TeacherDetailPage() {
           {/* Personal Information */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-900">Personal Information</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-600">Email</p>
                 <p className="font-medium">{teacher.email}</p>
@@ -190,7 +241,7 @@ export default function TeacherDetailPage() {
           {/* Professional Information */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-900">Professional Information</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-600">Qualification</p>
                 <p className="font-medium">{teacher.qualification || 'N/A'}</p>
@@ -333,6 +384,50 @@ export default function TeacherDetailPage() {
           </div>
         </div>
       </div>
+
+      {showStatusModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Change Employment Status</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {teacher.first_name} {teacher.last_name}
+            </p>
+            <form onSubmit={handleStatusChange} className="space-y-4">
+              <select
+                value={statusValue}
+                onChange={(e) => setStatusValue(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                {TEACHER_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              {(statusValue === 'terminated' || statusValue === 'retired') && (
+                <p className="text-xs text-amber-700 bg-amber-50 rounded px-3 py-2">
+                  Disables login and clears current-session class assignments. Setting back to Active re-enables login.
+                </p>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={statusSaving}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {statusSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowStatusModal(false)}
+                  className="flex-1 border border-gray-300 py-2 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
+    </DashboardLayout>
   );
 }

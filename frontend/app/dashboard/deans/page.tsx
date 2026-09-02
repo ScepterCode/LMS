@@ -46,6 +46,16 @@ export default function DeansPage() {
     }
   };
 
+  const handleReactivate = async (id: string, name: string) => {
+    if (!window.confirm(`Reactivate dean account "${name}"? They will be able to log in again.`)) return;
+    const response = await api.updateUser(id, { is_active: true });
+    if (response.error) {
+      alert(response.error);
+    } else {
+      loadDeans();
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="mb-8 flex justify-between items-center">
@@ -88,6 +98,7 @@ export default function DeansPage() {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -110,9 +121,13 @@ export default function DeansPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {dean.is_active && (
+                    {dean.is_active ? (
                       <button onClick={() => handleDeactivate(dean.id, dean.full_name)} className="text-red-600 hover:text-red-900">
                         Deactivate
+                      </button>
+                    ) : (
+                      <button onClick={() => handleReactivate(dean.id, dean.full_name)} className="text-green-600 hover:text-green-900">
+                        Reactivate
                       </button>
                     )}
                   </td>
@@ -120,6 +135,7 @@ export default function DeansPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </DashboardLayout>
