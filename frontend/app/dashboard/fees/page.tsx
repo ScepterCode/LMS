@@ -434,6 +434,34 @@ export default function FeeManagementPage() {
       sort: 'default',
     });
 
+  const exportStructuresCsv = () => {
+    const sessionName = (id?: string) => sessions.find((s) => s.id === id)?.name ?? '';
+    const csvCell = (v: string | number) => {
+      const str = String(v ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const header = ['Category', 'Class', 'Session', 'Amount', 'Frequency', 'Due Date', 'Status'];
+    const rows = filteredStructures.map((s) => [
+      s.category_name ?? '',
+      s.class_name || (s.class_level ? `All ${s.class_level} Classes` : 'All Classes'),
+      sessionName(s.session_id),
+      Number(s.amount),
+      s.payment_frequency,
+      s.due_date || '',
+      s.is_active ? 'Active' : 'Inactive',
+    ]);
+    const csv = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `fee-structures-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const filteredStructures = useMemo(() => {
     const term = structureFilters.search.trim().toLowerCase();
     const result = structures.filter((s) => {
@@ -575,7 +603,14 @@ export default function FeeManagementPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={exportStructuresCsv}
+                disabled={filteredStructures.length === 0}
+              >
+                Export CSV
+              </Button>
               <Button onClick={() => setShowStructureModal(true)}>Add Fee Structure</Button>
             </div>
 
