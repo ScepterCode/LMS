@@ -351,7 +351,7 @@ export default function MyChildrenPage() {
               </div>
 
               <div className="p-6 space-y-6">
-                <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Average</p>
                     <p className="text-lg font-semibold text-gray-900">{selectedReportCard.average_score ?? '-'}</p>
@@ -370,6 +370,7 @@ export default function MyChildrenPage() {
 
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 mb-2">Subject Grades</h4>
+                  <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead>
                       <tr>
@@ -388,12 +389,13 @@ export default function MyChildrenPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {selectedReportCard.skill_ratings.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900 mb-2">Skills</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                       {selectedReportCard.skill_ratings.map((s, i) => (
                         <div key={i} className="flex justify-between">
                           <span className="text-gray-600">{s.category_name}</span>

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import LinkStudentModal from '@/components/LinkStudentModal';
+import DashboardLayout from '@/components/DashboardLayout';
 
 interface Parent {
   id: string;
@@ -79,18 +80,20 @@ export default function ParentDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading parent details...</p>
+      <DashboardLayout>
+        <div className="flex justify-center items-center py-24">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading parent details...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (error || !parent) {
     return (
-      <div className="p-6">
+      <DashboardLayout>
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error || 'Parent not found'}
         </div>
@@ -100,12 +103,13 @@ export default function ParentDetailPage() {
         >
           ← Back to Parents
         </button>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <DashboardLayout>
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <button
@@ -138,7 +142,7 @@ export default function ParentDetailPage() {
           {/* Contact Information */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-900">Contact Information</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-600">Email</p>
                 <p className="font-medium">{parent.email}</p>
@@ -301,5 +305,6 @@ export default function ParentDetailPage() {
         />
       )}
     </div>
+    </DashboardLayout>
   );
 }

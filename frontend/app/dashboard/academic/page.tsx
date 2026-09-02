@@ -530,6 +530,7 @@ export default function AcademicPage() {
                     </div>
                   ) : (
                     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
@@ -571,6 +572,7 @@ export default function AcademicPage() {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -648,6 +650,7 @@ export default function AcademicPage() {
                     </div>
                   ) : (
                     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
@@ -687,6 +690,7 @@ export default function AcademicPage() {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -711,6 +715,7 @@ export default function AcademicPage() {
                     </div>
                   ) : (
                     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
@@ -756,6 +761,7 @@ export default function AcademicPage() {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   )}
                 </div>

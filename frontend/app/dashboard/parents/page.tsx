@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/DashboardLayout';
 
 interface Parent {
   id: string;
@@ -23,8 +21,6 @@ interface Parent {
 }
 
 export default function ParentsPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
   const [parents, setParents] = useState<Parent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,11 +42,6 @@ export default function ParentsPage() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-  };
-
   const filteredParents = parents.filter(parent =>
     parent.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     parent.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,34 +49,8 @@ export default function ParentsPage() {
   );
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        {/* Navigation */}
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              <h1 className="text-xl font-bold text-blue-600">Learnlyf</h1>
-              <div className="flex items-center gap-6">
-                <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
-                <Link href="/dashboard/students" className="text-sm text-gray-600 hover:text-gray-900">Students</Link>
-                <Link href="/dashboard/parents" className="text-sm font-medium text-gray-900">Parents</Link>
-                <Link href="/dashboard/teachers" className="text-sm text-gray-600 hover:text-gray-900">Teachers</Link>
-                <Link href="/dashboard/academic" className="text-sm text-gray-600 hover:text-gray-900">Academic</Link>
-                <div className="border-l pl-6 flex items-center gap-4">
-                  <span className="text-sm text-gray-600">{user?.full_name}</span>
-                  <button
-                    onClick={handleLogout}
-                    className="text-sm text-gray-700 hover:text-gray-900"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DashboardLayout>
+        <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8 flex justify-between items-center">
             <div>
@@ -142,6 +107,7 @@ export default function ParentsPage() {
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -207,6 +173,7 @@ export default function ParentsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -216,8 +183,7 @@ export default function ParentsPage() {
               Showing {filteredParents.length} of {parents.length} parents
             </div>
           )}
-        </main>
-      </div>
-    </ProtectedRoute>
+        </div>
+    </DashboardLayout>
   );
 }

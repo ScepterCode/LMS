@@ -229,6 +229,7 @@ export default function LeaveRequestsPage() {
 
         {/* Leave Requests List */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -308,6 +309,7 @@ export default function LeaveRequestsPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
@@ -335,7 +337,7 @@ export default function LeaveRequestsPage() {
                 </select>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
                   <input

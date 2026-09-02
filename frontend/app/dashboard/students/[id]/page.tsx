@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/DashboardLayout';
 import GuardianModal from '@/components/GuardianModal';
 
 interface Student {
@@ -61,8 +60,6 @@ interface LinkedParent {
 }
 
 export default function StudentDetailPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
   const params = useParams();
   const studentId = params?.id as string;
   
@@ -125,11 +122,6 @@ export default function StudentDetailPage() {
     setUnlinkingParentId(null);
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-  };
-
   const getStatusBadge = (status: string) => {
     const colors = {
       active: 'bg-green-100 text-green-800',
@@ -160,30 +152,8 @@ export default function StudentDetailPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        {/* Navigation */}
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              <h1 className="text-xl font-bold text-blue-600">Learnlyf</h1>
-              <div className="flex items-center gap-6">
-                <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
-                <Link href="/dashboard/students" className="text-sm font-medium text-gray-900">Students</Link>
-                <Link href="/dashboard/teachers" className="text-sm text-gray-600 hover:text-gray-900">Teachers</Link>
-                <Link href="/dashboard/academic" className="text-sm text-gray-600 hover:text-gray-900">Academic</Link>
-                <div className="border-l pl-6 flex items-center gap-4">
-                  <span className="text-sm text-gray-600">{user?.full_name}</span>
-                  <button onClick={handleLogout} className="text-sm text-gray-700 hover:text-gray-900">
-                    Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DashboardLayout>
+        <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <Link href="/dashboard/students" className="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">
@@ -229,7 +199,7 @@ export default function StudentDetailPage() {
                       {student.status}
                     </span>
                   </div>
-                  <dl className="grid grid-cols-2 gap-4">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm text-gray-600">Full Name</dt>
                       <dd className="text-sm font-medium text-gray-900">{student.full_name}</dd>
@@ -262,7 +232,7 @@ export default function StudentDetailPage() {
                 {/* Contact Information */}
                 <div className="bg-white rounded-lg shadow-sm p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
-                  <dl className="grid grid-cols-2 gap-4">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm text-gray-600">Email</dt>
                       <dd className="text-sm font-medium text-gray-900">{student.email || 'Not provided'}</dd>
@@ -281,7 +251,7 @@ export default function StudentDetailPage() {
                 {/* Additional Information */}
                 <div className="bg-white rounded-lg shadow-sm p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Information</h3>
-                  <dl className="grid grid-cols-2 gap-4">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <dt className="text-sm text-gray-600">State of Origin</dt>
                       <dd className="text-sm font-medium text-gray-900">{student.state_of_origin}</dd>
@@ -450,8 +420,7 @@ export default function StudentDetailPage() {
               onSuccess={handleModalSuccess}
             />
           )}
-        </main>
-      </div>
-    </ProtectedRoute>
+        </div>
+    </DashboardLayout>
   );
 }

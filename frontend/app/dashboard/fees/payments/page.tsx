@@ -469,7 +469,7 @@ export default function PaymentsPage() {
                         ))}
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Discount</label>
                         <input
@@ -629,7 +629,7 @@ export default function PaymentsPage() {
             {/* Summary */}
             {paymentAmount > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                   <div>
                     <div className="text-gray-600">Payment Amount</div>
                     <div className="text-lg font-bold text-gray-900">₦{paymentAmount.toLocaleString()}</div>
@@ -741,8 +741,8 @@ export default function PaymentsPage() {
 
       {/* Void/Refund Payment Modal */}
       {voidingPayment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-2 text-gray-900">Void or Refund Payment</h2>
             <p className="text-sm text-gray-600 mb-4">
               Receipt {voidingPayment.receipt_number} &middot; ₦{Number(voidingPayment.amount).toLocaleString()}
@@ -806,7 +806,7 @@ export default function PaymentsPage() {
       {/* View Receipt Modal */}
       {viewingReceipt && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4 print:shadow-none">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto print:shadow-none print:max-h-none print:overflow-visible">
             <div className="text-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">Payment Receipt</h2>
               <p className="text-sm text-gray-500">{viewingReceipt.receipt_number}</p>

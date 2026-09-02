@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/DashboardLayout';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function AddTeacherPage() {
@@ -104,23 +104,8 @@ export default function AddTeacherPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              <h1 className="text-xl font-bold text-blue-600">Learnlyf</h1>
-              <div className="flex items-center gap-6">
-                <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
-                <Link href="/dashboard/students" className="text-sm text-gray-600 hover:text-gray-900">Students</Link>
-                <Link href="/dashboard/teachers" className="text-sm font-medium text-gray-900">Teachers</Link>
-                <Link href="/dashboard/academic" className="text-sm text-gray-600 hover:text-gray-900">Academic</Link>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DashboardLayout>
+        <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <Link href="/dashboard/teachers" className="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">
               ← Back to Teachers
@@ -435,8 +420,7 @@ export default function AddTeacherPage() {
               </button>
             </div>
           </form>
-        </main>
-      </div>
-    </ProtectedRoute>
+        </div>
+    </DashboardLayout>
   );
 }

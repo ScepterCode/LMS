@@ -3,13 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/DashboardLayout';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function AddParentPage() {
-  const { user, logout } = useAuth();
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -81,40 +79,9 @@ export default function AddParentPage() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-  };
-
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        {/* Navigation */}
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              <h1 className="text-xl font-bold text-blue-600">Learnlyf</h1>
-              <div className="flex items-center gap-6">
-                <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
-                <Link href="/dashboard/students" className="text-sm text-gray-600 hover:text-gray-900">Students</Link>
-                <Link href="/dashboard/parents" className="text-sm font-medium text-gray-900">Parents</Link>
-                <Link href="/dashboard/teachers" className="text-sm text-gray-600 hover:text-gray-900">Teachers</Link>
-                <Link href="/dashboard/academic" className="text-sm text-gray-600 hover:text-gray-900">Academic</Link>
-                <div className="border-l pl-6 flex items-center gap-4">
-                  <span className="text-sm text-gray-600">{user?.full_name}</span>
-                  <button
-                    onClick={handleLogout}
-                    className="text-sm text-gray-700 hover:text-gray-900"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DashboardLayout>
+        <div className="max-w-4xl mx-auto">
           <div className="mb-6">
             <Link
               href="/dashboard/parents"
@@ -311,8 +278,7 @@ export default function AddParentPage() {
               </Link>
             </div>
           </form>
-        </main>
-      </div>
-    </ProtectedRoute>
+        </div>
+    </DashboardLayout>
   );
 }

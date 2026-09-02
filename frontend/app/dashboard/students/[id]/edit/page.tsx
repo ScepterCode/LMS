@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/DashboardLayout';
 
 interface Class {
   id: string;
@@ -13,7 +12,6 @@ interface Class {
 }
 
 export default function EditStudentPage() {
-  const { user } = useAuth();
   const router = useRouter();
   const params = useParams();
   const studentId = params?.id as string;
@@ -130,17 +128,8 @@ export default function EditStudentPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              <h1 className="text-xl font-bold text-blue-600">Learnlyf</h1>
-            </div>
-          </div>
-        </nav>
-
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DashboardLayout>
+        <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <Link href={`/dashboard/students/${studentId}`} className="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">
               ← Back to Student
@@ -470,8 +459,7 @@ export default function EditStudentPage() {
               </div>
             </form>
           )}
-        </main>
-      </div>
-    </ProtectedRoute>
+        </div>
+    </DashboardLayout>
   );
 }
