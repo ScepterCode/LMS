@@ -4,7 +4,12 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4
+    # 2 workers, not 4: the endpoints are sync `def` and FastAPI runs them in
+    # a thread pool, so one worker already serves concurrent requests. `4` was
+    # a band-aid from before the async fix (commit 74dfd1c) and on a 512MB
+    # instance four copies of the app risk the OOM killer, which stalls
+    # in-flight requests. 2 keeps a spare without the memory pressure.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9

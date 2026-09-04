@@ -98,47 +98,6 @@ def require_form_teacher_or_admin(user: dict, class_id: str = None):
     return True
 
 
-def _enrich_assignment_names(supabase, assignments: list, organization_id: str) -> None:
-    """Attach teacher_name / class_name / subject_name to each assignment
-    row in place, using one batched lookup per entity instead of three
-    queries per row."""
-    if not assignments:
-        return
-
-    teacher_ids = {a['teacher_id'] for a in assignments if a.get('teacher_id')}
-    class_ids = {a['class_id'] for a in assignments if a.get('class_id')}
-    subject_ids = {a['subject_id'] for a in assignments if a.get('subject_id')}
-
-    teachers = {}
-    if teacher_ids:
-        rows = supabase.table('teachers').select('id, first_name, last_name').in_(
-            'id', list(teacher_ids)
-        ).eq('organization_id', organization_id).execute()
-        teachers = {r['id']: f"{r['first_name']} {r['last_name']}" for r in (rows.data or [])}
-
-    classes = {}
-    if class_ids:
-        rows = supabase.table('classes').select('id, name').in_(
-            'id', list(class_ids)
-        ).eq('organization_id', organization_id).execute()
-        classes = {r['id']: r['name'] for r in (rows.data or [])}
-
-    subjects = {}
-    if subject_ids:
-        rows = supabase.table('subjects').select('id, name').in_(
-            'id', list(subject_ids)
-        ).eq('organization_id', organization_id).execute()
-        subjects = {r['id']: r['name'] for r in (rows.data or [])}
-
-    for a in assignments:
-        if a.get('teacher_id') in teachers:
-            a['teacher_name'] = teachers[a['teacher_id']]
-        if a.get('class_id') in classes:
-            a['class_name'] = classes[a['class_id']]
-        if a.get('subject_id') in subjects:
-            a['subject_name'] = subjects[a['subject_id']]
-
-
 # ============================================
 # GRADING SCHEMES ENDPOINTS
 # ============================================
@@ -718,37 +677,43 @@ def list_teacher_assignments(
         if not supabase:
             raise DatabaseError("Database connection not available")
 
-        # Scope to this school by inner-joining teachers (teacher_class_assignments
-        # has no organization_id column of its own); filter on the joined org so
-        # rows belonging to other schools are never returned.
+        # One query: inner-join teachers for the org scope (the table has no
+        # organization_id of its own) and pull the display names for teacher,
+        # class and subject in the same round-trip. The old version issued
+        # three extra queries PER ROW, which on a school with ~150 assignments
+        # meant hundreds of sequential round-trips - the page took a minute+.
         query = supabase.table('teacher_class_assignments').select(
-            '*, teachers!inner(organization_id)'
+            '*, teachers!inner(organization_id, first_name, last_name), '
+            'classes(name), subjects(name)'
         ).eq('teachers.organization_id', user["school_id"])
 
         if teacher_id:
             query = query.eq('teacher_id', str(teacher_id))
-        
+
         if class_id:
             query = query.eq('class_id', str(class_id))
-        
+
         if session_id:
             query = query.eq('session_id', str(session_id))
-        
+
         if is_form_teacher is not None:
             query = query.eq('is_form_teacher', is_form_teacher)
-        
+
         query = query.order('created_at', desc=True)
         response = query.execute()
 
-        assignments = response.data or []
-        for assignment in assignments:
-            # Drop the join artifact used only for org scoping above.
-            assignment.pop('teachers', None)
-
-        # Enrich names with three batched lookups instead of 3 queries per
-        # row - the per-row version made this endpoint take many seconds
-        # once a school had a full set of assignments.
-        _enrich_assignment_names(supabase, assignments, user["school_id"])
+        assignments = []
+        for row in response.data or []:
+            teacher = row.pop('teachers', None) or {}
+            cls = row.pop('classes', None) or {}
+            subject = row.pop('subjects', None) or {}
+            if teacher.get('first_name'):
+                row['teacher_name'] = f"{teacher['first_name']} {teacher['last_name']}"
+            if cls.get('name'):
+                row['class_name'] = cls['name']
+            if subject.get('name'):
+                row['subject_name'] = subject['name']
+            assignments.append(row)
 
         return assignments
         
@@ -963,9 +928,11 @@ def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Optional
         if not teacher_check.data:
             raise NotFoundError("Teacher", str(teacher_id))
 
-        query = supabase.table('teacher_class_assignments').select('*').eq(
-            'teacher_id', str(teacher_id)
-        )
+        # One query with class + subject embedded (was a class lookup per
+        # distinct class and a subject lookup per row).
+        query = supabase.table('teacher_class_assignments').select(
+            '*, classes(*), subjects(*)'
+        ).eq('teacher_id', str(teacher_id))
 
         if session_id:
             query = query.eq('session_id', str(session_id))
@@ -976,21 +943,19 @@ def get_teacher_classes(request: Request, teacher_id: UUID, session_id: Optional
         classes_dict = {}
         for assignment in response.data or []:
             class_id = assignment['class_id']
-            
-            if class_id not in classes_dict:
-                cls = supabase.table('classes').select('*').eq('id', class_id).execute()
-                if cls.data:
-                    classes_dict[class_id] = {
-                        **cls.data[0],
-                        'is_form_teacher': assignment['is_form_teacher'],
-                        'subjects': []
-                    }
-            
-            # Add subject
-            subject = supabase.table('subjects').select('*').eq('id', assignment['subject_id']).execute()
-            if subject.data:
-                classes_dict[class_id]['subjects'].append(subject.data[0])
-        
+            cls = assignment.get('classes') or {}
+            subject = assignment.get('subjects') or {}
+
+            if class_id and class_id not in classes_dict and cls:
+                classes_dict[class_id] = {
+                    **cls,
+                    'is_form_teacher': assignment['is_form_teacher'],
+                    'subjects': []
+                }
+
+            if subject and class_id in classes_dict:
+                classes_dict[class_id]['subjects'].append(subject)
+
         return list(classes_dict.values())
         
     except (AuthorizationError, NotFoundError, DatabaseError):
@@ -1014,33 +979,32 @@ def list_form_teachers(request: Request, session_id: Optional[UUID] = None):
         if not supabase:
             raise DatabaseError("Database connection not available")
         
-        query = supabase.table('teacher_class_assignments').select('*').eq('is_form_teacher', True)
-        
+        # One query, org-scoped at the query level (was fetching EVERY
+        # school's form-teacher rows and then doing two lookups per row).
+        query = supabase.table('teacher_class_assignments').select(
+            'id, session_id, '
+            'teachers!inner(id, organization_id, first_name, last_name, email, phone), '
+            'classes(id, name, level, section)'
+        ).eq('is_form_teacher', True).eq('teachers.organization_id', user["school_id"])
+
         if session_id:
             query = query.eq('session_id', str(session_id))
-        
+
         response = query.execute()
-        
+
         form_teachers = []
-        for assignment in response.data or []:
-            # Get teacher info
-            teacher = supabase.table('teachers').select('id, first_name, last_name, email, phone').eq(
-                'id', assignment['teacher_id']
-            ).eq('organization_id', user["school_id"]).execute()
-            
-            # Get class info
-            cls = supabase.table('classes').select('id, name, level, section').eq(
-                'id', assignment['class_id']
-            ).execute()
-            
-            if teacher.data and cls.data:
+        for row in response.data or []:
+            teacher = row.get('teachers') or {}
+            cls = row.get('classes') or {}
+            if teacher and cls:
+                teacher.pop('organization_id', None)
                 form_teachers.append({
-                    'teacher': teacher.data[0],
-                    'class': cls.data[0],
-                    'session_id': assignment['session_id'],
-                    'assignment_id': assignment['id']
+                    'teacher': teacher,
+                    'class': cls,
+                    'session_id': row['session_id'],
+                    'assignment_id': row['id'],
                 })
-        
+
         return form_teachers
         
     except (AuthorizationError, DatabaseError):
