@@ -94,8 +94,49 @@ def require_form_teacher_or_admin(user: dict, class_id: str = None):
         
         if not assignment.data:
             raise AuthorizationError("You are not the form teacher of this class")
-    
+
     return True
+
+
+def _enrich_assignment_names(supabase, assignments: list, organization_id: str) -> None:
+    """Attach teacher_name / class_name / subject_name to each assignment
+    row in place, using one batched lookup per entity instead of three
+    queries per row."""
+    if not assignments:
+        return
+
+    teacher_ids = {a['teacher_id'] for a in assignments if a.get('teacher_id')}
+    class_ids = {a['class_id'] for a in assignments if a.get('class_id')}
+    subject_ids = {a['subject_id'] for a in assignments if a.get('subject_id')}
+
+    teachers = {}
+    if teacher_ids:
+        rows = supabase.table('teachers').select('id, first_name, last_name').in_(
+            'id', list(teacher_ids)
+        ).eq('organization_id', organization_id).execute()
+        teachers = {r['id']: f"{r['first_name']} {r['last_name']}" for r in (rows.data or [])}
+
+    classes = {}
+    if class_ids:
+        rows = supabase.table('classes').select('id, name').in_(
+            'id', list(class_ids)
+        ).eq('organization_id', organization_id).execute()
+        classes = {r['id']: r['name'] for r in (rows.data or [])}
+
+    subjects = {}
+    if subject_ids:
+        rows = supabase.table('subjects').select('id, name').in_(
+            'id', list(subject_ids)
+        ).eq('organization_id', organization_id).execute()
+        subjects = {r['id']: r['name'] for r in (rows.data or [])}
+
+    for a in assignments:
+        if a.get('teacher_id') in teachers:
+            a['teacher_name'] = teachers[a['teacher_id']]
+        if a.get('class_id') in classes:
+            a['class_name'] = classes[a['class_id']]
+        if a.get('subject_id') in subjects:
+            a['subject_name'] = subjects[a['subject_id']]
 
 
 # ============================================
@@ -698,30 +739,17 @@ def list_teacher_assignments(
         
         query = query.order('created_at', desc=True)
         response = query.execute()
-        
+
         assignments = response.data or []
-        
-        # Enrich with names
         for assignment in assignments:
             # Drop the join artifact used only for org scoping above.
             assignment.pop('teachers', None)
-            # Get teacher name
-            teacher = supabase.table('teachers').select('first_name, last_name').eq(
-                'id', assignment['teacher_id']
-            ).eq('organization_id', user["school_id"]).execute()
-            if teacher.data:
-                assignment['teacher_name'] = f"{teacher.data[0]['first_name']} {teacher.data[0]['last_name']}"
-            
-            # Get class name
-            cls = supabase.table('classes').select('name').eq('id', assignment['class_id']).execute()
-            if cls.data:
-                assignment['class_name'] = cls.data[0]['name']
-            
-            # Get subject name
-            subject = supabase.table('subjects').select('name').eq('id', assignment['subject_id']).execute()
-            if subject.data:
-                assignment['subject_name'] = subject.data[0]['name']
-        
+
+        # Enrich names with three batched lookups instead of 3 queries per
+        # row - the per-row version made this endpoint take many seconds
+        # once a school had a full set of assignments.
+        _enrich_assignment_names(supabase, assignments, user["school_id"])
+
         return assignments
         
     except (AuthorizationError, DatabaseError):

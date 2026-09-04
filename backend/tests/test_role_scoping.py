@@ -453,7 +453,13 @@ class TestTeacherAssignmentReadScoping:
         self._assign(school, teacher, klass, subject, academic_session)
         res = school["client"].get(TA)
         assert res.status_code == 200, res.text
-        assert len(res.json()) >= 1
+        rows = res.json()
+        assert len(rows) >= 1
+        # names are batch-enriched, not fetched per row - make sure they still land
+        mine = next(r for r in rows if r["class_id"] == klass["id"])
+        assert mine["teacher_name"] == f"{teacher['teacher']['first_name']} {teacher['teacher']['last_name']}"
+        assert mine["class_name"] == klass["name"]
+        assert mine["subject_name"] == subject["name"]
 
     def test_dean_can_list_teacher_assignments(
         self, school, dean, teacher, klass, subject, academic_session
