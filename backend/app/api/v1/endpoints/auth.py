@@ -22,6 +22,9 @@ from app.core.security import (
     blacklist_token,
     validate_password_strength,
     create_user_token_data,
+    create_password_reset_token,
+    decode_password_reset_token,
+    _password_fingerprint,
 )
 from app.core.database import get_supabase
 from app.core.exceptions import (
@@ -30,6 +33,9 @@ from app.core.exceptions import (
     DatabaseError,
     DuplicateRecordError,
 )
+from app.core.config import settings
+from app.core.email import send_email
+from app.core.email_templates import password_reset_email
 from app.api.v1.endpoints.skills import seed_default_skill_categories
 
 router = APIRouter()
@@ -56,6 +62,15 @@ class TokenResponse(BaseModel):
 class MessageResponse(BaseModel):
     """Simple message response."""
     message: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 class SchoolRegistrationRequest(BaseModel):
@@ -449,22 +464,83 @@ def register_school(data: SchoolRegistrationRequest):
 
 
 # ============================================
-# PASSWORD RESET (Placeholder for Phase 2)
+# PASSWORD RESET
 # ============================================
 
 @router.post("/forgot-password", response_model=MessageResponse)
-def forgot_password(email: EmailStr):
+def forgot_password(data: ForgotPasswordRequest):
     """
-    Request password reset (placeholder for Phase 2).
+    Request a password reset link by email. Always returns the same
+    message whether or not the address is registered, so this can't be
+    used to enumerate accounts. Sending is best-effort - see
+    app/core/email.py - so this never fails just because email isn't
+    configured or Resend is down.
     """
-    # TODO: Implement in Phase 2
-    return {"message": "Password reset functionality coming in Phase 2"}
+    generic_message = "If an account exists for that email, a password reset link has been sent."
+
+    supabase = get_supabase()
+    if not supabase:
+        raise DatabaseError("Database connection not available")
+
+    result = supabase.table("users").select(
+        "id, email, full_name, password_hash, is_active"
+    ).eq("email", data.email.lower()).execute()
+
+    if result.data and result.data[0].get("is_active"):
+        user = result.data[0]
+        token = create_password_reset_token(user["id"], user["email"], user["password_hash"])
+        reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        subject, html = password_reset_email(user.get("full_name") or "there", reset_link)
+        send_email(to=user["email"], subject=subject, html=html)
+    else:
+        logger.info(f"Password reset requested for unknown or inactive email: {data.email}")
+
+    return {"message": generic_message}
 
 
 @router.post("/reset-password", response_model=MessageResponse)
-def reset_password(token: str, new_password: str):
+def reset_password(data: ResetPasswordRequest):
     """
-    Reset password with token (placeholder for Phase 2).
+    Complete a password reset. The token embeds a fingerprint of the
+    password hash it was issued against, so it stops working the moment
+    the password actually changes - no separate revocation store needed,
+    and a token can't be replayed after use.
     """
-    # TODO: Implement in Phase 2
-    return {"message": "Password reset functionality coming in Phase 2"}
+    payload = decode_password_reset_token(data.token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link is invalid or has expired. Request a new one."
+        )
+
+    is_strong, strength_message = validate_password_strength(data.new_password)
+    if not is_strong:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=strength_message)
+
+    supabase = get_supabase()
+    if not supabase:
+        raise DatabaseError("Database connection not available")
+
+    result = supabase.table("users").select("id, password_hash, is_active").eq(
+        "id", payload["sub"]
+    ).execute()
+
+    if not result.data or not result.data[0].get("is_active"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link is invalid or has expired. Request a new one."
+        )
+
+    current_hash = result.data[0]["password_hash"]
+    if payload.get("pwd_fp") != _password_fingerprint(current_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link has already been used. Request a new one."
+        )
+
+    supabase.table("users").update({
+        "password_hash": get_password_hash(data.new_password),
+        "updated_at": datetime.utcnow().isoformat(),
+    }).eq("id", payload["sub"]).execute()
+
+    return {"message": "Your password has been reset. You can now sign in."}

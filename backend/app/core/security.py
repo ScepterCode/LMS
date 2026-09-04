@@ -9,6 +9,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status, Request, Response
 from app.core.config import settings
+import hashlib
 import logging
 
 logger = logging.getLogger(__name__)
@@ -250,6 +251,46 @@ def get_current_user_from_token(token: str) -> Optional[Dict[str, Any]]:
         return None
     
     return user_data
+
+
+RESET_TOKEN_EXPIRE_MINUTES = 30
+
+
+def _password_fingerprint(password_hash: str) -> str:
+    """Short digest of the user's current bcrypt hash. Baking this into a
+    reset token means the token dies the moment the password actually
+    changes - no revocation table needed, and it can't be replayed."""
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
+def create_password_reset_token(user_id: str, email: str, password_hash: str) -> str:
+    """Signed, short-lived, single-use-in-practice token for the forgot-password
+    flow. Deliberately excludes `role`/`school_id` so it can never be mistaken
+    for (or misused as) a login token by get_current_user_from_token."""
+    to_encode = {
+        "sub": str(user_id),
+        "email": email,
+        "purpose": "password_reset",
+        "pwd_fp": _password_fingerprint(password_hash),
+        "exp": datetime.utcnow() + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES),
+        "iat": datetime.utcnow(),
+    }
+    return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> Optional[Dict[str, Any]]:
+    """Verifies signature, expiry and purpose. Does NOT confirm the token is
+    still live - the caller must separately compare payload['pwd_fp'] against
+    _password_fingerprint(<the user's current password_hash from the DB>)."""
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+    except JWTError:
+        return None
+
+    if payload.get("purpose") != "password_reset" or not payload.get("sub"):
+        return None
+
+    return payload
 
 
 def create_user_token_data(user: Dict[str, Any]) -> Dict[str, Any]:

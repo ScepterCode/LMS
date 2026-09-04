@@ -40,10 +40,21 @@ class Settings(BaseSettings):
     BCRYPT_ROUNDS: int = 12
     COOKIE_NAME: str = "access_token"
     COOKIE_MAX_AGE: int = 86400  # 24 hours in seconds
-    
+
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
+
+    # Email (Resend HTTP API - see app/core/email.py). Both unset is a valid
+    # "email disabled" state: send_email() logs and no-ops instead of raising,
+    # so nothing that also does a DB write (account creation, etc.) ever fails
+    # because email isn't configured.
+    RESEND_API_KEY: Optional[str] = None
+    EMAIL_FROM: Optional[str] = None  # e.g. "Learnlyf <noreply@yourdomain.com>"
+
+    # Base URL of the deployed frontend, used to build links inside emails
+    # (password reset, etc.) - can't be derived from the API request.
+    FRONTEND_URL: str = "http://localhost:3000"
     
     class Config:
         env_file = [
