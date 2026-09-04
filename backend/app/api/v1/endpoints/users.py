@@ -25,9 +25,44 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.audit import log_audit_event
+from app.core.config import settings
+from app.core.email import send_email
+from app.core.email_templates import welcome_email
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+ROLE_LABELS = {
+    "admin": "School Administrator",
+    "system_admin": "System Administrator",
+    "dean": "Dean",
+    "registrar": "Registrar",
+    "bursar": "Bursar",
+    "teacher": "Teacher",
+    "parent": "Parent",
+    "student": "Student",
+}
+
+
+def _send_welcome_email(new_user: dict, school_id: str, supabase) -> None:
+    """Best-effort - failures here must never fail account creation, so
+    every error is caught and logged rather than raised."""
+    try:
+        school_name = "your school"
+        org = supabase.table("organizations").select("name").eq("id", school_id).execute()
+        if org.data:
+            school_name = org.data[0]["name"]
+
+        subject, html = welcome_email(
+            name=new_user["full_name"],
+            email=new_user["email"],
+            role_label=ROLE_LABELS.get(new_user["role"], new_user["role"]),
+            school_name=school_name,
+            login_link=f"{settings.FRONTEND_URL}/login",
+        )
+        send_email(to=new_user["email"], subject=subject, html=html)
+    except Exception as e:
+        logger.error(f"Failed to send welcome email to {new_user.get('email')}: {e}")
 
 
 # ============================================
@@ -236,11 +271,13 @@ def create_user(
             raise DatabaseError("Failed to create user")
         
         logger.info(f"Created user: {data.email} (role: {data.role}) by {user['email']}")
-        
+
         # Return user without password_hash
         created_user = result.data[0]
         created_user.pop('password_hash', None)
-        
+
+        _send_welcome_email(created_user, user["school_id"], supabase)
+
         return created_user
         
     except (AuthorizationError, ValidationError, DatabaseError, DuplicateRecordError):

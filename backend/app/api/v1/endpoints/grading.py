@@ -6,11 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
+import logging
 
 from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.core.permissions import PermissionChecker
 from app.core.exceptions import AuthorizationError
+from app.core.config import settings
+from app.core.email import send_email
+from app.core.email_templates import report_card_published_email
 from app.models.grading import (
     AssessmentType, AssessmentTypeCreate, AssessmentTypeUpdate,
     Assessment, AssessmentCreate, AssessmentUpdate,
@@ -21,6 +25,46 @@ from app.models.grading import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _notify_parents_report_published(db, report_card: dict, organization_id: str) -> None:
+    """Best-effort - must never fail the publish itself."""
+    try:
+        student_resp = db.table("students").select("first_name, last_name").eq(
+            "id", report_card["student_id"]
+        ).eq("organization_id", organization_id).execute()
+        if not student_resp.data:
+            return
+        student_name = f"{student_resp.data[0]['first_name']} {student_resp.data[0]['last_name']}"
+
+        term_label = "this term"
+        if report_card.get("term_id"):
+            term_resp = db.table("terms").select("name").eq("id", report_card["term_id"]).execute()
+            if term_resp.data:
+                term_label = term_resp.data[0]["name"]
+
+        school_name = "your school"
+        org_resp = db.table("organizations").select("name").eq("id", organization_id).execute()
+        if org_resp.data:
+            school_name = org_resp.data[0]["name"]
+
+        links = db.table("parent_student_links").select(
+            "parents(first_name, last_name, email)"
+        ).eq("student_id", report_card["student_id"]).execute()
+
+        view_link = f"{settings.FRONTEND_URL}/dashboard/my-children"
+        for link in links.data or []:
+            parent = link.get("parents")
+            if not parent or not parent.get("email"):
+                continue
+            parent_name = f"{parent['first_name']} {parent['last_name']}"
+            subject, html = report_card_published_email(
+                parent_name, student_name, term_label, school_name, view_link
+            )
+            send_email(to=parent["email"], subject=subject, html=html)
+    except Exception as e:
+        logger.error(f"Failed to send report-published email for report_card {report_card.get('id')}: {e}")
 
 
 # ============================================
@@ -1204,7 +1248,9 @@ def publish_report_card(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Report card not found"
         )
-    
+
+    _notify_parents_report_published(db, response.data[0], current_user["school_id"])
+
     return {"message": "Report card published successfully"}
 
 

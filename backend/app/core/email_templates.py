@@ -65,3 +65,15 @@ def welcome_email(name: str, email: str, role_label: str, school_name: str, logi
     <p style="color:#6b7280;font-size:13px;">That link takes you to Learnlyf's sign-in page, where you can choose "Forgot password" to set your first password.</p>
     """
     return subject, _wrapper(f"Your {school_name} account on Learnlyf is ready", body)
+
+
+def report_card_published_email(
+    parent_name: str, student_name: str, term_label: str, school_name: str, view_link: str
+) -> tuple[str, str]:
+    subject = f"{student_name}'s report card is ready"
+    body = f"""\
+    <p>Hi {parent_name},</p>
+    <p><strong>{student_name}'s</strong> report card for {term_label} has been published by {school_name}.</p>
+    {_button("View report card", view_link)}
+    """
+    return subject, _wrapper(f"{student_name}'s report card is ready", body)
