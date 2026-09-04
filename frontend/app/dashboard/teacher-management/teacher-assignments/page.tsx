@@ -65,9 +65,14 @@ export default function TeacherAssignmentsPage() {
       setTeachers(teachersRes.data ? (teachersRes.data as any[]) : []);
       setClasses(classesRes.data ? (classesRes.data as any[]) : []);
       setSubjects(subjectsRes.data ? (subjectsRes.data as any[]) : []);
-      setSessions(sessionsRes.data ? (sessionsRes.data as any[]) : []);
+      const sessionList = sessionsRes.data ? (sessionsRes.data as any[]) : [];
+      setSessions(sessionList);
       setTerms(termsRes.data ? (termsRes.data as any[]) : []);
       setAssignments(assignmentsRes.data ? (assignmentsRes.data as TeacherAssignment[]) : []);
+
+      // Preselect the current session so the New Assignment form isn't blank.
+      const current = sessionList.find((s) => s.is_current);
+      if (current) setFormData((prev) => ({ ...prev, session_id: prev.session_id || current.id }));
     } catch (error) {
       console.error('Error loading data:', error);
       // Ensure states are always arrays
@@ -115,7 +120,9 @@ export default function TeacherAssignmentsPage() {
     if (response.error) {
       alert(response.error);
     } else {
-      await loadData();
+      // Only the assignment list changed - no need to refetch the five
+      // dropdown sources every time.
+      await loadAssignments();
       setShowCreateModal(false);
       resetForm();
     }
@@ -128,7 +135,7 @@ export default function TeacherAssignmentsPage() {
     if (response.error) {
       alert(response.error);
     } else {
-      await loadData();
+      await loadAssignments();
     }
   };
 
@@ -137,7 +144,7 @@ export default function TeacherAssignmentsPage() {
       teacher_id: '',
       class_id: '',
       subject_id: '',
-      session_id: '',
+      session_id: sessions.find((s) => s.is_current)?.id ?? '',
       term_id: '',
       is_form_teacher: false,
     });
