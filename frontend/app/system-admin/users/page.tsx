@@ -23,7 +23,7 @@ interface OrgLite {
   name: string;
 }
 
-const ROLE_OPTIONS = ['admin', 'teacher', 'bursar', 'parent', 'student', 'system_admin'];
+const ROLE_OPTIONS = ['admin', 'dean', 'registrar', 'bursar', 'teacher', 'parent', 'student', 'system_admin'];
 
 export default function SystemAdminUsersPage() {
   const [users, setUsers] = useState<PlatformUser[]>([]);

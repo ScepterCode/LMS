@@ -27,6 +27,8 @@ interface OrganizationDetail {
 interface Statistics {
   users: {
     admin: number;
+    dean: number;
+    registrar: number;
     teacher: number;
     bursar: number;
     parent: number;
@@ -178,6 +180,14 @@ export default function OrganizationDetailPage() {
               <div className="flex justify-between">
                 <dt className="text-gray-500">Admins</dt>
                 <dd className="text-gray-900 font-medium">{statistics?.users.admin ?? 0}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Deans</dt>
+                <dd className="text-gray-900 font-medium">{statistics?.users.dean ?? 0}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Registrars</dt>
+                <dd className="text-gray-900 font-medium">{statistics?.users.registrar ?? 0}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-gray-500">Teachers</dt>

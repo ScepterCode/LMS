@@ -131,9 +131,12 @@ def get_organization(
         
         user_counts = {
             "admin": 0,
+            "dean": 0,
+            "registrar": 0,
             "teacher": 0,
             "bursar": 0,
             "parent": 0,
+            "student": 0,
             "total": len(users_response.data) if users_response.data else 0
         }
         
@@ -415,9 +418,12 @@ def get_platform_analytics(
             "total": len(users_response.data) if users_response.data else 0,
             "system_admin": 0,
             "admin": 0,
+            "dean": 0,
+            "registrar": 0,
             "teacher": 0,
             "bursar": 0,
             "parent": 0,
+            "student": 0,
         }
         
         if users_response.data:
