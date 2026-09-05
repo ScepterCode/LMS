@@ -5,14 +5,14 @@ This module combines all endpoint routers.
 
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, 
-    system_admin, 
-    organizations, 
-    sessions, 
+    auth,
+    system_admin,
+    organizations,
+    sessions,
     terms,
-    classes, 
-    subjects, 
-    students, 
+    classes,
+    subjects,
+    students,
     teachers,
     parents,
     assignments,
@@ -21,7 +21,6 @@ from app.api.v1.endpoints import (
     fees,
     teacher_management,
     users,
-    registration,
     skills
 )
 
@@ -46,10 +45,7 @@ api_router.include_router(fees.router, prefix="/fees", tags=["Fee Management"])
 api_router.include_router(teacher_management.router, prefix="/teacher-management", tags=["Phase 4: Teacher Management"])
 api_router.include_router(skills.router, prefix="/skills", tags=["Skills & Extracurriculars"])
 
-# NEW: User Management & Integrated Registration
-from app.api.v1.endpoints import users, registration
 api_router.include_router(users.router, prefix="/users", tags=["User Management"])
-api_router.include_router(registration.router, prefix="/registration", tags=["Integrated Registration"])
 
 # Health check endpoint (not versioned)
 @api_router.get("/health", tags=["Health"])

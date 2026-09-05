@@ -745,18 +745,16 @@ class ApiClient {
   }
 
   // Note: the old createReport/bulkSendReports/getReports methods (school_reports
-  // table) never actually delivered report card content to parents - they
-  // referenced a stale parent_student_relationships table from before the
-  // parent_student_links rebuild, and logged a "pending" recipient row that
-  // nothing ever marked delivered. Send Reports now works by publishing the
-  // real report_cards rows directly (see publishReportCard below), which is
-  // what my-children/report-cards already gate on.
+  // table, backend/app/api/v1/endpoints/teacher_management.py) never actually
+  // delivered report card content to parents - they referenced a stale
+  // parent_student_relationships table from before the parent_student_links
+  // rebuild, and logged a "pending" recipient row that nothing ever marked
+  // delivered. That backend code has since been deleted (dead - nothing
+  // called it). Send Reports now works by publishing the real report_cards
+  // rows directly, which is what my-children/report-cards already gate on,
+  // and grading.py emails linked parents when that publish happens.
   async publishReportCard(reportCardId: string) {
     return this.request(`/api/v1/grading/report-cards/${reportCardId}/publish`, { method: 'POST' });
-  }
-
-  async getReport(reportId: string) {
-    return this.request(`/api/v1/teacher-management/reports/${reportId}`, { method: 'GET' });
   }
 
   // Phase 3: Grading
