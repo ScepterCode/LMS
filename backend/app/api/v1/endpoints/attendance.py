@@ -6,11 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from datetime import datetime, date
 from decimal import Decimal
+import logging
 
 from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.core.permissions import PermissionChecker
 from app.core.exceptions import AuthorizationError
+from app.core.email import send_email
+from app.core.email_templates import attendance_notice_email
 from app.models.attendance import (
     AttendanceRecord, AttendanceRecordCreate, AttendanceRecordUpdate,
     BulkAttendanceEntry,
@@ -22,6 +25,80 @@ from app.models.attendance import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _notify_attendance_parents(
+    db, organization_id: str, class_id: str, session_id: str, marked_records: list
+) -> None:
+    """Best-effort - must never fail the attendance-marking request itself.
+    Batched (a handful of queries total, not one per student) - absences are
+    only notified once they reach the school's configured threshold, so a
+    single missed day doesn't trigger an email but a pattern does; lateness
+    notifies every time, matching what the settings themselves say."""
+    try:
+        settings_resp = db.table("attendance_settings").select(
+            "notify_parents_on_absence, notify_parents_on_late, absence_threshold_notify"
+        ).eq("organization_id", organization_id).execute()
+        if not settings_resp.data:
+            return  # school has never opened Attendance Settings - don't guess
+        cfg = settings_resp.data[0]
+        notify_absence = cfg.get("notify_parents_on_absence", True)
+        notify_late = cfg.get("notify_parents_on_late", False)
+        threshold = cfg.get("absence_threshold_notify") or 1
+
+        absent_ids = [r["student_id"] for r in marked_records if r["status"] == "absent"] if notify_absence else []
+        late_ids = [r["student_id"] for r in marked_records if r["status"] == "late"] if notify_late else []
+        if not absent_ids and not late_ids:
+            return
+
+        absence_counts: dict = {}
+        if absent_ids:
+            history = db.table("attendance_records").select("student_id").eq(
+                "organization_id", organization_id
+            ).eq("session_id", session_id).eq("status", "absent").in_("student_id", absent_ids).execute()
+            for row in history.data or []:
+                absence_counts[row["student_id"]] = absence_counts.get(row["student_id"], 0) + 1
+        qualifying_absent_ids = {sid for sid, n in absence_counts.items() if n >= threshold}
+
+        target_ids = list(qualifying_absent_ids | set(late_ids))
+        if not target_ids:
+            return
+
+        students = db.table("students").select("id, first_name, last_name").in_(
+            "id", target_ids
+        ).eq("organization_id", organization_id).execute()
+        student_names = {s["id"]: f"{s['first_name']} {s['last_name']}" for s in (students.data or [])}
+
+        class_resp = db.table("classes").select("name").eq("id", class_id).execute()
+        class_name = class_resp.data[0]["name"] if class_resp.data else "class"
+
+        school_name = "your school"
+        org_resp = db.table("organizations").select("name").eq("id", organization_id).execute()
+        if org_resp.data:
+            school_name = org_resp.data[0]["name"]
+
+        links = db.table("parent_student_links").select(
+            "student_id, parents(first_name, last_name, email)"
+        ).in_("student_id", target_ids).execute()
+
+        for link in links.data or []:
+            parent = link.get("parents")
+            sid = link["student_id"]
+            if not parent or not parent.get("email") or sid not in student_names:
+                continue
+            is_absent = sid in qualifying_absent_ids
+            subject, html = attendance_notice_email(
+                parent_name=f"{parent['first_name']} {parent['last_name']}",
+                student_name=student_names[sid],
+                class_name=class_name,
+                school_name=school_name,
+                reason="absent" if is_absent else "late",
+                absence_count=absence_counts.get(sid) if is_absent else None,
+            )
+            send_email(to=parent["email"], subject=subject, html=html)
+    except Exception as e:
+        logger.error(f"Failed to send attendance notification emails for class {class_id}: {e}")
 
 
 # ============================================
@@ -93,7 +170,11 @@ def mark_attendance_bulk(
         data.term_id,
         [r["student_id"] for r in data.records]
     )
-    
+
+    _notify_attendance_parents(
+        db, current_user["school_id"], data.class_id, data.session_id, data.records
+    )
+
     return {
         "message": f"Successfully marked attendance for {len(response.data)} students",
         "records_marked": len(response.data)

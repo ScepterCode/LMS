@@ -67,6 +67,40 @@ def welcome_email(name: str, email: str, role_label: str, school_name: str, logi
     return subject, _wrapper(f"Your {school_name} account on Learnlyf is ready", body)
 
 
+def attendance_notice_email(
+    parent_name: str, student_name: str, class_name: str, school_name: str,
+    reason: str, absence_count: int | None = None
+) -> tuple[str, str]:
+    """`reason` is "absent" or "late". `absence_count` (absences this
+    session, only set for `reason="absent"`) adds the pattern context that's
+    the whole point of only notifying once a threshold is crossed."""
+    if reason == "late":
+        subject = f"{student_name} was marked late today"
+        detail = f"was marked <strong>late</strong> for <strong>{class_name}</strong> today"
+    else:
+        subject = f"{student_name} has been absent {absence_count or ''} times this session".replace("  ", " ")
+        detail = (
+            f"was marked <strong>absent</strong> from <strong>{class_name}</strong> today - "
+            f"their {_ordinal(absence_count)} absence this session" if absence_count
+            else f"was marked <strong>absent</strong> from <strong>{class_name}</strong> today"
+        )
+
+    body = f"""\
+    <p>Hi {parent_name},</p>
+    <p><strong>{student_name}</strong> {detail} at {school_name}.</p>
+    <p style="color:#6b7280;font-size:13px;">If this doesn't match what you expect, please contact the school.</p>
+    """
+    return subject, _wrapper(subject, body)
+
+
+def _ordinal(n: int) -> str:
+    if 11 <= (n % 100) <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def report_card_published_email(
     parent_name: str, student_name: str, term_label: str, school_name: str, view_link: str
 ) -> tuple[str, str]:
