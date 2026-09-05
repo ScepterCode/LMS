@@ -245,6 +245,12 @@ class ApiClient {
     });
   }
 
+  async sendTestEmail() {
+    return this.request<{ sent: boolean; detail: string }>('/api/v1/system-admin/test-email', {
+      method: 'POST',
+    });
+  }
+
   async getSubscriptionPlans() {
     return this.request('/api/v1/system-admin/subscription-plans', {
       method: 'GET',

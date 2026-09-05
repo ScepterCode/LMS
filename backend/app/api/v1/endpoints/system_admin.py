@@ -27,6 +27,8 @@ from app.core.security import (
 )
 from app.core.exceptions import AuthenticationError, InsufficientPermissionsError, DatabaseError, DuplicateRecordError
 from app.core.audit import log_audit_event
+from app.core.email import send_diagnostic_email
+from app.core.email_templates import test_email as build_test_email
 from app.api.v1.endpoints.skills import seed_default_skill_categories
 
 router = APIRouter()
@@ -819,3 +821,21 @@ def get_audit_logs(
     except Exception as e:
         logger.error(f"Error listing audit logs: {e}")
         raise DatabaseError("Failed to list audit logs")
+
+
+# ============================================
+# EMAIL DIAGNOSTICS
+# ============================================
+
+@router.post("/test-email")
+def send_test_email(current_user = Depends(require_system_admin)):
+    """Send a test email to the caller's own address, to verify Resend is
+    configured without needing to wait for a real password-reset/welcome/
+    notification trigger. Reports *why* it didn't send (not configured,
+    Resend rejected it, network error) rather than a bare failure."""
+    subject, html = build_test_email(sent_by=current_user["email"])
+    result = send_diagnostic_email(to=current_user["email"], subject=subject, html=html)
+
+    logger.info(f"System admin {current_user['email']} sent a test email: {result}")
+
+    return result

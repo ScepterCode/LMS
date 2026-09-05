@@ -291,3 +291,18 @@ class TestAuditLogViewer:
         assert res.status_code == 200, res.text
         for log in res.json()["logs"]:
             assert log["target_organization_id"] == school["org_id"]
+
+
+class TestEmailDiagnostics:
+    def test_test_email_reports_not_configured_without_credentials(self, sysadmin):
+        """Test runs never set RESEND_API_KEY, so this exercises the
+        "email disabled" path - it must say so, not silently succeed."""
+        res = sysadmin["client"].post("/api/v1/system-admin/test-email")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["sent"] is False
+        assert "not set" in body["detail"].lower()
+
+    def test_test_email_requires_system_admin(self, school):
+        res = school["client"].post("/api/v1/system-admin/test-email")
+        assert res.status_code == 403, res.text

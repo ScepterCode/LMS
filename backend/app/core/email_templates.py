@@ -67,6 +67,15 @@ def welcome_email(name: str, email: str, role_label: str, school_name: str, logi
     return subject, _wrapper(f"Your {school_name} account on Learnlyf is ready", body)
 
 
+def test_email(sent_by: str) -> tuple[str, str]:
+    subject = "Learnlyf test email"
+    body = f"""\
+    <p>This is a test email, sent by {sent_by} from the system admin dashboard.</p>
+    <p>If you're reading this, Resend is configured correctly and Learnlyf can deliver mail.</p>
+    """
+    return subject, _wrapper(subject, body)
+
+
 def attendance_notice_email(
     parent_name: str, student_name: str, class_name: str, school_name: str,
     reason: str, absence_count: int | None = None

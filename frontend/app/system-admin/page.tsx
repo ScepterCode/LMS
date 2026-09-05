@@ -46,10 +46,24 @@ export default function SystemAdminDashboard() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ sent: boolean; detail: string } | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleTestEmail = async () => {
+    setTestingEmail(true);
+    setTestEmailResult(null);
+    const response = await api.sendTestEmail();
+    setTestingEmail(false);
+    if (response.error) {
+      setTestEmailResult({ sent: false, detail: response.error });
+      return;
+    }
+    setTestEmailResult(response.data as { sent: boolean; detail: string });
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -85,6 +99,31 @@ export default function SystemAdminDashboard() {
               <StatCard label="Total Users" value={analytics?.users.total ?? 0} hint={`${analytics?.users.admin ?? 0} admins`} />
               <StatCard label="Trial Schools" value={analytics?.organizations.trial ?? 0} hint="On free trial" />
               <StatCard label="Suspended" value={analytics?.organizations.suspended ?? 0} hint="Requires attention" />
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Email Delivery</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Sends a test email to your own account's address through Resend, to confirm outbound email is configured.
+                  </p>
+                </div>
+                <button
+                  onClick={handleTestEmail}
+                  disabled={testingEmail}
+                  className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 whitespace-nowrap text-sm font-medium"
+                >
+                  {testingEmail ? 'Sending...' : 'Send test email'}
+                </button>
+              </div>
+              {testEmailResult && (
+                <div className={`mt-4 text-sm rounded-lg px-4 py-3 ${
+                  testEmailResult.sent ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'
+                }`}>
+                  {testEmailResult.detail}
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">

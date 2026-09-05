@@ -53,3 +53,26 @@ def send_email(to: str, subject: str, html: str, text: str | None = None) -> boo
     except httpx.HTTPError as e:
         logger.error(f"Failed to send '{subject}' to {to}: {e}")
         return False
+
+
+def send_diagnostic_email(to: str, subject: str, html: str) -> dict:
+    """Same send as send_email(), but returns *why* it did or didn't go out
+    instead of a bare bool - for the system-admin "send test email" tool,
+    where "nothing happened" isn't an actionable answer."""
+    if not settings.RESEND_API_KEY or not settings.EMAIL_FROM:
+        return {"sent": False, "detail": "RESEND_API_KEY and/or EMAIL_FROM is not set in this environment."}
+
+    payload = {"from": settings.EMAIL_FROM, "to": [to], "subject": subject, "html": html}
+
+    try:
+        response = httpx.post(
+            RESEND_API_URL,
+            headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+            json=payload,
+            timeout=10,
+        )
+        if response.status_code >= 400:
+            return {"sent": False, "detail": f"Resend rejected it (HTTP {response.status_code}): {response.text[:500]}"}
+        return {"sent": True, "detail": f"Sent via Resend to {to}."}
+    except httpx.HTTPError as e:
+        return {"sent": False, "detail": f"Could not reach Resend: {e}"}
