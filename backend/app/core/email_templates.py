@@ -110,6 +110,18 @@ def _ordinal(n: int) -> str:
     return f"{n}{suffix}"
 
 
+def fee_overdue_email(
+    parent_name: str, student_name: str, category_name: str, balance: float, school_name: str
+) -> tuple[str, str]:
+    subject = f"{student_name}'s {category_name} is now overdue"
+    body = f"""\
+    <p>Hi {parent_name},</p>
+    <p><strong>{student_name}'s {category_name}</strong> at {school_name} is past its due date, with a balance of <strong>&#8358;{balance:,.2f}</strong> outstanding.</p>
+    <p style="color:#6b7280;font-size:13px;">If you've already paid, please allow a little time for it to be recorded, or contact the school.</p>
+    """
+    return subject, _wrapper(subject, body)
+
+
 def report_card_published_email(
     parent_name: str, student_name: str, term_label: str, school_name: str, view_link: str
 ) -> tuple[str, str]:

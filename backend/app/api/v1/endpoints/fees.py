@@ -5,12 +5,15 @@ Fee Management API Endpoints
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from datetime import datetime, date
+import logging
 import random
 import string
 
 from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.core.permissions import PermissionChecker
+from app.core.email import send_email
+from app.core.email_templates import fee_overdue_email
 from app.models.fees import (
     FeeCategory, FeeCategoryCreate, FeeCategoryUpdate,
     FeeStructure, FeeStructureCreate, FeeStructureUpdate,
@@ -25,6 +28,7 @@ from app.models.fees import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _sweep_overdue_fees(db, organization_id: str) -> None:
@@ -33,11 +37,82 @@ def _sweep_overdue_fees(db, organization_id: str) -> None:
     runs as a scoped, idempotent sweep on every read instead - it only
     touches rows in the caller's own organization that are already
     unpaid and past due, matching the same transition record_payment
-    would eventually make anyway."""
+    would eventually make anyway.
+
+    Because the UPDATE's own WHERE clause requires status to still be
+    pending/partial, a row can only ever come back in the response once -
+    the moment it flips to 'overdue' it stops matching, so a later sweep
+    (from the next read, possibly seconds later) can't pick it up again.
+    That makes it safe to treat every row in the response as a fresh
+    transition worth notifying on, with no separate tracking needed."""
     today = date.today().isoformat()
-    db.table("student_fees").update({"status": "overdue"}).eq(
+    response = db.table("student_fees").update({"status": "overdue"}).eq(
         "organization_id", organization_id
     ).lt("due_date", today).in_("status", ["pending", "partial"]).execute()
+
+    _notify_parents_fees_overdue(db, organization_id, response.data or [])
+
+
+def _notify_parents_fees_overdue(db, organization_id: str, newly_overdue: list) -> None:
+    """Best-effort - must never fail the read this sweep runs inside of.
+    Batched: a handful of queries total for the whole sweep, not one per
+    fee - this can fire for every student in a school in one call the first
+    time it's run after a due date passes."""
+    if not newly_overdue:
+        return
+    try:
+        student_ids = list({f["student_id"] for f in newly_overdue if f.get("student_id")})
+        structure_ids = list({f["fee_structure_id"] for f in newly_overdue if f.get("fee_structure_id")})
+
+        students = db.table("students").select("id, first_name, last_name").in_(
+            "id", student_ids
+        ).eq("organization_id", organization_id).execute()
+        student_names = {s["id"]: f"{s['first_name']} {s['last_name']}" for s in (students.data or [])}
+
+        structure_to_category_name: dict = {}
+        if structure_ids:
+            structures = db.table("fee_structures").select("id, fee_category_id").in_(
+                "id", structure_ids
+            ).execute()
+            category_ids = list({s["fee_category_id"] for s in (structures.data or []) if s.get("fee_category_id")})
+            category_names: dict = {}
+            if category_ids:
+                categories = db.table("fee_categories").select("id, name").in_("id", category_ids).execute()
+                category_names = {c["id"]: c["name"] for c in (categories.data or [])}
+            structure_to_category_name = {
+                s["id"]: category_names.get(s["fee_category_id"]) for s in (structures.data or [])
+            }
+
+        school_name = "your school"
+        org_resp = db.table("organizations").select("name").eq("id", organization_id).execute()
+        if org_resp.data:
+            school_name = org_resp.data[0]["name"]
+
+        links = db.table("parent_student_links").select(
+            "student_id, parents(first_name, last_name, email)"
+        ).in_("student_id", student_ids).execute()
+        parents_by_student: dict = {}
+        for link in links.data or []:
+            parents_by_student.setdefault(link["student_id"], []).append(link.get("parents"))
+
+        for fee in newly_overdue:
+            student_id = fee.get("student_id")
+            if student_id not in student_names:
+                continue
+            category_name = structure_to_category_name.get(fee.get("fee_structure_id")) or "a fee"
+            for parent in parents_by_student.get(student_id, []):
+                if not parent or not parent.get("email"):
+                    continue
+                subject, html = fee_overdue_email(
+                    parent_name=f"{parent['first_name']} {parent['last_name']}",
+                    student_name=student_names[student_id],
+                    category_name=category_name,
+                    balance=float(fee.get("balance") or 0),
+                    school_name=school_name,
+                )
+                send_email(to=parent["email"], subject=subject, html=html)
+    except Exception as e:
+        logger.error(f"Failed to send fee-overdue notification emails for org {organization_id}: {e}")
 
 
 # ============================================
