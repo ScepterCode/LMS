@@ -27,8 +27,9 @@ from app.core.security import (
 )
 from app.core.exceptions import AuthenticationError, InsufficientPermissionsError, DatabaseError, DuplicateRecordError
 from app.core.audit import log_audit_event
-from app.core.email import send_diagnostic_email
-from app.core.email_templates import test_email as build_test_email
+from app.core.config import settings
+from app.core.email import send_diagnostic_email, send_email
+from app.core.email_templates import test_email as build_test_email, welcome_email
 from app.api.v1.endpoints.skills import seed_default_skill_categories
 
 router = APIRouter()
@@ -364,6 +365,21 @@ def create_organization_by_system_admin(
             target_type="organization", target_id=org_id, target_organization_id=org_id,
             details={"school_name": data.school_name, "subscription_plan_id": data.subscription_plan_id, "subscription_status": data.subscription_status},
         )
+
+        # Welcome the new school admin (best-effort - onboarding must not
+        # fail if email is down). This is the assisted-onboarding path;
+        # POST /users handles every other account type.
+        try:
+            subject, html = welcome_email(
+                name=data.admin_name,
+                email=data.admin_email,
+                role_label="School Administrator",
+                school_name=data.school_name,
+                login_link=f"{settings.FRONTEND_URL}/login",
+            )
+            send_email(to=data.admin_email, subject=subject, html=html)
+        except Exception as e:
+            logger.error(f"Failed to send welcome email to {data.admin_email}: {e}")
 
         return {
             "message": "School created successfully.",

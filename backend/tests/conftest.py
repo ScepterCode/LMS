@@ -19,6 +19,21 @@ def unique(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _no_real_email():
+    """The suite hits real services, but email is the exception: with a
+    RESEND_API_KEY in .env, every welcome / reset / notification hook would
+    fire a real Resend call to a fake @example.com address, bouncing and
+    hurting sender reputation. Force send_email() into its no-op path for
+    the whole run."""
+    from app.core import config
+    saved_key, saved_from = config.settings.RESEND_API_KEY, config.settings.EMAIL_FROM
+    config.settings.RESEND_API_KEY = None
+    config.settings.EMAIL_FROM = None
+    yield
+    config.settings.RESEND_API_KEY, config.settings.EMAIL_FROM = saved_key, saved_from
+
+
 @pytest.fixture(scope="session")
 def supabase():
     return get_supabase()

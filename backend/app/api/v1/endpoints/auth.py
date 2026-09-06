@@ -482,9 +482,14 @@ def forgot_password(data: ForgotPasswordRequest):
     if not supabase:
         raise DatabaseError("Database connection not available")
 
+    # Case-insensitive match: emails are stored as entered (login,
+    # create_user and register_school all persist data.email verbatim), so
+    # a `.eq(..., .lower())` lookup would miss anyone whose stored address
+    # has any uppercase - and then the generic response hides that nothing
+    # was sent. `.ilike` with no wildcards is a case-insensitive equals.
     result = supabase.table("users").select(
         "id, email, full_name, password_hash, is_active"
-    ).eq("email", data.email.lower()).execute()
+    ).ilike("email", data.email).execute()
 
     if result.data and result.data[0].get("is_active"):
         user = result.data[0]

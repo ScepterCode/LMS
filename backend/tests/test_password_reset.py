@@ -24,6 +24,21 @@ class TestForgotPassword:
         assert unknown.status_code == 200, unknown.text
         assert known.json() == unknown.json()
 
+    def test_email_lookup_is_case_insensitive(self, school, caplog):
+        """The stored address is whatever case it was created with; the
+        lookup must still find it if the user types a different case
+        (the endpoint's response is generic either way, so assert on the
+        "unknown or inactive email" log line NOT firing)."""
+        import logging
+        caplog.set_level(logging.INFO, logger="app.api.v1.endpoints.auth")
+        caplog.clear()
+        res = school["client"].post(
+            "/api/v1/auth/forgot-password",
+            json={"email": school["admin_email"].upper()},
+        )
+        assert res.status_code == 200, res.text
+        assert "unknown or inactive email" not in caplog.text
+
 
 def _restore_admin_password(school, supabase):
     """school["admin"] is a session-scoped fixture other test files log in
