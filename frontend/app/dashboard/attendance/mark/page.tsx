@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
+import { toast } from 'sonner';
 
 interface Class {
   id: string;
@@ -185,12 +186,12 @@ function MarkAttendancePageContent() {
 
   const handleSave = async () => {
     if (!selectedClass || !selectedDate) {
-      alert('Please select a class and date');
+      toast.error('Please select a class and date');
       return;
     }
 
     if (!currentSessionId || !currentTermId) {
-      alert('No current academic session/term is set. Set one as current under Sessions & Terms first.');
+      toast.error('No current academic session/term is set. Set one as current under Sessions & Terms first.');
       return;
     }
 
@@ -208,15 +209,15 @@ function MarkAttendancePageContent() {
       });
 
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
 
-      alert('Attendance saved successfully!');
+      toast.success('Attendance saved successfully!');
       setExistingAttendance(true);
     } catch (error: any) {
       console.error('Error saving attendance:', error);
-      alert('Failed to save attendance');
+      toast.error('Failed to save attendance');
     } finally {
       setSaving(false);
     }

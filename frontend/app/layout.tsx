@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { Toaster } from 'sonner';
+import ConfirmHost from '@/components/ConfirmHost';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,6 +23,8 @@ export default function RootLayout({
         <AuthProvider>
           {children}
         </AuthProvider>
+        <Toaster richColors closeButton position="top-right" />
+        <ConfirmHost />
       </body>
     </html>
   );

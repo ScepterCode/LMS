@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 const TEACHER_STATUSES = [
   { value: 'active', label: 'Active' },
@@ -78,15 +80,16 @@ export default function TeacherDetailPage() {
       return;
     }
     const inactive = statusValue === 'terminated' || statusValue === 'retired';
-    if (inactive && !confirm(
-      `Set ${teacher.first_name} ${teacher.last_name} to "${statusValue}"? This disables their login and clears their current-session class assignments.`
-    )) return;
+    if (inactive && !(await confirm({
+      message: `Set ${teacher.first_name} ${teacher.last_name} to "${statusValue}"? This disables their login and clears their current-session class assignments.`,
+      danger: true,
+    }))) return;
 
     setStatusSaving(true);
     const response = await api.updateTeacher(teacher.id, { status: statusValue });
     setStatusSaving(false);
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
       return;
     }
     setShowStatusModal(false);

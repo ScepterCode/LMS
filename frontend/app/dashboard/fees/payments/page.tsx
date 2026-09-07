@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface Student {
   id: string;
@@ -176,7 +177,7 @@ export default function PaymentsPage() {
         due_date: assignFeeForm.due_date || structure.due_date || undefined,
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setShowAssignFeeForm(false);
@@ -184,7 +185,7 @@ export default function PaymentsPage() {
       fetchStudentFees();
     } catch (error: any) {
       console.error('Error assigning fee:', error);
-      alert(error.response?.data?.detail || 'Failed to assign fee to student');
+      toast.error(error.response?.data?.detail || 'Failed to assign fee to student');
     } finally {
       setAssignFeeSubmitting(false);
     }
@@ -233,7 +234,7 @@ export default function PaymentsPage() {
     e.preventDefault();
     
     if (!selectedStudent) {
-      alert('Please select a student');
+      toast.error('Please select a student');
       return;
     }
 
@@ -241,7 +242,7 @@ export default function PaymentsPage() {
     const paymentAmount = parseFloat(formData.amount);
 
     if (totalAllocated > paymentAmount) {
-      alert('Total allocated amount cannot exceed payment amount');
+      toast.error('Total allocated amount cannot exceed payment amount');
       return;
     }
 
@@ -254,7 +255,7 @@ export default function PaymentsPage() {
       }));
 
     if (feeAllocations.length === 0) {
-      alert('Please allocate payment to at least one fee');
+      toast.error('Please allocate payment to at least one fee');
       return;
     }
 
@@ -268,10 +269,10 @@ export default function PaymentsPage() {
 
       const response = await api.post('/api/v1/fees/payments', paymentData);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
-      alert('Payment recorded successfully!');
+      toast.success('Payment recorded successfully!');
 
       // Reset form
       setFormData({
@@ -293,7 +294,7 @@ export default function PaymentsPage() {
       setActiveTab('history');
     } catch (error: any) {
       console.error('Error recording payment:', error);
-      alert('Failed to record payment');
+      toast.error('Failed to record payment');
     }
   };
 
@@ -302,13 +303,13 @@ export default function PaymentsPage() {
     try {
       const response = await api.get(`/api/v1/fees/receipts/${receiptNumber}`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setViewingReceipt(response.data as ReceiptDetail);
     } catch (error) {
       console.error('Error fetching receipt:', error);
-      alert('Failed to load receipt');
+      toast.error('Failed to load receipt');
     } finally {
       setReceiptLoading(false);
     }
@@ -325,7 +326,7 @@ export default function PaymentsPage() {
         notes: voidReason ? `[${voidStatus.toUpperCase()}] ${voidReason}` : undefined,
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setVoidingPayment(null);
@@ -334,7 +335,7 @@ export default function PaymentsPage() {
       fetchPayments();
     } catch (error) {
       console.error('Error voiding payment:', error);
-      alert('Failed to update payment');
+      toast.error('Failed to update payment');
     } finally {
       setVoidSubmitting(false);
     }
@@ -343,7 +344,7 @@ export default function PaymentsPage() {
   const handleFeeAllocation = (feeId: string, amount: number) => {
     const fee = studentFees.find(f => f.id === feeId);
     if (fee && amount > Number(fee.balance)) {
-      alert(`Amount cannot exceed balance of ₦${Number(fee.balance).toLocaleString()}`);
+      toast.error(`Amount cannot exceed balance of ₦${Number(fee.balance).toLocaleString()}`);
       return;
     }
 

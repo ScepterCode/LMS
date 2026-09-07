@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
 
 interface StudentReportStatus {
   student_id: string;
@@ -140,7 +141,7 @@ export default function SendReportsPage() {
   const handlePublishSelected = async () => {
     const toPublish = publishableRows.filter((r) => selected.has(r.student_id));
     if (toPublish.length === 0) {
-      alert('Select at least one student with a ready report card.');
+      toast.error('Select at least one student with a ready report card.');
       return;
     }
 
@@ -151,14 +152,14 @@ export default function SendReportsPage() {
       );
       const failed = results.filter((r) => r.error);
       if (failed.length > 0) {
-        alert(`Published ${results.length - failed.length} of ${results.length}. ${failed[0].error}`);
+        toast.error(`Published ${results.length - failed.length} of ${results.length}. ${failed[0].error}`);
       } else {
-        alert(`Published ${results.length} report card(s) to parents!`);
+        toast.success(`Published ${results.length} report card(s) to parents!`);
       }
       await loadReportStatuses();
     } catch (error) {
       console.error('Error publishing reports:', error);
-      alert('Failed to publish reports');
+      toast.error('Failed to publish reports');
     } finally {
       setPublishing(false);
     }

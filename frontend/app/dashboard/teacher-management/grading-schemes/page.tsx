@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface GradingSchemeComponent {
   id?: string;
@@ -98,12 +100,12 @@ export default function GradingSchemesPage() {
     
     const totalWeight = getTotalWeight();
     if (totalWeight !== 100) {
-      alert('Component weights must sum to 100%');
+      toast.error('Component weights must sum to 100%');
       return;
     }
 
     if (!formData.name || !formData.session_id || formData.components.length === 0) {
-      alert('Please fill all required fields and add at least one component');
+      toast.error('Please fill all required fields and add at least one component');
       return;
     }
 
@@ -112,7 +114,7 @@ export default function GradingSchemesPage() {
       : await api.createGradingScheme(formData);
 
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       await loadData();
       setShowCreateModal(false);
@@ -134,11 +136,11 @@ export default function GradingSchemesPage() {
   };
 
   const handleDelete = async (schemeId: string) => {
-    if (!confirm('Are you sure you want to delete this grading scheme?')) return;
+    if (!(await confirm({ message: 'Are you sure you want to delete this grading scheme?', danger: true }))) return;
 
     const response = await api.deleteGradingScheme(schemeId);
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       await loadData();
     }

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface Assessment {
   id: string;
@@ -203,7 +205,7 @@ export default function AssessmentsPage() {
     e.preventDefault();
 
     if (!currentSessionId || !currentTermId) {
-      alert('No current academic session/term is set. Set one as current under Sessions & Terms first.');
+      toast.error('No current academic session/term is set. Set one as current under Sessions & Terms first.');
       return;
     }
 
@@ -215,11 +217,11 @@ export default function AssessmentsPage() {
       });
 
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
 
-      alert('Assessment created successfully!');
+      toast.success('Assessment created successfully!');
       setShowModal(false);
       setFormData({
         assessment_type_id: '',
@@ -233,7 +235,7 @@ export default function AssessmentsPage() {
       fetchData();
     } catch (error: any) {
       console.error('Error creating assessment:', error);
-      alert('Failed to create assessment');
+      toast.error('Failed to create assessment');
     }
   };
 
@@ -285,18 +287,18 @@ export default function AssessmentsPage() {
   };
 
   const handleDeleteType = async (id: string) => {
-    if (!confirm('Delete this assessment type?')) return;
+    if (!(await confirm({ message: 'Delete this assessment type?', danger: true }))) return;
     try {
       const response = await api.delete(`/api/v1/grading/assessment-types/${id}`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setAssessmentTypes((prev) => prev.filter((t) => t.id !== id));
       if (editingTypeId === id) resetTypeForm();
     } catch (error) {
       console.error('Error deleting assessment type:', error);
-      alert('Failed to delete assessment type');
+      toast.error('Failed to delete assessment type');
     }
   };
 
@@ -323,36 +325,36 @@ export default function AssessmentsPage() {
   };
 
   const handleDeleteGradeConfig = async (id: string) => {
-    if (!confirm('Delete this grade band?')) return;
+    if (!(await confirm({ message: 'Delete this grade band?', danger: true }))) return;
     try {
       const response = await api.delete(`/api/v1/grading/grade-configs/${id}`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setGradeConfigs(gradeConfigs.filter((g) => g.id !== id));
     } catch (error) {
       console.error('Error deleting grade band:', error);
-      alert('Failed to delete grade band');
+      toast.error('Failed to delete grade band');
     }
   };
 
   const handlePublish = async (id: string) => {
-    if (!confirm('Are you sure you want to publish this assessment? Students will be able to see it.')) {
+    if (!(await confirm({ message: 'Are you sure you want to publish this assessment? Students will be able to see it.', danger: false }))) {
       return;
     }
 
     try {
       const response = await api.post(`/api/v1/grading/assessments/${id}/publish`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
-      alert('Assessment published successfully!');
+      toast.success('Assessment published successfully!');
       fetchData();
     } catch (error: any) {
       console.error('Error publishing assessment:', error);
-      alert('Failed to publish assessment');
+      toast.error('Failed to publish assessment');
     }
   };
 
@@ -391,18 +393,18 @@ export default function AssessmentsPage() {
   };
 
   const handleDeleteAssessment = async (assessment: Assessment) => {
-    if (!confirm(`Delete "${assessment.title}"? This cannot be undone.`)) return;
+    if (!(await confirm({ message: `Delete "${assessment.title}"? This cannot be undone.`, danger: true }))) return;
 
     try {
       const response = await api.delete(`/api/v1/grading/assessments/${assessment.id}`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setAssessments((prev) => prev.filter((a) => a.id !== assessment.id));
     } catch (error) {
       console.error('Error deleting assessment:', error);
-      alert('Failed to delete assessment');
+      toast.error('Failed to delete assessment');
     }
   };
 

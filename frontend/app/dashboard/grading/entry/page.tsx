@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface Assessment {
   id: string;
@@ -164,7 +165,7 @@ function GradeEntryContent() {
 
   const handleSaveGrades = async () => {
     if (!selectedAssessment) {
-      alert('Please select an assessment');
+      toast.error('Please select an assessment');
       return;
     }
 
@@ -172,7 +173,7 @@ function GradeEntryContent() {
     for (const grade of Object.values(grades)) {
       if (!grade.is_absent && grade.score !== null) {
         if (grade.score < 0 || grade.score > assessment!.max_score) {
-          alert(`Score must be between 0 and ${assessment!.max_score}`);
+          toast.error(`Score must be between 0 and ${assessment!.max_score}`);
           return;
         }
       }
@@ -188,10 +189,10 @@ function GradeEntryContent() {
         grades: gradesArray
       });
       
-      alert('Grades saved successfully!');
+      toast.success('Grades saved successfully!');
     } catch (error: any) {
       console.error('Error saving grades:', error);
-      alert(error.response?.data?.detail || 'Failed to save grades');
+      toast.error(error.response?.data?.detail || 'Failed to save grades');
     } finally {
       setSaving(false);
     }

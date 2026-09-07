@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface Session {
   id: string;
@@ -233,7 +235,7 @@ export default function AcademicPage() {
   };
 
   const handleDelete = async (type: 'session' | 'class' | 'subject' | 'term', id: string, label: string) => {
-    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+    if (!(await confirm({ message: `Delete "${label}"? This cannot be undone.`, danger: true }))) return;
 
     try {
       const response = type === 'session' ? await api.deleteSession(id)
@@ -242,12 +244,12 @@ export default function AcademicPage() {
         : await api.deleteTerm(id);
 
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
       } else {
         loadData();
       }
     } catch (err) {
-      alert(`Failed to delete ${type}`);
+      toast.error(`Failed to delete ${type}`);
     }
   };
   

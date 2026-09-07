@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface RegistrarUser {
   id: string;
@@ -37,20 +39,20 @@ export default function RegistrarsPage() {
   };
 
   const handleDeactivate = async (id: string, name: string) => {
-    if (!window.confirm(`Deactivate registrar account "${name}"? They will no longer be able to log in.`)) return;
+    if (!(await confirm({ message: `Deactivate registrar account "${name}"? They will no longer be able to log in.`, danger: true }))) return;
     const response = await api.deactivateUser(id);
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       loadRegistrars();
     }
   };
 
   const handleReactivate = async (id: string, name: string) => {
-    if (!window.confirm(`Reactivate registrar account "${name}"? They will be able to log in again.`)) return;
+    if (!(await confirm({ message: `Reactivate registrar account "${name}"? They will be able to log in again.`, danger: false }))) return;
     const response = await api.updateUser(id, { is_active: true });
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       loadRegistrars();
     }

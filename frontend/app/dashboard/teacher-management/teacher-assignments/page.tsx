@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface TeacherAssignment {
   id: string;
@@ -105,7 +107,7 @@ export default function TeacherAssignmentsPage() {
     e.preventDefault();
 
     if (!formData.teacher_id || !formData.class_id || !formData.subject_id || !formData.session_id) {
-      alert('Please fill all required fields');
+      toast.error('Please fill all required fields');
       return;
     }
 
@@ -118,7 +120,7 @@ export default function TeacherAssignmentsPage() {
     });
 
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       // Only the assignment list changed - no need to refetch the five
       // dropdown sources every time.
@@ -129,11 +131,11 @@ export default function TeacherAssignmentsPage() {
   };
 
   const handleDelete = async (assignmentId: string) => {
-    if (!confirm('Are you sure you want to delete this assignment?')) return;
+    if (!(await confirm({ message: 'Are you sure you want to delete this assignment?', danger: true }))) return;
 
     const response = await api.deleteTeacherAssignment(assignmentId);
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       await loadAssignments();
     }

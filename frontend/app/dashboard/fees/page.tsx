@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface FeeCategory {
   id: string;
@@ -212,13 +214,13 @@ export default function FeeManagementPage() {
     e.preventDefault();
     try {
       await api.post('/api/v1/fees/categories', categoryForm);
-      alert('Fee category created successfully!');
+      toast.success('Fee category created successfully!');
       setShowCategoryModal(false);
       setCategoryForm({ name: '', code: '', description: '', is_mandatory: true });
       fetchData();
     } catch (error: any) {
       console.error('Error creating category:', error);
-      alert(error.response?.data?.detail || 'Failed to create category');
+      toast.error(error.response?.data?.detail || 'Failed to create category');
     }
   };
 
@@ -238,29 +240,29 @@ export default function FeeManagementPage() {
     try {
       const response = await api.put(`/api/v1/fees/categories/${editingCategory.id}`, editCategoryForm);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setEditingCategory(null);
       fetchData();
     } catch (error: any) {
       console.error('Error updating category:', error);
-      alert(error.response?.data?.detail || 'Failed to update category');
+      toast.error(error.response?.data?.detail || 'Failed to update category');
     }
   };
 
   const handleDeleteCategory = async (category: FeeCategory) => {
-    if (!confirm(`Delete fee category "${category.name}"? This can't be undone.`)) return;
+    if (!(await confirm({ message: `Delete fee category "${category.name}"? This can't be undone.`, danger: true }))) return;
     try {
       const response = await api.delete(`/api/v1/fees/categories/${category.id}`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       fetchData();
     } catch (error: any) {
       console.error('Error deleting category:', error);
-      alert(error.response?.data?.detail || 'Failed to delete category');
+      toast.error(error.response?.data?.detail || 'Failed to delete category');
     }
   };
 
@@ -269,13 +271,13 @@ export default function FeeManagementPage() {
     try {
       const response = await api.get(`/api/v1/fees/structures/${structure.id}/detail`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setViewingStructureDetail(response.data as StructureDetail);
     } catch (error) {
       console.error('Error fetching fee structure detail:', error);
-      alert('Failed to load fee structure details');
+      toast.error('Failed to load fee structure details');
     } finally {
       setStructureDetailLoading(false);
     }
@@ -300,29 +302,29 @@ export default function FeeManagementPage() {
         is_active: editStructureForm.is_active,
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setEditingStructure(null);
       fetchData();
     } catch (error: any) {
       console.error('Error updating fee structure:', error);
-      alert(error.response?.data?.detail || 'Failed to update fee structure');
+      toast.error(error.response?.data?.detail || 'Failed to update fee structure');
     }
   };
 
   const handleDeleteStructure = async (structure: FeeStructure) => {
-    if (!confirm(`Delete this fee structure (${structure.category_name})? This can't be undone.`)) return;
+    if (!(await confirm({ message: `Delete this fee structure (${structure.category_name})? This can't be undone.`, danger: true }))) return;
     try {
       const response = await api.delete(`/api/v1/fees/structures/${structure.id}`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       fetchData();
     } catch (error: any) {
       console.error('Error deleting fee structure:', error);
-      alert(error.response?.data?.detail || 'Failed to delete fee structure');
+      toast.error(error.response?.data?.detail || 'Failed to delete fee structure');
     }
   };
 
@@ -334,7 +336,7 @@ export default function FeeManagementPage() {
     const targets = structures.filter((s) => selectedStructureIds.includes(s.id));
     if (targets.length === 0) return;
     const verb = action === 'delete' ? 'Delete' : action === 'activate' ? 'Activate' : 'Deactivate';
-    if (!confirm(`${verb} ${targets.length} fee structure(s)?${action === 'delete' ? " Structures assigned to students won't be deleted." : ''}`)) return;
+    if (!(await confirm({ message: `${verb} ${targets.length} fee structure(s)?${action === 'delete' ? " Structures assigned to students won't be deleted." : ''}`, danger: true }))) return;
 
     setBulkActionRunning(true);
     let ok = 0;
@@ -353,7 +355,9 @@ export default function FeeManagementPage() {
     setBulkActionRunning(false);
     setSelectedStructureIds([]);
     fetchData();
-    alert(`${verb}d ${ok} of ${targets.length}.${failures.length ? `\n\nSkipped:\n${failures.join('\n')}` : ''}`);
+    const summary = `${verb}d ${ok} of ${targets.length}.${failures.length ? `\n\nSkipped:\n${failures.join('\n')}` : ''}`;
+    if (failures.length) toast.warning(summary);
+    else toast.success(summary);
   };
 
   const openDuplicateStructure = (structure: FeeStructure) => {
@@ -371,14 +375,14 @@ export default function FeeManagementPage() {
         amount: duplicateForm.amount ? parseFloat(duplicateForm.amount) : null,
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       setDuplicatingStructure(null);
       fetchData();
     } catch (error: any) {
       console.error('Error duplicating fee structure:', error);
-      alert(error.response?.data?.detail || 'Failed to duplicate fee structure');
+      toast.error(error.response?.data?.detail || 'Failed to duplicate fee structure');
     } finally {
       setDuplicateSubmitting(false);
     }
@@ -397,10 +401,10 @@ export default function FeeManagementPage() {
         due_date: structureForm.due_date || null,
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
-      alert('Fee structure created successfully!');
+      toast.success('Fee structure created successfully!');
       setShowStructureModal(false);
       setStructureForm({
         fee_category_id: '',
@@ -414,7 +418,7 @@ export default function FeeManagementPage() {
       fetchData();
     } catch (error: any) {
       console.error('Error creating fee structure:', error);
-      alert(error.response?.data?.detail || 'Failed to create fee structure');
+      toast.error(error.response?.data?.detail || 'Failed to create fee structure');
     }
   };
 
@@ -437,11 +441,11 @@ export default function FeeManagementPage() {
       .filter((c) => bulkRows[c.id]?.selected)
       .map((c) => ({ class_id: c.id, amount: parseFloat(bulkRows[c.id].amount) }));
     if (items.length === 0) {
-      alert('Select at least one class.');
+      toast.error('Select at least one class.');
       return;
     }
     if (items.some((i) => !Number.isFinite(i.amount) || i.amount < 0)) {
-      alert('Enter a valid amount for every selected class.');
+      toast.error('Enter a valid amount for every selected class.');
       return;
     }
     setBulkSubmitting(true);
@@ -454,15 +458,15 @@ export default function FeeManagementPage() {
         items,
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
-      alert(`Created ${(response.data as any).created} fee structure(s).`);
+      toast.success(`Created ${(response.data as any).created} fee structure(s).`);
       setShowBulkModal(false);
       fetchData();
     } catch (error: any) {
       console.error('Error bulk-creating fee structures:', error);
-      alert(error.response?.data?.detail || 'Failed to create fee structures');
+      toast.error(error.response?.data?.detail || 'Failed to create fee structures');
     } finally {
       setBulkSubmitting(false);
     }
@@ -471,7 +475,7 @@ export default function FeeManagementPage() {
   const handleCopySession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (copyForm.source_session_id === copyForm.target_session_id) {
-      alert('Source and target sessions must be different.');
+      toast.error('Source and target sessions must be different.');
       return;
     }
     setCopySubmitting(true);
@@ -483,16 +487,16 @@ export default function FeeManagementPage() {
         adjustment_value: copyForm.adjustment_type === 'none' ? 0 : parseFloat(copyForm.adjustment_value || '0'),
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
       const data = response.data as any;
-      alert(`Copied ${data.created} structure(s)${data.skipped ? `, skipped ${data.skipped} already in the target session` : ''}.`);
+      toast.success(`Copied ${data.created} structure(s)${data.skipped ? `, skipped ${data.skipped} already in the target session` : ''}.`);
       setShowCopyModal(false);
       fetchData();
     } catch (error: any) {
       console.error('Error copying fee structures:', error);
-      alert(error.response?.data?.detail || 'Failed to copy fee structures');
+      toast.error(error.response?.data?.detail || 'Failed to copy fee structures');
     } finally {
       setCopySubmitting(false);
     }
@@ -530,7 +534,7 @@ export default function FeeManagementPage() {
           is_mandatory: quickSetupForm.is_mandatory,
         });
         if (categoryResponse.error) {
-          alert(categoryResponse.error);
+          toast.error(categoryResponse.error);
           return;
         }
         categoryId = (categoryResponse.data as FeeCategory).id;
@@ -546,7 +550,7 @@ export default function FeeManagementPage() {
         due_date: quickSetupForm.due_date || null,
       });
       if (structureResponse.error) {
-        alert(structureResponse.error);
+        toast.error(structureResponse.error);
         return;
       }
       const structureId = (structureResponse.data as { id: string }).id;
@@ -561,20 +565,20 @@ export default function FeeManagementPage() {
           [structureId]
         );
         if (assignResponse.error) {
-          alert(`Fee structure created, but bulk assignment failed: ${assignResponse.error}`);
+          toast.error(`Fee structure created, but bulk assignment failed: ${assignResponse.error}`);
         } else {
           const assigned = assignResponse.data as { fees_assigned?: number };
           assignedMessage = ` and assigned to ${assigned.fees_assigned ?? 0} student(s)`;
         }
       }
 
-      alert(`Fee category and structure created successfully${assignedMessage}!`);
+      toast.success(`Fee category and structure created successfully${assignedMessage}!`);
       setShowQuickSetupModal(false);
       resetQuickSetupForm();
       fetchData();
     } catch (error: any) {
       console.error('Error in quick fee setup:', error);
-      alert(error.response?.data?.detail || 'Failed to complete quick fee setup');
+      toast.error(error.response?.data?.detail || 'Failed to complete quick fee setup');
     } finally {
       setQuickSetupSubmitting(false);
     }

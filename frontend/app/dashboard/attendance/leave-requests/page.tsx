@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface LeaveRequest {
   id: string;
@@ -75,7 +77,7 @@ export default function LeaveRequestsPage() {
     
     try {
       await api.post('/api/v1/attendance/leave-requests', formData);
-      alert('Leave request submitted successfully!');
+      toast.success('Leave request submitted successfully!');
       setShowCreateModal(false);
       setFormData({
         student_id: '',
@@ -87,12 +89,12 @@ export default function LeaveRequestsPage() {
       fetchData();
     } catch (error: any) {
       console.error('Error creating leave request:', error);
-      alert(error.response?.data?.detail || 'Failed to submit leave request');
+      toast.error(error.response?.data?.detail || 'Failed to submit leave request');
     }
   };
 
   const handleApprove = async (requestId: string) => {
-    if (!confirm('Are you sure you want to approve this leave request?')) {
+    if (!(await confirm({ message: 'Are you sure you want to approve this leave request?', danger: false }))) {
       return;
     }
 
@@ -101,14 +103,14 @@ export default function LeaveRequestsPage() {
         status: 'approved'
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
-      alert('Leave request approved successfully!');
+      toast.success('Leave request approved successfully!');
       fetchData();
     } catch (error: any) {
       console.error('Error approving leave request:', error);
-      alert('Failed to approve leave request');
+      toast.error('Failed to approve leave request');
     }
   };
 
@@ -122,14 +124,14 @@ export default function LeaveRequestsPage() {
         rejection_reason: reason
       });
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
-      alert('Leave request rejected');
+      toast.error('Leave request rejected');
       fetchData();
     } catch (error: any) {
       console.error('Error rejecting leave request:', error);
-      alert('Failed to reject leave request');
+      toast.error('Failed to reject leave request');
     }
   };
 

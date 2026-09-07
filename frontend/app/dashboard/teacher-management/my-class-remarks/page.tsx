@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface Remark {
   id: string;
@@ -139,7 +141,7 @@ export default function MyClassRemarksPage() {
     e.preventDefault();
 
     if (!formData.student_id || !formData.remark_text) {
-      alert('Please fill all required fields');
+      toast.error('Please fill all required fields');
       return;
     }
 
@@ -157,7 +159,7 @@ export default function MyClassRemarksPage() {
       : await api.createRemark(data);
 
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       await loadRemarks();
       setShowAddModal(false);
@@ -177,11 +179,11 @@ export default function MyClassRemarksPage() {
   };
 
   const handleDelete = async (remarkId: string) => {
-    if (!confirm('Are you sure you want to delete this remark?')) return;
+    if (!(await confirm({ message: 'Are you sure you want to delete this remark?', danger: true }))) return;
 
     const response = await api.deleteRemark(remarkId);
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       await loadRemarks();
     }

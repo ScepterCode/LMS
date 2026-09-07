@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface ClassSubject {
   id: string;
@@ -87,7 +89,7 @@ export default function ClassSubjectsPage() {
     e.preventDefault();
 
     if (!formData.subject_id) {
-      alert('Please select a subject');
+      toast.error('Please select a subject');
       return;
     }
 
@@ -104,7 +106,7 @@ export default function ClassSubjectsPage() {
     const response = await api.addSubjectToClass(selectedClass, data);
 
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       await loadClassSubjects();
       setShowAddModal(false);
@@ -113,12 +115,12 @@ export default function ClassSubjectsPage() {
   };
 
   const handleRemoveSubject = async (subjectId: string) => {
-    if (!confirm('Are you sure you want to remove this subject from the class?')) return;
+    if (!(await confirm({ message: 'Are you sure you want to remove this subject from the class?', danger: true }))) return;
 
     const response = await api.removeSubjectFromClass(selectedClass, subjectId, selectedSession);
 
     if (response.error) {
-      alert(response.error);
+      toast.error(response.error);
     } else {
       await loadClassSubjects();
     }

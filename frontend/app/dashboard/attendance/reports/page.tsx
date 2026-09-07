@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface Class {
   id: string;
@@ -89,11 +90,11 @@ export default function AttendanceReportsPage() {
 
   const handleGenerateReport = async () => {
     if (reportType === 'class' && !selectedClass) {
-      alert('Please select a class');
+      toast.error('Please select a class');
       return;
     }
     if (reportType === 'student' && !selectedStudent) {
-      alert('Please select a student');
+      toast.error('Please select a student');
       return;
     }
 
@@ -102,7 +103,7 @@ export default function AttendanceReportsPage() {
       
       if (reportType === 'class') {
         if (!currentSessionId || !currentTermId) {
-          alert('No current academic session/term is set. Set one as current under Sessions & Terms first.');
+          toast.error('No current academic session/term is set. Set one as current under Sessions & Terms first.');
           return;
         }
         // Get class attendance summaries
@@ -126,7 +127,7 @@ export default function AttendanceReportsPage() {
       }
     } catch (error) {
       console.error('Error generating report:', error);
-      alert('Failed to generate attendance report');
+      toast.error('Failed to generate attendance report');
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface Teacher {
   id: string;
@@ -37,13 +39,14 @@ export default function TeachersPage() {
   const changeTeacherStatus = async (teacher: Teacher, newStatus: string) => {
     if (newStatus === teacher.status) return;
     const inactive = newStatus === 'terminated' || newStatus === 'retired';
-    if (inactive && !confirm(
-      `Set ${teacher.full_name} to "${newStatus}"? This disables their login and clears their current-session class assignments.`
-    )) return;
+    if (inactive && !(await confirm({
+      message: `Set ${teacher.full_name} to "${newStatus}"? This disables their login and clears their current-session class assignments.`,
+      danger: true,
+    }))) return;
     setStatusSavingId(teacher.id);
     const res = await api.updateTeacher(teacher.id, { status: newStatus });
     setStatusSavingId(null);
-    if (res.error) { alert(res.error); return; }
+    if (res.error) { toast.error(res.error); return; }
     loadTeachers();
   };
 

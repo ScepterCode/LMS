@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface Student {
   id: string;
@@ -334,7 +336,7 @@ export default function ReportCardsPage() {
       .map(([skill_category_id, rating]) => ({ skill_category_id, rating }));
 
     if (ratings.length === 0) {
-      alert('Please rate at least one skill');
+      toast.error('Please rate at least one skill');
       return;
     }
 
@@ -348,15 +350,15 @@ export default function ReportCardsPage() {
       });
 
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
 
-      alert('Skill ratings saved!');
+      toast.success('Skill ratings saved!');
       handleViewReport(selectedReport.id);
     } catch (error) {
       console.error('Error saving skill ratings:', error);
-      alert('Failed to save skill ratings');
+      toast.error('Failed to save skill ratings');
     } finally {
       setSavingRatings(false);
     }
@@ -364,7 +366,7 @@ export default function ReportCardsPage() {
 
   const handleGenerateReport = async () => {
     if (!selectedStudent) {
-      alert('Please select a student');
+      toast.error('Please select a student');
       return;
     }
 
@@ -376,7 +378,7 @@ export default function ReportCardsPage() {
       const currentTerm = ((termsRes.data as any[]) || []).find((t) => t.is_current);
 
       if (!currentSession || !currentTerm) {
-        alert('No current academic session/term is set up. Please configure one first.');
+        toast.error('No current academic session/term is set up. Please configure one first.');
         return;
       }
 
@@ -387,16 +389,16 @@ export default function ReportCardsPage() {
       });
 
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
 
-      alert('Report card saved successfully!');
+      toast.success('Report card saved successfully!');
       setShowGenerateModal(false);
       fetchStudentReports();
     } catch (error: any) {
       console.error('Error generating report:', error);
-      alert(error.response?.data?.detail || 'Failed to generate report card');
+      toast.error(error.response?.data?.detail || 'Failed to generate report card');
     } finally {
       setGenerating(false);
     }
@@ -419,15 +421,15 @@ export default function ReportCardsPage() {
 
       const response = await api.put(`/api/v1/grading/report-cards/${selectedReport.id}`, payload);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
 
-      alert('Remarks saved!');
+      toast.success('Remarks saved!');
       handleViewReport(selectedReport.id);
     } catch (error) {
       console.error('Error saving remarks:', error);
-      alert('Failed to save remarks');
+      toast.error('Failed to save remarks');
     } finally {
       setSavingRemarks(false);
     }
@@ -435,21 +437,21 @@ export default function ReportCardsPage() {
 
   const handlePublish = async () => {
     if (!selectedReport) return;
-    if (!window.confirm("Publish this report card? It will become visible to the student's parents.")) return;
+    if (!(await confirm({ message: "Publish this report card? It will become visible to the student's parents.", danger: false }))) return;
 
     setPublishing(true);
     try {
       const response = await api.post(`/api/v1/grading/report-cards/${selectedReport.id}/publish`);
       if (response.error) {
-        alert(response.error);
+        toast.error(response.error);
         return;
       }
 
-      alert('Report card published! Parents can now view it.');
+      toast.success('Report card published! Parents can now view it.');
       handleViewReport(selectedReport.id);
     } catch (error) {
       console.error('Error publishing report card:', error);
-      alert('Failed to publish report card');
+      toast.error('Failed to publish report card');
     } finally {
       setPublishing(false);
     }

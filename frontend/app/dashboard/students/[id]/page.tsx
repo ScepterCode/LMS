@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
 import GuardianModal from '@/components/GuardianModal';
+import { toast } from 'sonner';
+import { confirm } from '@/lib/confirm';
 
 interface Student {
   id: string;
@@ -111,11 +113,11 @@ export default function StudentDetailPage() {
   };
 
   const handleUnlinkParent = async (parentId: string) => {
-    if (!confirm('Remove this parent\'s access to this student?')) return;
+    if (!(await confirm({ message: 'Remove this parent\'s access to this student?', danger: true }))) return;
     setUnlinkingParentId(parentId);
     const res = await api.unlinkParentFromStudent(parentId, studentId);
     if (res.error) {
-      alert(res.error);
+      toast.error(res.error);
     } else {
       setLinkedParents((prev) => prev.filter((p) => p.parent_id !== parentId));
     }
