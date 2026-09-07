@@ -15,7 +15,6 @@ from app.api.v1.endpoints import (
     students,
     teachers,
     parents,
-    assignments,
     grading,
     attendance,
     fees,
@@ -38,7 +37,6 @@ api_router.include_router(subjects.router, prefix="/subjects", tags=["Subjects"]
 api_router.include_router(students.router, prefix="/students", tags=["Students"])
 api_router.include_router(teachers.router, prefix="/teachers", tags=["Teachers"])
 api_router.include_router(parents.router, prefix="/parents", tags=["Parents"])
-api_router.include_router(assignments.router, prefix="/assignments", tags=["Assignments & Enrollments"])
 api_router.include_router(grading.router, prefix="/grading", tags=["Grading & Assessments"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance Management"])
 api_router.include_router(fees.router, prefix="/fees", tags=["Fee Management"])
@@ -66,16 +64,14 @@ async def health_check():
             "students": ["/students", "/students/{id}", "/students/{id}/guardians"],
             "teachers": ["/teachers", "/teachers/{id}", "/teachers/{id}/assignments"],
             "parents": ["/parents", "/parents/{id}", "/parents/{id}/children"],
-            "assignments": ["/assignments/subject", "/assignments/enrollment"],
             "grading": ["/grading/assessment-types", "/grading/assessments", "/grading/grades", "/grading/report-cards"],
             "attendance": ["/attendance/mark", "/attendance/class/{id}", "/attendance/student/{id}", "/attendance/leave-requests"],
             "fees": ["/fees/categories", "/fees/structures", "/fees/student-fees", "/fees/payments"],
             "teacher_management": [
-                "/teacher-management/grading-schemes", 
+                "/teacher-management/grading-schemes",
                 "/teacher-management/classes/{id}/subjects",
                 "/teacher-management/teacher-assignments",
-                "/teacher-management/remarks",
-                "/teacher-management/reports"
+                "/teacher-management/remarks"
             ]
         }
     }

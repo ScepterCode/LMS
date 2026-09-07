@@ -585,40 +585,6 @@ class ApiClient {
     return this.request(`/api/v1/parents/${parentId}/children/${studentId}`, { method: 'DELETE' });
   }
 
-  // Phase 2: Subject Assignments
-  async getSubjectAssignments(params?: { teacher_id?: string; subject_id?: string; class_id?: string }) {
-    const queryParams = new URLSearchParams();
-    if (params?.teacher_id) queryParams.append('teacher_id', params.teacher_id);
-    if (params?.subject_id) queryParams.append('subject_id', params.subject_id);
-    if (params?.class_id) queryParams.append('class_id', params.class_id);
-    return this.request(`/api/v1/assignments/subject?${queryParams}`, { method: 'GET' });
-  }
-
-  async createSubjectAssignment(data: any) {
-    return this.request('/api/v1/assignments/subject', { method: 'POST', body: JSON.stringify(data) });
-  }
-
-  async deleteSubjectAssignment(assignmentId: string) {
-    return this.request(`/api/v1/assignments/subject/${assignmentId}`, { method: 'DELETE' });
-  }
-
-  // Phase 2: Class Enrollments
-  async getEnrollments(params?: { student_id?: string; class_id?: string; session_id?: string }) {
-    const queryParams = new URLSearchParams();
-    if (params?.student_id) queryParams.append('student_id', params.student_id);
-    if (params?.class_id) queryParams.append('class_id', params.class_id);
-    if (params?.session_id) queryParams.append('session_id', params.session_id);
-    return this.request(`/api/v1/assignments/enrollment?${queryParams}`, { method: 'GET' });
-  }
-
-  async createEnrollment(data: any) {
-    return this.request('/api/v1/assignments/enrollment', { method: 'POST', body: JSON.stringify(data) });
-  }
-
-  async deleteEnrollment(enrollmentId: string) {
-    return this.request(`/api/v1/assignments/enrollment/${enrollmentId}`, { method: 'DELETE' });
-  }
-
   // Phase 4: Teacher Management - Grading Schemes
   async getGradingSchemes(params?: { session_id?: string; is_active?: boolean }) {
     const queryParams = new URLSearchParams();
