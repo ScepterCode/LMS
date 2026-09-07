@@ -36,6 +36,7 @@ from app.core.exceptions import (
 from app.core.config import settings
 from app.core.email import send_email
 from app.core.email_templates import password_reset_email
+from app.core.rate_limit import is_locked, record_failure, clear, client_ip
 from app.api.v1.endpoints.skills import seed_default_skill_categories
 
 router = APIRouter()
@@ -119,16 +120,24 @@ class SchoolRegistrationResponse(BaseModel):
 # ============================================
 
 @router.post("/login", response_model=TokenResponse)
-def login(response: Response, data: LoginRequest):
+def login(request: Request, response: Response, data: LoginRequest):
     """
     Login endpoint for all user types (admin, teacher, bursar, parent,
     system_admin). All credentials live in the users table.
     """
+    email_key = f"login:email:{data.email.lower()}"
+    ip_key = f"login:ip:{client_ip(request)}"
+    if is_locked(email_key) or is_locked(ip_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Please wait 15 minutes and try again.",
+        )
+
     try:
         supabase = get_supabase()
         if not supabase:
             raise DatabaseError("Database connection not available")
-        
+
         # All login credentials (including system admins) live in the users
         # table. system_admins is an extension table (is_super_admin,
         # permissions) keyed by users.id, not a separate auth source - it
@@ -143,15 +152,23 @@ def login(response: Response, data: LoginRequest):
 
         if not user:
             logger.warning(f"Login attempt with non-existent email: {data.email}")
+            record_failure(email_key)
+            record_failure(ip_key)
             raise AuthenticationError("Invalid email or password")
 
         user_type = "system_admin" if user.get("role") == "system_admin" else "user"
-        
+
         # Verify password
         if not verify_password(data.password, user["password_hash"]):
             logger.warning(f"Failed login attempt for user: {data.email}")
+            record_failure(email_key)
+            record_failure(ip_key)
             raise AuthenticationError("Invalid email or password")
-        
+
+        # Auth succeeded - drop any recorded failures for this email/IP.
+        clear(email_key)
+        clear(ip_key)
+
         # Check if user is active
         if not user.get("is_active", True):
             raise AuthenticationError("Account is inactive")

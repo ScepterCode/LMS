@@ -34,6 +34,17 @@ def _no_real_email():
     config.settings.RESEND_API_KEY, config.settings.EMAIL_FROM = saved_key, saved_from
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_limiter():
+    """Every TestClient request looks like the same IP ("testclient"), so
+    one test triggering the login lockout would 429 every later test.
+    Clear the limiter around each test."""
+    from app.core import rate_limit
+    rate_limit._failures.clear()
+    yield
+    rate_limit._failures.clear()
+
+
 @pytest.fixture(scope="session")
 def supabase():
     return get_supabase()
