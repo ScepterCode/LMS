@@ -1,536 +1,107 @@
-# 🎓 Learnlyf - Learning Management System
+# Learnlyf
 
-A modern, full-stack Learning Management System built specifically for Nigerian schools.
+School-administration platform for Nigerian schools. Multi-tenant: one backend
+serves many schools. Handles admissions, staff, classes/subjects/sessions/terms,
+attendance, grading and report cards, fees and payments, and a parent portal.
 
-[![Phase](https://img.shields.io/badge/Phase-1%20MVP-success)]()
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)]()
-[![Backend](https://img.shields.io/badge/Backend-FastAPI-009688)]()
-[![Frontend](https://img.shields.io/badge/Frontend-Next.js%2015-000000)]()
-[![Database](https://img.shields.io/badge/Database-PostgreSQL-336791)]()
+Despite the "LMS" in the repo name, there is **no learning content** (lessons,
+coursework, study material) — this is administration, not courseware.
 
 ---
 
-## 🚀 Quick Start
+## Stack
 
-### Option 1: Automated Start (Windows)
+| | |
+|---|---|
+| Backend | FastAPI (Python 3.11), Supabase Postgres via the `supabase` client (service-role key) |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 (CSS-first `@theme`) |
+| Auth | JWT in an httpOnly cookie; 8 roles (system_admin, admin, dean, registrar, bursar, teacher, parent, student) |
+| Email | Resend (`app/core/email.py`) — password reset, welcome, and notification triggers |
+| Deploy | Backend on Render (`render.yaml`); `master` auto-deploys. Frontend deployed separately. No staging. |
 
-**Using CMD:**
-```cmd
-start-dev.bat
-```
+---
 
-**Using PowerShell:**
-```powershell
-.\start-dev.ps1
-```
+## Running locally
 
-### Option 2: Manual Start
+**Backend**
 
-**Terminal 1 - Backend:**
 ```bash
 cd backend
+pip install -r requirements.txt
+cp .env.example .env        # fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, JWT_SECRET
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-**Terminal 2 - Frontend:**
+**Frontend**
+
 ```bash
 cd frontend
-npm run dev
+npm install
+npm run dev                 # http://localhost:3000, proxies /api/v1/* to :8000
 ```
 
-### Access the Application
+Or `./START_BOTH_SERVERS.ps1` from the repo root (Windows).
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://127.0.0.1:8000
-- **API Documentation**: http://127.0.0.1:8000/docs
+API docs at `http://127.0.0.1:8000/docs` when `DEBUG=true`.
 
 ---
 
-## 🔑 Demo Credentials
+## Database
 
-### System Administrator
-```
-Email: admin@learnlyf.com
-Password: Admin123!@#
-```
-
-### School Administrator
-```
-Email: admin@demo-school.com
-Password: Admin123!@#
-```
+Schema lives in `database/*.sql`, applied **by hand in the Supabase SQL Editor**
+in filename order (`phase1_*` … `phase12_*`, then the standalone ones). There is
+no migration tool and no applied-state tracking — to see what production actually
+has, query it. `database/backup_export.py` dumps every table to timestamped JSON
+(the only backup mechanism on the current Supabase plan — run it periodically).
 
 ---
 
-## 📋 Features
+## Tests
 
-### ✅ Phase 1 - MVP (Current)
-
-#### Authentication & User Management
-- [x] Secure JWT-based authentication
-- [x] Role-based access control (System Admin, School Admin)
-- [x] HttpOnly cookie security
-- [x] Password strength validation
-- [x] Automatic session management
-
-#### School Management
-- [x] School registration with 14-day free trial
-- [x] Multi-campus support
-- [x] Subscription plan management
-- [x] Organization status tracking
-
-#### System Administration
-- [x] Platform-wide analytics dashboard
-- [x] Organization management
-- [x] User oversight
-- [x] Subscription plan configuration
-
-#### School Administration
-- [x] School dashboard with statistics
-- [x] User management
-- [x] Campus information
-- [x] Trial period monitoring
-
-### 🚧 Phase 2 - Coming Soon
-
-- [ ] Student enrollment and management
-- [ ] Teacher profiles and assignments
-- [ ] Class and subject management
-- [ ] Attendance tracking system
-- [ ] Grading and assessment
-- [ ] Report card generation
-- [ ] Parent portal
-- [ ] Payment processing
-- [ ] Email notifications
-- [ ] Advanced analytics
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│           Frontend (Next.js 15)             │
-│  - React Components                         │
-│  - Server-Side Rendering                    │
-│  - Client-Side Routing                      │
-│  - State Management (Context API)           │
-└──────────────────┬──────────────────────────┘
-                   │ REST API / JSON
-                   │ HTTP/HTTPS
-┌──────────────────▼──────────────────────────┐
-│           Backend (FastAPI)                 │
-│  - RESTful API Endpoints                    │
-│  - JWT Authentication                       │
-│  - Business Logic                           │
-│  - Data Validation                          │
-└──────────────────┬──────────────────────────┘
-                   │ SQL Queries
-                   │ Connection Pool
-┌──────────────────▼──────────────────────────┐
-│        Database (PostgreSQL/Supabase)       │
-│  - User Data                                │
-│  - Organization Data                        │
-│  - Subscription Plans                       │
-│  - System Configuration                     │
-└─────────────────────────────────────────────┘
-```
-
----
-
-## 📁 Project Structure
-
-```
-learnlyf/
-│
-├── backend/                    # FastAPI Backend
-│   ├── app/
-│   │   ├── api/v1/            # API endpoints
-│   │   │   └── endpoints/     # Route handlers
-│   │   ├── core/              # Core configuration
-│   │   │   ├── config.py      # Settings
-│   │   │   ├── database.py    # DB connection
-│   │   │   ├── security.py    # Auth & encryption
-│   │   │   └── exceptions.py  # Custom exceptions
-│   │   ├── middleware/        # Request middleware
-│   │   └── main.py            # Application entry
-│   ├── .env                   # Environment config
-│   ├── requirements.txt       # Python dependencies
-│   └── README.md              # Backend docs
-│
-├── frontend/                   # Next.js Frontend
-│   ├── app/                   # App router pages
-│   │   ├── dashboard/         # School dashboard
-│   │   ├── login/             # Login page
-│   │   ├── register-school/   # Registration
-│   │   ├── system-admin/      # Admin dashboard
-│   │   └── page.tsx           # Landing page
-│   ├── components/            # React components
-│   ├── contexts/              # React contexts
-│   ├── lib/                   # Utilities & API
-│   ├── .env.local             # Environment config
-│   ├── package.json           # Node dependencies
-│   └── README.md              # Frontend docs
-│
-├── database/                   # Database schemas
-│   └── phase1_minimal_schema.sql
-│
-├── docs/                      # Documentation
-│   ├── PHASE1_COMPLETE_SUMMARY.md
-│   ├── FRONTEND_COMPLETE.md
-│   ├── BACKEND_READY.md
-│   ├── START_APPLICATION.md
-│   └── TESTING_GUIDE.md
-│
-├── start-dev.bat              # Windows CMD startup
-├── start-dev.ps1              # PowerShell startup
-└── README.md                  # This file
-```
-
----
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Framework**: FastAPI 0.115+
-- **Language**: Python 3.13
-- **Database**: PostgreSQL (via Supabase)
-- **Authentication**: JWT + bcrypt
-- **ORM**: Direct SQL with asyncpg
-- **Server**: Uvicorn (ASGI)
-
-### Frontend
-- **Framework**: Next.js 15 (Turbopack)
-- **Language**: TypeScript 5
-- **Styling**: Tailwind CSS
-- **State Management**: React Context API
-- **HTTP Client**: Fetch API
-- **UI Components**: Custom React components
-- **Route Protection**: Client-side (ProtectedRoute component)
-
-### Infrastructure
-- **Database**: Supabase (PostgreSQL)
-- **Deployment**: TBD
-- **CI/CD**: TBD
-- **Monitoring**: TBD
-
----
-
-## 🔧 Installation & Setup
-
-### Prerequisites
-
-- Python 3.13+
-- Node.js 18+
-- npm or yarn
-- Supabase account (or PostgreSQL database)
-
-### Backend Setup
-
-1. **Navigate to backend directory:**
-   ```bash
-   cd backend
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure environment:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your credentials
-   ```
-
-4. **Setup database:**
-   ```bash
-   cd ..
-   python apply_phase1_schema.py
-   ```
-
-5. **Start server:**
-   ```bash
-   cd backend
-   uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-   ```
-
-### Frontend Setup
-
-1. **Navigate to frontend directory:**
-   ```bash
-   cd frontend
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment:**
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local if needed
-   ```
-
-4. **Start development server:**
-   ```bash
-   npm run dev
-   ```
-
----
-
-## 📚 Documentation
-
-- **[Quick Start Guide](START_APPLICATION.md)** - Get up and running quickly
-- **[Phase 1 Summary](PHASE1_COMPLETE_SUMMARY.md)** - Complete overview
-- **[Backend Documentation](backend/README.md)** - API details
-- **[Frontend Documentation](frontend/README.md)** - UI documentation
-- **[Testing Guide](TESTING_GUIDE.md)** - Comprehensive testing
-- **[MVP Plan](PHASE1_MVP_PLAN.md)** - Original planning document
-
----
-
-## 🧪 Testing
-
-### Run All Tests
 ```bash
-# See TESTING_GUIDE.md for complete test suite
+cd backend
+python -m pytest            # ~156 tests, ~15 min
 ```
 
-### Test Authentication
-1. Navigate to http://localhost:3000/login
-2. Use demo credentials
-3. Verify dashboard access
+The suite hits the **real Supabase project** (no test database) — every fixture
+creates a throwaway organization and deletes it afterward. Runs are flaky when
+the network is; email is forced into a no-op during tests. There is no CI that
+runs the full suite; a lightweight GitHub Actions workflow runs typecheck, build,
+lint, and backend import/collection checks on push.
 
-### Test Registration
-1. Navigate to http://localhost:3000/register-school
-2. Complete registration form
-3. Verify new school creation
-
-### API Testing
-- Swagger UI: http://127.0.0.1:8000/docs
-- ReDoc: http://127.0.0.1:8000/redoc
+Frontend: `npx tsc --noEmit`, `npx next build`, `npx eslint .`.
 
 ---
 
-## 🚀 Deployment
-
-### Backend Deployment
-
-**Recommended Platforms:**
-- Railway
-- Render
-- Heroku
-- DigitalOcean App Platform
-
-**Environment Variables:**
-```env
-DATABASE_URL=postgresql://...
-JWT_SECRET=your-production-secret
-ENVIRONMENT=production
-DEBUG=false
-ALLOWED_ORIGINS=https://your-domain.com
-```
-
-### Frontend Deployment
-
-**Recommended Platforms:**
-- Vercel (recommended for Next.js)
-- Netlify
-- Railway
-
-**Environment Variables:**
-```env
-NEXT_PUBLIC_API_URL=https://your-api-domain.com
-```
-
-### Database
-
-**Recommended:**
-- Supabase (PostgreSQL)
-- Neon
-- Railway Postgres
-
----
-
-## 🔒 Security
-
-### Implemented Security Features
-
-- ✅ Password hashing with bcrypt
-- ✅ JWT token authentication
-- ✅ HttpOnly cookies
-- ✅ CORS protection
-- ✅ SQL injection prevention
-- ✅ Input validation
-- ✅ Role-based access control
-- ✅ Token blacklisting on logout
-
-### Security Best Practices
-
-- Change default JWT secrets in production
-- Use HTTPS in production
-- Regularly update dependencies
-- Monitor for security vulnerabilities
-- Implement rate limiting (Phase 2)
-- Add request logging (Phase 2)
-
----
-
-## 📊 Database Schema
-
-### Core Tables
-
-- **users** - All user accounts (admins, teachers, staff)
-- **organizations** - School/institution records
-- **subscription_plans** - Available pricing plans
-- **campuses** - School campus locations
-- **system_admins** - Platform administrators
-
-### Relationships
+## Layout
 
 ```
-organizations (1) ─── (N) users
-organizations (1) ─── (N) campuses
-organizations (N) ─── (1) subscription_plans
+backend/app/
+  api/v1/endpoints/   one file per domain (auth, students, teachers, classes,
+                     subjects, sessions, terms, attendance, grading, fees,
+                     teacher_management, parents, users, system_admin, skills)
+  core/              config, database, security, email, rate_limit, permissions
+  models/            Pydantic request/response models
+  tests/             pytest, real-Supabase integration style
+frontend/app/
+  dashboard/         the school app (per-role pages)
+  system-admin/      platform operator console
+  login, forgot-password, reset-password, register-school
+frontend/components/ DashboardLayout, Sidebar, ProtectedRoute, ui/*
+database/            *.sql migrations + backup_export.py
 ```
 
 ---
 
-## 🤝 Contributing
+## Known gaps
 
-### Development Workflow
-
-1. Create a feature branch
-2. Make your changes
-3. Test thoroughly
-4. Submit pull request
-5. Code review
-6. Merge to main
-
-### Code Style
-
-- **Backend**: Follow PEP 8 (Python)
-- **Frontend**: Follow Airbnb React/TypeScript style
-- **Commits**: Use conventional commits
-
----
-
-## 📞 Support
-
-### Getting Help
-
-1. Check the documentation in `/docs`
-2. Review the README files in each directory
-3. Check the testing guide for troubleshooting
-4. Open an issue on GitHub
-
-### Common Issues
-
-**Backend won't start:**
-- Verify Python version (3.13+)
-- Check .env file exists
-- Install dependencies
-
-**Frontend won't start:**
-- Verify Node version (18+)
-- Run `npm install`
-- Check .env.local file
-
-**Database connection errors:**
-- Verify Supabase credentials
-- Check internet connection
-- Verify database schema applied
-
----
-
-## 📈 Roadmap
-
-### Phase 1 - MVP ✅ (Current)
-- [x] Authentication system
-- [x] School registration
-- [x] Admin dashboards
-- [x] Basic user management
-
-### Phase 2 - Core Features 🚧 (Next)
-- [ ] Student management
-- [ ] Teacher management
-- [ ] Class management
-- [ ] Attendance tracking
-
-### Phase 3 - Academic Features
-- [ ] Grading system
-- [ ] Report cards
-- [ ] Assessments
-- [ ] Academic analytics
-
-### Phase 4 - Parent & Payment
-- [ ] Parent portal
-- [ ] Payment processing
-- [ ] Fee management
-- [ ] Billing reports
-
-### Phase 5 - Advanced Features
-- [ ] Mobile app
-- [ ] Advanced analytics
-- [ ] AI-powered insights
-- [ ] Integration APIs
-
----
-
-## 📜 License
-
-This project is proprietary software. All rights reserved.
-
----
-
-## 👥 Team
-
-- **Backend Development**: FastAPI + Python
-- **Frontend Development**: Next.js + TypeScript
-- **Database Design**: PostgreSQL
-- **UI/UX Design**: Tailwind CSS
-
----
-
-## 🎉 Acknowledgments
-
-Built with:
-- FastAPI - Modern Python web framework
-- Next.js - React framework for production
-- Tailwind CSS - Utility-first CSS framework
-- Supabase - Open source Firebase alternative
-- TypeScript - Typed JavaScript
-
----
-
-## 📊 Project Stats
-
-- **Total Lines of Code**: ~3,500+
-- **API Endpoints**: 15+
-- **Pages**: 7
-- **Components**: 10+
-- **Database Tables**: 5
-- **Development Time**: Phase 1 Complete!
-
----
-
-## 🌟 Status
-
-**Phase 1 MVP**: ✅ **COMPLETE**  
-**Build Status**: ✅ **PASSING**  
-**Tests**: ✅ **PASSING**  
-**Documentation**: ✅ **COMPLETE**  
-**Production Ready**: ✅ **YES**
-
----
-
-**Version**: 1.0.0  
-**Last Updated**: June 4, 2026  
-**Maintained**: Yes  
-**Status**: Active Development
-
----
-
-Made with ❤️ for Nigerian Schools
+- **No payment gateway** — payments are recorded manually by the bursar.
+- **No Row-Level Security** — tenant isolation is enforced only by
+  `.eq("organization_id", …)` filters in application code (the service-role key
+  bypasses RLS). Parked pending a Supabase plan upgrade.
+- **Client-side route protection only** — `ProtectedRoute` redirects after
+  render; the API is the real gate. `requiredRole` is wired only on
+  `/system-admin`.
+- **`email_verified`** exists but is informational — not enforced at login.
+- ESLint has a large backlog (mostly `no-explicit-any` and React-hooks rules);
+  `tsc` is clean and `next build` passes.

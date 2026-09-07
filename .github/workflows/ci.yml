@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# The full pytest suite hits the real Supabase project and takes ~15 min,
+# so it is NOT run here - it stays a manual pre-merge step. This workflow
+# catches the cheap failure modes: syntax errors, bad imports, type
+# errors, a broken frontend build.
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Compile every module
+        run: python -m compileall -q app
+      - name: App imports
+        run: python -c "from app.main import app; print(len(app.routes), 'routes')"
+      - name: Tests collect (import + syntax of the whole suite)
+        run: python -m pytest --collect-only -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Lint (non-blocking - large existing backlog)
+        run: npx eslint . || true
