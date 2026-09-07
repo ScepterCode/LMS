@@ -114,9 +114,12 @@ export default function PaymentsPage() {
     if (selectedStudent) {
       fetchStudentFees();
     }
+    // Reset the assign-fee form whenever the selected student changes.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setShowAssignFeeForm(false);
     setAssignFeeForm({ structure_id: '', discount_amount: '', due_date: '' });
     setManuallyAllocated(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [selectedStudent]);
 
   // Auto-allocate the entered payment amount across outstanding fees (in
@@ -134,6 +137,7 @@ export default function PaymentsPage() {
       next[fee.id] = allocation > 0 ? allocation : 0;
       remaining -= allocation;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedFees(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.amount, studentFees, manuallyAllocated]);

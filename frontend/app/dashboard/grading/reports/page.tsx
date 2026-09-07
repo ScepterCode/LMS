@@ -155,6 +155,7 @@ export default function ReportCardsPage() {
     if (selectedStudent) {
       fetchStudentReports();
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setReportCards([]);
     }
   }, [selectedStudent]);

@@ -17,8 +17,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Close the mobile drawer whenever the route changes.
+  // Close the mobile drawer whenever the route changes. Idempotent -
+  // sets a constant, so no cascading render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSidebarOpen(false);
   }, [pathname]);
 

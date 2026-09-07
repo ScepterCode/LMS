@@ -49,5 +49,5 @@ jobs:
         run: npx next build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
-      - name: Lint (non-blocking - large existing backlog)
-        run: npx eslint . || true
+      - name: Lint (fails on errors; ~340 warnings are tracked debt)
+        run: npx eslint .

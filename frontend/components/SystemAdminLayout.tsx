@@ -19,7 +19,9 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
 
+  // Close the mobile nav on route change - idempotent, no cascade.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNavOpen(false);
   }, [pathname]);
 

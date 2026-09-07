@@ -17,6 +17,8 @@ function VerifyEmail() {
     ran.current = true;
 
     if (!token) {
+      // Runs once (ran.current guard); no cascade.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState('error');
       setMessage('This link is missing its verification token.');
       return;
