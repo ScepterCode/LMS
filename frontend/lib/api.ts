@@ -167,6 +167,13 @@ class ApiClient {
     });
   }
 
+  async verifyEmail(token: string) {
+    return this.request<{ message: string }>('/api/v1/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
+
   async createUser(data: {
     email: string;
     password: string;

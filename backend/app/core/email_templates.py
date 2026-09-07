@@ -55,14 +55,24 @@ def password_reset_email(name: str, reset_link: str) -> tuple[str, str]:
     return subject, _wrapper("Reset your Learnlyf password", body)
 
 
-def welcome_email(name: str, email: str, role_label: str, school_name: str, login_link: str) -> tuple[str, str]:
+def welcome_email(
+    name: str, email: str, role_label: str, school_name: str, login_link: str,
+    verify_link: str | None = None
+) -> tuple[str, str]:
     subject = f"Your Learnlyf account is ready"
+    verify_line = (
+        f'<p style="color:#6b7280;font-size:13px;">'
+        f'<a href="{verify_link}" style="color:{_BRAND};">Confirm your email address</a> '
+        f'so the school knows it can reach you.</p>'
+        if verify_link else ""
+    )
     body = f"""\
     <p>Hi {name},</p>
     <p>An account was created for you at <strong>{school_name}</strong> on Learnlyf, as <strong>{role_label}</strong>.</p>
     <p>Your login email is <strong>{email}</strong>. If you don't already have a password from your administrator, set one now:</p>
     {_button("Set your password", login_link)}
     <p style="color:#6b7280;font-size:13px;">That link takes you to Learnlyf's sign-in page, where you can choose "Forgot password" to set your first password.</p>
+    {verify_line}
     """
     return subject, _wrapper(f"Your {school_name} account on Learnlyf is ready", body)
 

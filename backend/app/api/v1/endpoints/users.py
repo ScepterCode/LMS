@@ -28,6 +28,7 @@ from app.core.audit import log_audit_event
 from app.core.config import settings
 from app.core.email import send_email
 from app.core.email_templates import welcome_email
+from app.core.security import create_email_verification_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -53,12 +54,14 @@ def _send_welcome_email(new_user: dict, school_id: str, supabase) -> None:
         if org.data:
             school_name = org.data[0]["name"]
 
+        verify_token = create_email_verification_token(new_user["id"], new_user["email"])
         subject, html = welcome_email(
             name=new_user["full_name"],
             email=new_user["email"],
             role_label=ROLE_LABELS.get(new_user["role"], new_user["role"]),
             school_name=school_name,
             login_link=f"{settings.FRONTEND_URL}/login",
+            verify_link=f"{settings.FRONTEND_URL}/verify-email?token={verify_token}",
         )
         send_email(to=new_user["email"], subject=subject, html=html)
     except Exception as e:

@@ -293,6 +293,36 @@ def decode_password_reset_token(token: str) -> Optional[Dict[str, Any]]:
     return payload
 
 
+VERIFY_TOKEN_EXPIRE_HOURS = 72
+
+
+def create_email_verification_token(user_id: str, email: str) -> str:
+    """Signed token for confirming a new account's email address. Like the
+    reset token, it omits role/school_id so it can't be used as a login
+    token; the `email` claim is checked against the user's current address
+    so it stops working if the address is changed."""
+    to_encode = {
+        "sub": str(user_id),
+        "email": email,
+        "purpose": "email_verification",
+        "exp": datetime.utcnow() + timedelta(hours=VERIFY_TOKEN_EXPIRE_HOURS),
+        "iat": datetime.utcnow(),
+    }
+    return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_email_verification_token(token: str) -> Optional[Dict[str, Any]]:
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+    except JWTError:
+        return None
+
+    if payload.get("purpose") != "email_verification" or not payload.get("sub"):
+        return None
+
+    return payload
+
+
 def create_user_token_data(user: Dict[str, Any]) -> Dict[str, Any]:
     """Create token data from user object."""
     return {

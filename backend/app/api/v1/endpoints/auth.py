@@ -25,6 +25,7 @@ from app.core.security import (
     create_password_reset_token,
     decode_password_reset_token,
     _password_fingerprint,
+    decode_email_verification_token,
 )
 from app.core.database import get_supabase
 from app.core.exceptions import (
@@ -562,7 +563,51 @@ def reset_password(data: ResetPasswordRequest):
 
     supabase.table("users").update({
         "password_hash": get_password_hash(data.new_password),
+        # Completing a reset via a link sent to the address proves the
+        # person can receive mail there, so treat the email as verified.
+        "email_verified": True,
         "updated_at": datetime.utcnow().isoformat(),
     }).eq("id", payload["sub"]).execute()
 
     return {"message": "Your password has been reset. You can now sign in."}
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+@router.post("/verify-email", response_model=MessageResponse)
+def verify_email(data: VerifyEmailRequest):
+    """Confirm an account's email address from the link in the welcome
+    email. Non-enforcing - login doesn't check email_verified - this just
+    flips the flag so the school knows the address is reachable."""
+    payload = decode_email_verification_token(data.token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This verification link is invalid or has expired.",
+        )
+
+    supabase = get_supabase()
+    if not supabase:
+        raise DatabaseError("Database connection not available")
+
+    result = supabase.table("users").select("id, email, email_verified").eq(
+        "id", payload["sub"]
+    ).execute()
+
+    # The token carries the address it was issued for; if the user has
+    # since changed their email, the link no longer applies.
+    if not result.data or result.data[0].get("email", "").lower() != payload.get("email", "").lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This verification link is invalid or has expired.",
+        )
+
+    if not result.data[0].get("email_verified"):
+        supabase.table("users").update({
+            "email_verified": True,
+            "updated_at": datetime.utcnow().isoformat(),
+        }).eq("id", payload["sub"]).execute()
+
+    return {"message": "Your email address is verified."}

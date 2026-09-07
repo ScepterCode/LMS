@@ -24,6 +24,7 @@ from app.core.security import (
     set_impersonator_cookie,
     clear_impersonator_cookie,
     get_impersonator_token_from_request,
+    create_email_verification_token,
 )
 from app.core.exceptions import AuthenticationError, InsufficientPermissionsError, DatabaseError, DuplicateRecordError
 from app.core.audit import log_audit_event
@@ -370,12 +371,14 @@ def create_organization_by_system_admin(
         # fail if email is down). This is the assisted-onboarding path;
         # POST /users handles every other account type.
         try:
+            verify_token = create_email_verification_token(admin_id, data.admin_email)
             subject, html = welcome_email(
                 name=data.admin_name,
                 email=data.admin_email,
                 role_label="School Administrator",
                 school_name=data.school_name,
                 login_link=f"{settings.FRONTEND_URL}/login",
+                verify_link=f"{settings.FRONTEND_URL}/verify-email?token={verify_token}",
             )
             send_email(to=data.admin_email, subject=subject, html=html)
         except Exception as e:
