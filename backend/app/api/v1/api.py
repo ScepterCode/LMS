@@ -20,7 +20,8 @@ from app.api.v1.endpoints import (
     fees,
     teacher_management,
     users,
-    skills
+    skills,
+    promotions
 )
 
 # Create main API router
@@ -42,6 +43,7 @@ api_router.include_router(attendance.router, prefix="/attendance", tags=["Attend
 api_router.include_router(fees.router, prefix="/fees", tags=["Fee Management"])
 api_router.include_router(teacher_management.router, prefix="/teacher-management", tags=["Phase 4: Teacher Management"])
 api_router.include_router(skills.router, prefix="/skills", tags=["Skills & Extracurriculars"])
+api_router.include_router(promotions.router, prefix="/promotions", tags=["Promotions"])
 
 api_router.include_router(users.router, prefix="/users", tags=["User Management"])
 

@@ -440,6 +440,22 @@ class ApiClient {
     return this.request(`/api/v1/classes/${classId}/students`, { method: 'GET' });
   }
 
+  // Promotions
+  async previewPromotions(sessionId: string) {
+    return this.request(`/api/v1/promotions/preview?session_id=${sessionId}`, { method: 'GET' });
+  }
+
+  async commitPromotions(data: { session_id: string; decisions: any[] }) {
+    return this.request('/api/v1/promotions/commit', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getPromotionHistory(params?: { session_id?: string; student_id?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params?.session_id) queryParams.append('session_id', params.session_id);
+    if (params?.student_id) queryParams.append('student_id', params.student_id);
+    return this.request(`/api/v1/promotions/history?${queryParams}`, { method: 'GET' });
+  }
+
   // Phase 2: Subjects
   async getSubjects(params?: { subject_type?: string }) {
     const queryParams = new URLSearchParams();

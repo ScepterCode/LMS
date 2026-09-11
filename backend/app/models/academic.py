@@ -18,7 +18,15 @@ class AcademicSessionCreate(BaseModel):
     start_date: date = Field(..., description="Session start date")
     end_date: date = Field(..., description="Session end date")
     is_current: bool = Field(default=False, description="Is this the current session?")
-    
+    promotion_basis: str = Field(
+        default="third_term",
+        description="'third_term' (only the 3rd term score decides promotion) or 'cumulative' (average of all 3 terms)",
+    )
+    promotion_pass_mark: float = Field(
+        default=40.0, ge=0, le=100,
+        description="Percentage a student must meet or exceed to be promoted rather than repeat",
+    )
+
     @field_validator('name')
     @classmethod
     def validate_session_name(cls, v):
@@ -26,13 +34,21 @@ class AcademicSessionCreate(BaseModel):
         if '/' not in v or len(v.split('/')) != 2:
             raise ValueError('Session name must be in format YYYY/YYYY (e.g., 2024/2025)')
         return v
-    
+
     @field_validator('end_date')
     @classmethod
     def validate_dates(cls, v, info):
         """Ensure end date is after start date."""
         if 'start_date' in info.data and v <= info.data['start_date']:
             raise ValueError('End date must be after start date')
+        return v
+
+    @field_validator('promotion_basis')
+    @classmethod
+    def validate_promotion_basis(cls, v):
+        """Validate promotion basis."""
+        if v not in ('third_term', 'cumulative'):
+            raise ValueError("promotion_basis must be 'third_term' or 'cumulative'")
         return v
 
 
@@ -42,6 +58,16 @@ class AcademicSessionUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_current: Optional[bool] = None
+    promotion_basis: Optional[str] = None
+    promotion_pass_mark: Optional[float] = Field(None, ge=0, le=100)
+
+    @field_validator('promotion_basis')
+    @classmethod
+    def validate_promotion_basis(cls, v):
+        """Validate promotion basis."""
+        if v is not None and v not in ('third_term', 'cumulative'):
+            raise ValueError("promotion_basis must be 'third_term' or 'cumulative'")
+        return v
 
 
 class AcademicSessionResponse(BaseModel):
@@ -52,9 +78,11 @@ class AcademicSessionResponse(BaseModel):
     start_date: date
     end_date: date
     is_current: bool
+    promotion_basis: str = "third_term"
+    promotion_pass_mark: float = 40.0
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -119,6 +147,8 @@ class ClassCreate(BaseModel):
     class_teacher_id: Optional[UUID] = Field(None, description="Class teacher user ID")
     session_id: Optional[UUID] = Field(None, description="Academic session ID (required if subject_ids is set)")
     subject_ids: Optional[list[UUID]] = Field(default=None, description="Subjects to add to this class's curriculum")
+    sequence_order: Optional[int] = Field(None, description="Position of this class in the promotion sequence (lower = earlier)")
+    is_graduating_class: bool = Field(default=False, description="A passing student leaves the school instead of moving to a next class")
 
     @field_validator('level')
     @classmethod
@@ -137,6 +167,8 @@ class ClassUpdate(BaseModel):
     section: Optional[str] = Field(None, max_length=10)
     capacity: Optional[int] = Field(None, ge=1, le=200)
     class_teacher_id: Optional[UUID] = None
+    sequence_order: Optional[int] = None
+    is_graduating_class: Optional[bool] = None
 
 
 class ClassResponse(BaseModel):
@@ -148,9 +180,11 @@ class ClassResponse(BaseModel):
     section: Optional[str] = None
     capacity: int
     class_teacher_id: Optional[UUID] = None
+    sequence_order: Optional[int] = None
+    is_graduating_class: bool = False
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     # Additional computed fields
     student_count: Optional[int] = 0
     class_teacher_name: Optional[str] = None

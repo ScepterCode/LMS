@@ -14,6 +14,8 @@ interface Session {
   start_date: string;
   end_date: string;
   is_current: boolean;
+  promotion_basis?: 'third_term' | 'cumulative';
+  promotion_pass_mark?: number;
 }
 
 interface Class {
@@ -24,6 +26,8 @@ interface Class {
   capacity: number;
   student_count?: number;
   class_teacher_name?: string;
+  sequence_order?: number | null;
+  is_graduating_class?: boolean;
 }
 
 interface Subject {
@@ -66,6 +70,8 @@ export default function AcademicPage() {
     start_date: '',
     end_date: '',
     is_current: false,
+    promotion_basis: 'third_term' as 'third_term' | 'cumulative',
+    promotion_pass_mark: 40,
   });
 
   const [classForm, setClassForm] = useState({
@@ -74,6 +80,8 @@ export default function AcademicPage() {
     section: '',
     capacity: 40,
     selected_subjects: [] as string[],
+    sequence_order: '' as number | '',
+    is_graduating_class: false,
   });
   const [originalClassSubjects, setOriginalClassSubjects] = useState<string[]>([]);
 
@@ -184,8 +192,8 @@ export default function AcademicPage() {
   };
   
   const resetForms = () => {
-    setSessionForm({ name: '', start_date: '', end_date: '', is_current: false });
-    setClassForm({ name: '', level: 'Junior', section: '', capacity: 40, selected_subjects: [] });
+    setSessionForm({ name: '', start_date: '', end_date: '', is_current: false, promotion_basis: 'third_term', promotion_pass_mark: 40 });
+    setClassForm({ name: '', level: 'Junior', section: '', capacity: 40, selected_subjects: [], sequence_order: '', is_graduating_class: false });
     setSubjectForm({ name: '', code: '', subject_type: 'core', description: '' });
     setTermForm({ name: '', term_number: 1, session_id: '', start_date: '', end_date: '', is_current: false });
     setError('');
@@ -200,10 +208,16 @@ export default function AcademicPage() {
       setEditingId(item.id);
       if (type === 'session') {
         const s = item as Session;
-        setSessionForm({ name: s.name, start_date: s.start_date.slice(0, 10), end_date: s.end_date.slice(0, 10), is_current: s.is_current });
+        setSessionForm({
+          name: s.name, start_date: s.start_date.slice(0, 10), end_date: s.end_date.slice(0, 10), is_current: s.is_current,
+          promotion_basis: s.promotion_basis || 'third_term', promotion_pass_mark: s.promotion_pass_mark ?? 40,
+        });
       } else if (type === 'class') {
         const c = item as Class;
-        setClassForm({ name: c.name, level: c.level, section: c.section || '', capacity: c.capacity, selected_subjects: [] });
+        setClassForm({
+          name: c.name, level: c.level, section: c.section || '', capacity: c.capacity, selected_subjects: [],
+          sequence_order: c.sequence_order ?? '', is_graduating_class: c.is_graduating_class || false,
+        });
 
         // Pre-populate the subjects checklist with this class's current
         // curriculum for the active session, so editing shows what's
@@ -313,6 +327,8 @@ export default function AcademicPage() {
         level: classForm.level,
         section: classForm.section || undefined,
         capacity: classForm.capacity,
+        sequence_order: classForm.sequence_order === '' ? undefined : classForm.sequence_order,
+        is_graduating_class: classForm.is_graduating_class,
       };
       const response = editingId
         ? await api.updateClass(editingId, classPayload)
@@ -843,8 +859,46 @@ export default function AcademicPage() {
                       Set as current session
                     </label>
                   </div>
+
+                  <div className="border-t border-gray-200 pt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Promotion policy</p>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Decides who gets promoted to the next class at the end of this session.
+                    </p>
+
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Decide promotion using
+                      </label>
+                      <select
+                        value={sessionForm.promotion_basis}
+                        onChange={(e) => setSessionForm({ ...sessionForm, promotion_basis: e.target.value as 'third_term' | 'cumulative' })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="third_term">3rd term score only (Nigerian norm)</option>
+                        <option value="cumulative">Average of all 3 terms</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pass mark (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={sessionForm.promotion_pass_mark}
+                        onChange={(e) => setSessionForm({ ...sessionForm, promotion_pass_mark: parseFloat(e.target.value) })}
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">A student must meet or exceed this to be promoted rather than repeat.</p>
+                    </div>
+                  </div>
                 </div>
-                
+
                 <div className="mt-6 flex gap-3">
                   <button
                     type="submit"
@@ -938,7 +992,37 @@ export default function AcademicPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Promotion order
+                    </label>
+                    <input
+                      type="number"
+                      value={classForm.sequence_order}
+                      onChange={(e) => setClassForm({ ...classForm, sequence_order: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                      min="1"
+                      placeholder="e.g., 1 for JSS1, 2 for JSS2..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Where this class sits in the promotion sequence (lower comes first). Leave blank if it isn&apos;t part of the promotion path.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="is_graduating_class"
+                      checked={classForm.is_graduating_class}
+                      onChange={(e) => setClassForm({ ...classForm, is_graduating_class: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="is_graduating_class" className="ml-2 block text-sm text-gray-700">
+                      This is the school&apos;s final class - passing students graduate
+                    </label>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Subjects Offered in This Class

@@ -142,10 +142,12 @@ def create_session(
             'start_date': data.start_date.isoformat(),
             'end_date': data.end_date.isoformat(),
             'is_current': data.is_current,
+            'promotion_basis': data.promotion_basis,
+            'promotion_pass_mark': data.promotion_pass_mark,
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
-        
+
         result = supabase.table('academic_sessions').insert(session_data).execute()
         
         if not result.data:

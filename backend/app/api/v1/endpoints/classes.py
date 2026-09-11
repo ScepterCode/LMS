@@ -145,10 +145,12 @@ def create_class(request: Request, data: ClassCreate):
             'section': data.section,
             'capacity': data.capacity,
             'class_teacher_id': str(data.class_teacher_id) if data.class_teacher_id else None,
+            'sequence_order': data.sequence_order,
+            'is_graduating_class': data.is_graduating_class,
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
-        
+
         result = supabase.table('classes').insert(class_data).execute()
         
         if not result.data:
