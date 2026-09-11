@@ -2,9 +2,23 @@
 Tests for end-of-session promotion / graduation
 (app/api/v1/endpoints/promotions.py).
 """
+import itertools
+import random
 import pytest
 
 from tests.conftest import unique, make_teacher
+
+# `school` is a session-scoped fixture shared by every test in the run, so
+# every test's classes land in the same org. sequence_order only makes
+# sense as a *globally unique* position within one org (that's how a real
+# school sets it up once), so tests can't all reuse literal 1/2 without
+# colliding and picking up each other's "next class" - hand out a fresh,
+# never-repeated pair of numbers per test instead.
+_sequence_counter = itertools.count(random.randint(100_000, 999_999))
+
+
+def next_sequence_pair():
+    return next(_sequence_counter), next(_sequence_counter)
 
 
 @pytest.fixture
@@ -67,8 +81,9 @@ def test_preview_computes_promote_repeat_and_graduate(school, supabase, promotio
     org_id = school["org_id"]
     term3 = make_term(school, promotion_session, 3)
 
-    junior = make_class(school, sequence_order=1)
-    senior_graduating = make_class(school, sequence_order=2, is_graduating_class=True)
+    seq1, seq2 = next_sequence_pair()
+    junior = make_class(school, sequence_order=seq1)
+    senior_graduating = make_class(school, sequence_order=seq2, is_graduating_class=True)
 
     passer = make_student(school, junior)
     repeater = make_student(school, junior)
@@ -147,8 +162,9 @@ def test_commit_applies_decisions_and_records_history(school, supabase, promotio
     client = school["client"]
     org_id = school["org_id"]
     term3 = make_term(school, promotion_session, 3)
-    junior = make_class(school, sequence_order=1)
-    senior_graduating = make_class(school, sequence_order=2, is_graduating_class=True)
+    seq1, seq2 = next_sequence_pair()
+    junior = make_class(school, sequence_order=seq1)
+    senior_graduating = make_class(school, sequence_order=seq2, is_graduating_class=True)
 
     passer = make_student(school, junior)
     repeater = make_student(school, junior)
@@ -175,10 +191,20 @@ def test_commit_applies_decisions_and_records_history(school, supabase, promotio
     })
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["promoted"] == 1
-    assert body["repeated"] == 1
-    assert body["graduated"] == 1
+    # The `school` fixture is session-scoped and shared with every other
+    # test in the run, so other tests' leftover students (still "active",
+    # no report card for *this* session) show up in the org-wide preview
+    # too and default to "repeated" - assert on failure count and this
+    # test's own three students rather than exact totals.
     assert body["failed"] == 0
+    results_by_student = {r["student_id"]: r for r in body["results"]}
+    assert results_by_student[passer["id"]] == {
+        "student_id": passer["id"], "decision": "promoted", "success": True, "error": None,
+    }
+    assert results_by_student[repeater["id"]]["decision"] == "repeated"
+    assert results_by_student[repeater["id"]]["success"] is True
+    assert results_by_student[graduate["id"]]["decision"] == "graduated"
+    assert results_by_student[graduate["id"]]["success"] is True
 
     passer_after = client.get(f"/api/v1/students/{passer['id']}").json()
     assert passer_after["current_class_id"] == senior_graduating["id"]
