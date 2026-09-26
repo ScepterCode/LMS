@@ -36,6 +36,28 @@ export interface ApiResponse<T> {
   status?: number;
 }
 
+// The backend's exception handlers use two different shapes for an error
+// body: custom app exceptions are {"error": {"message": "..."}}, but a
+// FastAPI/pydantic request-validation failure (a bad field on a form -
+// missing input, a weak password, an invalid email, etc.) is
+// {"error": {"message": "Request validation failed", "details": [{field,
+// message, type}, ...]}} - the generic top-level message never says what
+// was actually wrong. Prefer the per-field detail messages when present
+// so the user sees e.g. "Password must contain at least one uppercase
+// letter" instead of just "Request validation failed".
+function extractErrorMessage(error: any): string {
+  const details = error?.error?.details;
+  if (Array.isArray(details) && details.length > 0) {
+    return details
+      .map((d: any) => {
+        const field = typeof d.field === 'string' ? d.field.replace(/^body\.?/, '') : '';
+        return field ? `${field}: ${d.message}` : d.message;
+      })
+      .join('; ');
+  }
+  return error?.error?.message || error?.detail || error?.message || 'An error occurred';
+}
+
 class ApiClient {
   private baseURL: string;
 
@@ -59,14 +81,8 @@ class ApiClient {
 
       if (!response.ok) {
         const error = await response.json();
-        // Custom app exceptions (ValidationError, DuplicateRecordError, etc.)
-        // are wrapped as {"error": {"message": "..."}} by the backend's
-        // exception handler - only FastAPI's own validation errors use the
-        // flatter {"detail": "..."} shape. Without checking error.error.message
-        // first, every real backend error message was silently swallowed and
-        // replaced with the generic fallback below.
         return {
-          error: error.error?.message || error.detail || error.message || 'An error occurred',
+          error: extractErrorMessage(error),
           status: response.status,
         };
       }
@@ -98,7 +114,7 @@ class ApiClient {
       if (!response.ok) {
         const error = await response.json();
         return {
-          error: error.error?.message || error.detail || error.message || 'An error occurred',
+          error: extractErrorMessage(error),
         };
       }
 
@@ -564,7 +580,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json();
-      return { error: error.detail || 'Photo upload failed' };
+      return { error: extractErrorMessage(error) || 'Photo upload failed' };
     }
 
     const data = await response.json();
