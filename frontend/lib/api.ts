@@ -45,13 +45,30 @@ export interface ApiResponse<T> {
 // was actually wrong. Prefer the per-field detail messages when present
 // so the user sees e.g. "Password must contain at least one uppercase
 // letter" instead of just "Request validation failed".
+function humanizeFieldName(field: string): string {
+  return field
+    .replace(/^body\.?/, '')
+    .split('.')
+    .pop()!
+    .split('_')
+    .filter(Boolean)
+    .map((word, i) => (i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(' ');
+}
+
 function extractErrorMessage(error: any): string {
   const details = error?.error?.details;
   if (Array.isArray(details) && details.length > 0) {
     return details
       .map((d: any) => {
-        const field = typeof d.field === 'string' ? d.field.replace(/^body\.?/, '') : '';
-        return field ? `${field}: ${d.message}` : d.message;
+        // Pydantic v2 prefixes a validator's own ValueError with "Value
+        // error, " - strip it, it's an implementation detail no user
+        // should see.
+        const message = typeof d.message === 'string'
+          ? d.message.replace(/^Value error,\s*/i, '')
+          : d.message;
+        const field = typeof d.field === 'string' ? humanizeFieldName(d.field) : '';
+        return field ? `${field}: ${message}` : message;
       })
       .join('; ');
   }

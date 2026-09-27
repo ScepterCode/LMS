@@ -200,9 +200,6 @@ export default function RegisterSchoolPage() {
                       minLength={8}
                       showRequirements
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Min 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special char
-                    </p>
                   </div>
                   <div>
                     <label htmlFor="admin_phone" className="block text-sm font-medium text-gray-700 mb-2">
